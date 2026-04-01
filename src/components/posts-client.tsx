@@ -125,10 +125,14 @@ export function PostsClient({ reels, models }: { reels: any[]; models: any[] }) 
                       <div className="flex items-center gap-3">
                         <div className="relative w-10 h-14 flex-shrink-0 rounded overflow-hidden bg-gray-100">
                           {r.thumbnail_url ? (
-                            <Image src={r.thumbnail_url} alt="" fill className="object-cover" unoptimized />
-                          ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-xs">▶</div>
-                          )}
+                            <img
+                              src={r.thumbnail_url}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          ) : null}
+                          <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-xs">▶</div>
                           {r.is_viral_tracked && (
                             <div className="absolute top-0.5 right-0.5 text-orange-500"><Flame className="w-3 h-3" /></div>
                           )}
