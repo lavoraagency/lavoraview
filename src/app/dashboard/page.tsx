@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { createServiceClient as createClient } from "@/lib/supabase/server";
 import { formatNumber } from "@/lib/utils";
 import { OverviewCharts } from "@/components/overview-charts";
