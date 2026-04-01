@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { updateModel as updateModelAction, createTag as createTagAction, deleteTag as deleteTagAction } from "@/app/dashboard/settings/actions";
 
 export function SettingsClient({ initialModels, initialTags }: {
   initialModels: any[]; initialTags: any[];
@@ -21,13 +21,12 @@ export function SettingsClient({ initialModels, initialTags }: {
 
   async function saveModel(model: any) {
     setSaving(model.id);
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("models")
-      .update({ max_recent_reels: model.max_recent_reels, viral_view_threshold: model.viral_view_threshold })
-      .eq("id", model.id);
+    const result = await updateModelAction(model.id, {
+      max_recent_reels: model.max_recent_reels,
+      viral_view_threshold: model.viral_view_threshold
+    });
 
-    if (error) showMessage("error", error.message);
+    if (!result.success) showMessage("error", result.error || "Fehler beim Speichern");
     else showMessage("success", `${model.name} gespeichert`);
     setSaving(null);
   }
@@ -38,16 +37,11 @@ export function SettingsClient({ initialModels, initialTags }: {
 
   async function createTag() {
     if (!newTagName.trim()) return;
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("tags")
-      .insert({ name: newTagName.trim(), color: newTagColor })
-      .select()
-      .single();
+    const result = await createTagAction(newTagName, newTagColor);
 
-    if (error) showMessage("error", error.message);
+    if (!result.success) showMessage("error", result.error || "Fehler");
     else {
-      setTags(prev => [...prev, data]);
+      setTags(prev => [...prev, result.data]);
       setNewTagName("");
       showMessage("success", "Tag erstellt");
     }
@@ -55,9 +49,8 @@ export function SettingsClient({ initialModels, initialTags }: {
 
   async function deleteTag(id: string) {
     if (!confirm("Tag wirklich löschen?")) return;
-    const supabase = createClient();
-    const { error } = await supabase.from("tags").delete().eq("id", id);
-    if (error) showMessage("error", error.message);
+    const result = await deleteTagAction(id);
+    if (!result.success) showMessage("error", result.error || "Fehler");
     else {
       setTags(prev => prev.filter(t => t.id !== id));
       showMessage("success", "Tag gelöscht");
