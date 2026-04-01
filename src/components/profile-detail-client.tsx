@@ -28,7 +28,7 @@ export function ProfileDetailClient({ profile, reels, snapshots, allTags }: {
   }));
 
   async function addTag(tagName: string) {
-    const newTags = [...new Set([...tags, tagName])];
+    const newTags = Array.from(new Set([...tags, tagName]));
     setTags(newTags);
     const supabase = createClient();
     await supabase.from("profiles").update({ tags: newTags }).eq("id", profile.id);
