@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Calendar, ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, ChevronDown, ExternalLink, Download } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
@@ -936,6 +936,42 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
 
   const isMultiDay = dateRange.from !== dateRange.to;
 
+  // CSV Export
+  const handleExportCSV = useCallback(() => {
+    const entries = Object.entries(stats.perProfile);
+    if (entries.length === 0) return;
+
+    const headers = [
+      "Profile", "New Followers", "New Views", "New Likes", "New Comments",
+      "Interactions", "Link Clicks", "New Subs",
+      "Click Rate (%)", "Conversion Rate (%)",
+      "Subs / 100K Views", "Followers / 100K Views",
+    ];
+
+    const rows = entries
+      .sort((a, b) => (b[1] as any).views - (a[1] as any).views)
+      .map(([_, d]: [string, any]) => {
+        const clickRate = d.views > 0 && d.linkClicks > 0 ? ((d.linkClicks / d.views) * 100).toFixed(2) : "";
+        const convRate = d.linkClicks > 0 ? ((d.newSubs / d.linkClicks) * 100).toFixed(1) : "";
+        const subs100k = d.views > 0 && d.newSubs > 0 ? Math.round(d.newSubs / (d.views / 100000)) : "";
+        const followers100k = d.views > 0 && d.followers > 0 ? Math.round(d.followers / (d.views / 100000)) : "";
+        return [
+          d.name, d.followers, d.views, d.likes, d.comments,
+          d.interactions, d.linkClicks, d.newSubs,
+          clickRate, convRate, subs100k, followers100k,
+        ].join(",");
+      });
+
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `analytics_${dateRange.from}_to_${dateRange.to}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [stats.perProfile, dateRange]);
+
   return (
     <div className="p-6 space-y-5">
       {/* Header */}
@@ -990,6 +1026,16 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
             </button>
           ))}
         </div>
+
+        {/* CSV Export */}
+        <button
+          onClick={handleExportCSV}
+          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          title="Export as CSV"
+        >
+          <Download className="w-3.5 h-3.5" />
+          CSV
+        </button>
 
         {/* Date Range Picker */}
         <div className="ml-auto">
