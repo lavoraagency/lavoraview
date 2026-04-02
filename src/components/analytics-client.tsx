@@ -569,7 +569,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     return Object.keys(snapshotsByDateProfile).sort();
   }, [snapshotsByDateProfile]);
 
-  const minDate = addDays(localToday(), -30);
+  const minDate = availableDates[0] || localToday();
   const maxDate = localToday();
 
   // Date range state — default to yesterday
