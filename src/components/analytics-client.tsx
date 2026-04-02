@@ -948,16 +948,14 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       </div>
 
       {/* Stats Row 3 - Conversions */}
-      {(stats.totalLinkClicks > 0 || stats.totalNewSubs > 0) && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
-            <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
-            <StatCard label="New Subscribers" value={formatNumber(stats.totalNewSubs)} sub />
-            <StatCard label="Click → Sub Rate" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "0%"} sub />
-            <StatCard label="Profiles Tracked" value={String(stats.profileCount)} sub />
-          </div>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
+          <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
+          <StatCard label="New Subscribers" value={formatNumber(stats.totalNewSubs)} sub />
+          <StatCard label="Click → Sub Rate" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
+          <StatCard label="Profiles Tracked" value={String(stats.profileCount)} sub />
         </div>
-      )}
+      </div>
 
       {/* Donut Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -975,24 +973,20 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       </div>
 
       {/* Conversion Section */}
-      {(stats.totalLinkClicks > 0 || stats.totalNewSubs > 0) && (
-        <>
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">Conversions</h2>
-            <p className="text-gray-500 text-sm mt-1">Link clicks &amp; new subscribers from tracking links</p>
-          </div>
+      <div>
+        <h2 className="text-lg font-bold text-gray-900">Conversions</h2>
+        <p className="text-gray-500 text-sm mt-1">Link clicks &amp; new subscribers from tracking links</p>
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <DonutCard title="Link Clicks" total={formatNumber(stats.totalLinkClicks)} data={donutData.linkClicks} />
-            <DonutCard title="New Subscribers" total={formatNumber(stats.totalNewSubs)} data={donutData.newSubs} />
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <DonutCard title="Link Clicks" total={formatNumber(stats.totalLinkClicks)} data={donutData.linkClicks} />
+        <DonutCard title="New Subscribers" total={formatNumber(stats.totalNewSubs)} data={donutData.newSubs} />
+      </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <MetricBarChart title="Link Clicks" data={barData.linkClicks} showCount={showCount} />
-            <MetricBarChart title="New Subscribers" data={barData.newSubs} showCount={showCount} />
-          </div>
-        </>
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <MetricBarChart title="Link Clicks" data={barData.linkClicks} showCount={showCount} />
+        <MetricBarChart title="New Subscribers" data={barData.newSubs} showCount={showCount} />
+      </div>
     </div>
   );
 }
