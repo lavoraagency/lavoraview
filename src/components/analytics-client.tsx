@@ -334,12 +334,13 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
       totalComments += today.total_reel_comments || 0;
       totalShares += today.total_reel_shares || 0;
 
-      const dF = yesterday ? Math.max(0, (today.followers || 0) - (yesterday.followers || 0)) : 0;
-      const dP = yesterday ? Math.max(0, (today.media_count || 0) - (yesterday.media_count || 0)) : 0;
-      const dV = yesterday ? Math.max(0, (today.total_reel_views || 0) - (yesterday.total_reel_views || 0)) : 0;
-      const dL = yesterday ? Math.max(0, (today.total_reel_likes || 0) - (yesterday.total_reel_likes || 0)) : 0;
-      const dC = yesterday ? Math.max(0, (today.total_reel_comments || 0) - (yesterday.total_reel_comments || 0)) : 0;
-      const dS = yesterday ? Math.max(0, (today.total_reel_shares || 0) - (yesterday.total_reel_shares || 0)) : 0;
+      // If no previous day exists, show absolute values instead of 0
+      const dF = yesterday ? Math.max(0, (today.followers || 0) - (yesterday.followers || 0)) : (today.followers || 0);
+      const dP = yesterday ? Math.max(0, (today.media_count || 0) - (yesterday.media_count || 0)) : (today.media_count || 0);
+      const dV = yesterday ? Math.max(0, (today.total_reel_views || 0) - (yesterday.total_reel_views || 0)) : (today.total_reel_views || 0);
+      const dL = yesterday ? Math.max(0, (today.total_reel_likes || 0) - (yesterday.total_reel_likes || 0)) : (today.total_reel_likes || 0);
+      const dC = yesterday ? Math.max(0, (today.total_reel_comments || 0) - (yesterday.total_reel_comments || 0)) : (today.total_reel_comments || 0);
+      const dS = yesterday ? Math.max(0, (today.total_reel_shares || 0) - (yesterday.total_reel_shares || 0)) : (today.total_reel_shares || 0);
 
       deltaFollowers += dF;
       deltaPosts += dP;
@@ -365,11 +366,13 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     const engagementPerPost = totalPosts > 0 ? Math.round(totalInteractions / totalPosts) : 0;
     const viralityRatio = totalViews > 0 ? ((totalInteractions / totalViews) * 100).toFixed(2) : "0.00";
 
+    const hasPrevDay = !!prevDateStr;
+
     return {
       totalFollowers, totalPosts, totalViews, totalLikes, totalComments, totalShares,
       deltaFollowers, deltaPosts, deltaViews, deltaLikes, deltaComments, deltaShares,
       totalInteractions, avgViews, engagementPerPost, viralityRatio,
-      perProfile, profileCount,
+      perProfile, profileCount, hasPrevDay,
     };
   }, [snapshotsByDateProfile, selectedDate, prevDateStr, filteredProfileIds, profileNameMap]);
 
@@ -433,12 +436,13 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
         const uname = profileNameMap[pid];
         if (!today || !uname) continue;
 
-        viewRow[uname] = prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : 0;
-        likeRow[uname] = prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : 0;
-        commentRow[uname] = prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : 0;
-        shareRow[uname] = prev ? Math.max(0, (today.total_reel_shares || 0) - (prev.total_reel_shares || 0)) : 0;
-        followerRow[uname] = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : 0;
-        postRow[uname] = prev ? Math.max(0, (today.media_count || 0) - (prev.media_count || 0)) : 0;
+        // If no previous day exists, show absolute values instead of 0
+        viewRow[uname] = prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : (today.total_reel_views || 0);
+        likeRow[uname] = prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : (today.total_reel_likes || 0);
+        commentRow[uname] = prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : (today.total_reel_comments || 0);
+        shareRow[uname] = prev ? Math.max(0, (today.total_reel_shares || 0) - (prev.total_reel_shares || 0)) : (today.total_reel_shares || 0);
+        followerRow[uname] = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : (today.followers || 0);
+        postRow[uname] = prev ? Math.max(0, (today.media_count || 0) - (prev.media_count || 0)) : (today.media_count || 0);
       }
 
       charts.views.push(viewRow);
@@ -563,22 +567,22 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
       {/* Donut Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <DonutCard
-          title="New Followers"
+          title={stats.hasPrevDay ? "New Followers" : "Followers"}
           total={formatNumber(stats.deltaFollowers)}
           data={donutData.followers}
         />
         <DonutCard
-          title="New Posts"
+          title={stats.hasPrevDay ? "New Posts" : "Posts"}
           total={String(stats.deltaPosts)}
           data={donutData.posts}
         />
         <DonutCard
-          title="New Views"
+          title={stats.hasPrevDay ? "New Views" : "Views"}
           total={formatNumber(stats.deltaViews)}
           data={donutData.views}
         />
         <DonutCard
-          title="New Interactions"
+          title={stats.hasPrevDay ? "New Interactions" : "Interactions"}
           total={formatNumber(stats.totalInteractions)}
           data={donutData.interactions}
         />
