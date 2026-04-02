@@ -948,11 +948,13 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
 
       {/* Stats Row 3 - Conversions */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
+        <div className="grid grid-cols-3 lg:grid-cols-6 divide-x divide-gray-200">
           <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
           <StatCard label="New Subscribers" value={formatNumber(stats.totalNewSubs)} sub />
-          <StatCard label="Click → Sub Rate" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
           <StatCard label="Profiles Tracked" value={String(stats.profileCount)} sub />
+          <StatCard label="Click Rate" value={stats.deltaViews > 0 ? `${((stats.totalLinkClicks / stats.deltaViews) * 100).toFixed(2)}%` : "—"} sub />
+          <StatCard label="Conversion Rate" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
+          <StatCard label="Subs / 100K Views" value={stats.deltaViews > 0 ? `${(stats.totalNewSubs / (stats.deltaViews / 100000)).toFixed(1)}` : "—"} sub />
         </div>
       </div>
 
