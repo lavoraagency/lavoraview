@@ -31,7 +31,7 @@ export function Sidebar() {
             <BarChart2 className="w-5 h-5 text-white" />
           </div>
           <div>
-            <div className="text-white font-semibold text-sm">Creator Analytics</div>
+            <div className="text-white font-semibold text-sm">LavoraView</div>
             <div className="text-slate-400 text-xs">Lavora Agency</div>
           </div>
         </div>
