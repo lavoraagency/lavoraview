@@ -382,12 +382,19 @@ function MultiSelect({
             <label key={o.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
               <input
                 type="checkbox"
-                checked={selected.includes(o.id)}
+                checked={allSelected || selected.includes(o.id)}
                 onChange={() => {
-                  if (selected.includes(o.id)) {
-                    onChange(selected.filter(id => id !== o.id));
+                  if (allSelected) {
+                    // Was "all selected" — now deselect this one (select all others)
+                    onChange(options.filter(opt => opt.id !== o.id).map(opt => opt.id));
+                  } else if (selected.includes(o.id)) {
+                    const newSelected = selected.filter(id => id !== o.id);
+                    // If nothing left, go back to "all"
+                    onChange(newSelected.length === 0 ? [] : newSelected);
                   } else {
-                    onChange([...selected, o.id]);
+                    const newSelected = [...selected, o.id];
+                    // If all are now selected, go back to "all" (empty = all)
+                    onChange(newSelected.length === options.length ? [] : newSelected);
                   }
                 }}
                 className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
