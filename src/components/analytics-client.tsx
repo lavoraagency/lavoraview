@@ -342,26 +342,44 @@ function MultiSelect({
   selected,
   onChange,
   noneLabel,
+  searchable,
 }: {
   label: string;
   options: { id: string; name: string }[];
   selected: string[];
   onChange: (ids: string[]) => void;
-  noneLabel?: string; // if set: empty selection = "no filter" label, checkboxes NOT all-checked
+  noneLabel?: string;
+  searchable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  useEffect(() => {
+    if (open && searchable) {
+      setTimeout(() => searchRef.current?.focus(), 50);
+    }
+    if (!open) setSearch("");
+  }, [open, searchable]);
+
   const noneSelected = selected.length === 0;
-  const allSelected = !noneLabel && noneSelected; // "all" mode only for non-noneLabel filters
+  const allSelected = !noneLabel && noneSelected;
+
+  const filteredOptions = searchable && search.trim()
+    ? options.filter(o => o.name.toLowerCase().includes(search.toLowerCase()))
+    : options;
 
   const displayText = noneSelected
     ? (noneLabel ? noneLabel : `All ${label}`)
@@ -379,48 +397,69 @@ function MultiSelect({
         <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] max-h-64 overflow-y-auto">
-          <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
-            <input
-              type="checkbox"
-              checked={noneSelected}
-              onChange={() => onChange([])}
-              className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
-            />
-            <span className="text-sm font-medium">{noneLabel ? "No Tags" : "Select All"}</span>
-          </label>
-          {noneLabel && (
-            <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+        <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[220px]">
+          {searchable && (
+            <div className="px-3 py-2 border-b border-gray-100">
               <input
-                type="checkbox"
-                checked={selected.length === options.length}
-                onChange={() => onChange(selected.length === options.length ? [] : options.map(o => o.id))}
-                className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search profile..."
+                className="w-full text-sm px-2 py-1.5 border border-gray-200 rounded-md focus:outline-none focus:border-brand-400 placeholder-gray-400"
               />
-              <span className="text-sm font-medium">Select All</span>
-            </label>
+            </div>
           )}
-          {options.map(o => (
-            <label key={o.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={allSelected || selected.includes(o.id)}
-                onChange={() => {
-                  if (allSelected) {
-                    onChange(options.filter(opt => opt.id !== o.id).map(opt => opt.id));
-                  } else if (selected.includes(o.id)) {
-                    const newSelected = selected.filter(id => id !== o.id);
-                    onChange(noneLabel ? newSelected : (newSelected.length === 0 ? [] : newSelected));
-                  } else {
-                    const newSelected = [...selected, o.id];
-                    onChange(noneLabel ? newSelected : (newSelected.length === options.length ? [] : newSelected));
-                  }
-                }}
-                className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
-              />
-              <span className="text-sm">{o.name}</span>
-            </label>
-          ))}
+          <div className="max-h-60 overflow-y-auto">
+            {!search && (
+              <>
+                <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+                  <input
+                    type="checkbox"
+                    checked={noneSelected}
+                    onChange={() => onChange([])}
+                    className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                  />
+                  <span className="text-sm font-medium">{noneLabel ? "No Tags" : "Select All"}</span>
+                </label>
+                {noneLabel && (
+                  <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+                    <input
+                      type="checkbox"
+                      checked={selected.length === options.length}
+                      onChange={() => onChange(selected.length === options.length ? [] : options.map(o => o.id))}
+                      className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                    />
+                    <span className="text-sm font-medium">Select All</span>
+                  </label>
+                )}
+              </>
+            )}
+            {filteredOptions.length === 0 && (
+              <div className="px-3 py-4 text-sm text-gray-400 text-center">No results</div>
+            )}
+            {filteredOptions.map(o => (
+              <label key={o.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allSelected || selected.includes(o.id)}
+                  onChange={() => {
+                    if (allSelected) {
+                      onChange(options.filter(opt => opt.id !== o.id).map(opt => opt.id));
+                    } else if (selected.includes(o.id)) {
+                      const newSelected = selected.filter(id => id !== o.id);
+                      onChange(noneLabel ? newSelected : (newSelected.length === 0 ? [] : newSelected));
+                    } else {
+                      const newSelected = [...selected, o.id];
+                      onChange(noneLabel ? newSelected : (newSelected.length === options.length ? [] : newSelected));
+                    }
+                  }}
+                  className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                />
+                <span className="text-sm">{o.name}</span>
+              </label>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -803,6 +842,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
           options={profileOptions}
           selected={selectedProfiles}
           onChange={setSelectedProfiles}
+          searchable
         />
         <MultiSelect
           label="Tags"
