@@ -12,7 +12,6 @@ export default async function AnalyticsPage() {
 
   const [
     { data: profiles },
-    { data: snapshots },
     { data: models },
     { data: groups },
     { data: tags },
@@ -26,15 +25,29 @@ export default async function AnalyticsPage() {
       `)
       .eq("is_active", true)
       .order("instagram_username"),
-    supabase
-      .from("profile_snapshots")
-      .select("profile_id, followers, media_count, total_reel_views, total_reel_likes, total_reel_comments, total_reel_shares, reels_tracked, scraped_at")
-      .gte("scraped_at", sixtyDaysAgo.toISOString())
-      .order("scraped_at", { ascending: true }),
     supabase.from("models").select("id, name").order("name"),
     supabase.from("account_groups").select("id, name, model_id").order("name"),
     supabase.from("tags").select("id, name, color").order("name"),
   ]);
+
+  // Fetch snapshots with pagination to bypass 1000 row limit
+  const snapshotFields = "profile_id, followers, media_count, total_reel_views, total_reel_likes, total_reel_comments, total_reel_shares, reels_tracked, scraped_at";
+  let allSnapshots: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data: batch } = await supabase
+      .from("profile_snapshots")
+      .select(snapshotFields)
+      .gte("scraped_at", sixtyDaysAgo.toISOString())
+      .order("scraped_at", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (!batch || batch.length === 0) break;
+    allSnapshots = allSnapshots.concat(batch);
+    if (batch.length < pageSize) break;
+    offset += pageSize;
+  }
+  const snapshots = allSnapshots;
 
   return (
     <AnalyticsClient
