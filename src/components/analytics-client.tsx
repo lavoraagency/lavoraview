@@ -581,11 +581,12 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     return map;
   }, [profiles]);
 
-  // Group snapshots by date and profile
+  // Group snapshots by date and profile (use local date, not UTC)
   const snapshotsByDateProfile = useMemo(() => {
     const map: Record<string, Record<string, any>> = {};
     for (const s of snapshots) {
-      const date = s.scraped_at.split("T")[0];
+      const d = new Date(s.scraped_at);
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       if (!map[date]) map[date] = {};
       map[date][s.profile_id] = s;
     }
