@@ -28,9 +28,7 @@ export function Sidebar() {
     <div className="w-64 min-h-screen bg-sidebar flex flex-col">
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center">
-            <BarChart2 className="w-5 h-5 text-white" />
-          </div>
+          <img src="/logo.png" alt="Lavora" className="w-9 h-9 rounded-full object-cover" />
           <div>
             <div className="text-white font-semibold text-sm">LavoraView</div>
             <div className="text-slate-400 text-xs">Lavora Agency</div>
