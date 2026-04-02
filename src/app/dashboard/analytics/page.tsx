@@ -49,10 +49,28 @@ export default async function AnalyticsPage() {
   }
   const snapshots = allSnapshots;
 
+  // Fetch conversion snapshots (link clicks + new subs)
+  let allConversions: any[] = [];
+  let convOffset = 0;
+  while (true) {
+    const { data: batch } = await supabase
+      .from("conversion_snapshots")
+      .select("profile_id, date, link_clicks, new_subs")
+      .gte("date", sixtyDaysAgo.toISOString().split("T")[0])
+      .order("date", { ascending: true })
+      .range(convOffset, convOffset + pageSize - 1);
+    if (!batch || batch.length === 0) break;
+    allConversions = allConversions.concat(batch);
+    if (batch.length < pageSize) break;
+    convOffset += pageSize;
+  }
+  const conversions = allConversions;
+
   return (
     <AnalyticsClient
       profiles={profiles || []}
       snapshots={snapshots || []}
+      conversions={conversions || []}
       models={models || []}
       groups={groups || []}
       tags={tags || []}

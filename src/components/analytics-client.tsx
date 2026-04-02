@@ -53,6 +53,7 @@ function addDays(dateStr: string, n: number) {
 interface AnalyticsClientProps {
   profiles: any[];
   snapshots: any[];
+  conversions: any[];
   models: any[];
   groups: any[];
   tags: any[];
@@ -598,7 +599,7 @@ function MetricBarChart({
 }
 
 // ── Main Component ─────────────────────────────────────────────────
-export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: AnalyticsClientProps) {
+export function AnalyticsClient({ profiles, snapshots, conversions, models, groups, tags }: AnalyticsClientProps) {
   const [selectedModels, setSelectedModels] = useState<string[] | null>(null);
   const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
@@ -649,6 +650,17 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     return map;
   }, [snapshots]);
 
+  // Group conversions by date and profile
+  const conversionsByDateProfile = useMemo(() => {
+    const map: Record<string, Record<string, { link_clicks: number; new_subs: number }>> = {};
+    for (const c of conversions) {
+      const date = c.date;
+      if (!map[date]) map[date] = {};
+      map[date][c.profile_id] = { link_clicks: c.link_clicks || 0, new_subs: c.new_subs || 0 };
+    }
+    return map;
+  }, [conversions]);
+
   // Sorted available dates
   const availableDates = useMemo(() => {
     return Object.keys(snapshotsByDateProfile).sort();
@@ -693,10 +705,12 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     const perProfile: Record<string, {
       name: string; followers: number; views: number;
       likes: number; comments: number; interactions: number;
+      linkClicks: number; newSubs: number;
     }> = {};
 
     let totalFollowers = 0, totalViews = 0, totalLikes = 0, totalComments = 0;
     let deltaFollowers = 0, deltaViews = 0, deltaLikes = 0, deltaComments = 0;
+    let totalLinkClicks = 0, totalNewSubs = 0;
     let profileCount = 0;
 
     // Get the latest snapshot in range for absolute totals
@@ -722,6 +736,8 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
       const todaySnaps = snapshotsByDateProfile[date] || {};
       const prevSnaps = prevDate ? (snapshotsByDateProfile[prevDate] || {}) : {};
 
+      const convSnaps = conversionsByDateProfile[date] || {};
+
       for (const profileId of Array.from(filteredProfileIds)) {
         const today = todaySnaps[profileId];
         if (!today) continue;
@@ -733,19 +749,27 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
         const dL = prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : (i === 0 && !dateBeforeRange ? (today.total_reel_likes || 0) : 0);
         const dC = prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : (i === 0 && !dateBeforeRange ? (today.total_reel_comments || 0) : 0);
 
+        const conv = convSnaps[profileId];
+        const lc = conv?.link_clicks || 0;
+        const ns = conv?.new_subs || 0;
+
         deltaFollowers += dF;
         deltaViews += dV;
         deltaLikes += dL;
         deltaComments += dC;
+        totalLinkClicks += lc;
+        totalNewSubs += ns;
 
         if (!perProfile[profileId]) {
-          perProfile[profileId] = { name, followers: 0, views: 0, likes: 0, comments: 0, interactions: 0 };
+          perProfile[profileId] = { name, followers: 0, views: 0, likes: 0, comments: 0, interactions: 0, linkClicks: 0, newSubs: 0 };
         }
         perProfile[profileId].followers += dF;
         perProfile[profileId].views += dV;
         perProfile[profileId].likes += dL;
         perProfile[profileId].comments += dC;
         perProfile[profileId].interactions += dL + dC;
+        perProfile[profileId].linkClicks += lc;
+        perProfile[profileId].newSubs += ns;
       }
     }
 
@@ -760,10 +784,11 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     return {
       totalFollowers, totalViews, totalLikes, totalComments,
       deltaFollowers, deltaViews, deltaLikes, deltaComments,
+      totalLinkClicks, totalNewSubs,
       totalInteractions, avgViews, viralityRatio,
       perProfile, profileCount,
     };
-  }, [snapshotsByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap]);
+  }, [snapshotsByDateProfile, conversionsByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap]);
 
   // Donut data
   const donutData = useMemo(() => {
@@ -783,6 +808,8 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
       followers: buildDonut("followers"),
       views: buildDonut("views"),
       interactions: buildDonut("interactions"),
+      linkClicks: buildDonut("linkClicks"),
+      newSubs: buildDonut("newSubs"),
     };
   }, [stats.perProfile, profileColorMap]);
 
@@ -804,6 +831,8 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
       likes: buildBars("likes"),
       comments: buildBars("comments"),
       followers: buildBars("followers"),
+      linkClicks: buildBars("linkClicks"),
+      newSubs: buildBars("newSubs"),
     };
   }, [stats.perProfile, profileColorMap]);
 
@@ -918,6 +947,18 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
         </div>
       </div>
 
+      {/* Stats Row 3 - Conversions */}
+      {(stats.totalLinkClicks > 0 || stats.totalNewSubs > 0) && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
+            <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
+            <StatCard label="New Subscribers" value={formatNumber(stats.totalNewSubs)} sub />
+            <StatCard label="Click → Sub Rate" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "0%"} sub />
+            <StatCard label="Profiles Tracked" value={String(stats.profileCount)} sub />
+          </div>
+        </div>
+      )}
+
       {/* Donut Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <DonutCard title="New Followers" total={formatNumber(stats.deltaFollowers)} data={donutData.followers} />
@@ -932,6 +973,26 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
         <MetricBarChart title="Likes" data={barData.likes} showCount={showCount} />
         <MetricBarChart title="Comments" data={barData.comments} showCount={showCount} />
       </div>
+
+      {/* Conversion Section */}
+      {(stats.totalLinkClicks > 0 || stats.totalNewSubs > 0) && (
+        <>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Conversions</h2>
+            <p className="text-gray-500 text-sm mt-1">Link clicks &amp; new subscribers from tracking links</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <DonutCard title="Link Clicks" total={formatNumber(stats.totalLinkClicks)} data={donutData.linkClicks} />
+            <DonutCard title="New Subscribers" total={formatNumber(stats.totalNewSubs)} data={donutData.newSubs} />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <MetricBarChart title="Link Clicks" data={barData.linkClicks} showCount={showCount} />
+            <MetricBarChart title="New Subscribers" data={barData.newSubs} showCount={showCount} />
+          </div>
+        </>
+      )}
     </div>
   );
 }

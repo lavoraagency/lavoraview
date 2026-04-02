@@ -5,7 +5,7 @@ import { ProfileDetailClient } from "@/components/profile-detail-client";
 export default async function ProfileDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
 
-  const [{ data: profile }, { data: reels }, { data: snapshots }, { data: tags }] = await Promise.all([
+  const [{ data: profile }, { data: reels }, { data: snapshots }, { data: tags }, { data: conversions }] = await Promise.all([
     supabase
       .from("profiles")
       .select(`*, models(id, name, viral_view_threshold), account_groups(id, name)`)
@@ -24,6 +24,12 @@ export default async function ProfileDetailPage({ params }: { params: { id: stri
       .order("scraped_at", { ascending: true })
       .limit(30),
     supabase.from("tags").select("id, name, color"),
+    supabase
+      .from("conversion_snapshots")
+      .select("date, link_clicks, new_subs")
+      .eq("profile_id", params.id)
+      .order("date", { ascending: true })
+      .limit(60),
   ]);
 
   if (!profile) notFound();
@@ -33,6 +39,7 @@ export default async function ProfileDetailPage({ params }: { params: { id: stri
       profile={profile as any}
       reels={reels || []}
       snapshots={snapshots || []}
+      conversions={conversions || []}
       allTags={tags || []}
     />
   );
