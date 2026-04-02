@@ -17,8 +17,10 @@ interface ProfilesClientProps {
 
 function getHealthBadge(profiles: any[]) {
   if (profiles.length === 0) return { label: "No Data", pct: 0, className: "bg-gray-100 text-gray-600 border-gray-200" };
-  const working = profiles.filter(p => p.status === "working" && p.is_active).length;
-  const pct = Math.round((working / profiles.length) * 100);
+  const relevant = profiles.filter(p => p.status === "working" || p.status === "account_status_problem");
+  if (relevant.length === 0) return { label: "No Data", pct: 0, className: "bg-gray-100 text-gray-600 border-gray-200" };
+  const working = relevant.filter(p => p.status === "working").length;
+  const pct = Math.round((working / relevant.length) * 100);
   if (pct === 100) return { label: "Excellent", pct, className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
   if (pct >= 75) return { label: "Good", pct, className: "bg-green-50 text-green-700 border-green-200" };
   if (pct >= 50) return { label: "Fair", pct, className: "bg-yellow-50 text-yellow-700 border-yellow-200" };
