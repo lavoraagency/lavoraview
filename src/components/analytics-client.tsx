@@ -9,23 +9,23 @@ import {
   PieChart, Pie, Cell
 } from "recharts";
 
-// 15 premium flat colors — varied, vibrant, luxury feel
+// 15 pastel premium colors
 const COLORS = [
-  "#C9A227", // rich gold
-  "#3B82C4", // sapphire blue
-  "#9B59B6", // amethyst
-  "#E8724A", // coral
-  "#27AE8F", // emerald teal
-  "#D4820A", // amber
-  "#5B7FD4", // periwinkle blue
-  "#E84393", // hot pink
-  "#56B870", // fresh green
-  "#8E44AD", // deep purple
-  "#E8A020", // warm orange
-  "#2E9EC4", // sky blue
-  "#C0392B", // crimson
-  "#A0C030", // lime
-  "#B87333", // copper
+  "#E8D5A3", // champagne gold
+  "#A8C4E8", // powder blue
+  "#C9A8E8", // soft lavender
+  "#F0B8A0", // peach
+  "#A8D8C0", // mint
+  "#F0D080", // butter yellow
+  "#A8C8F0", // sky blue
+  "#F0A8C8", // blush pink
+  "#B8E0B8", // sage green
+  "#D0A8D8", // dusty purple
+  "#F0C8A0", // apricot
+  "#A8D8E8", // baby blue
+  "#E8B8B8", // dusty rose
+  "#C8E8A8", // pistachio
+  "#D8C0A8", // warm taupe
 ];
 
 const SHOW_OPTIONS = [15, 30, 50, 0] as const;
