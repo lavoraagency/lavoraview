@@ -882,6 +882,11 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       .map(([_id, d]) => ({ name: d.name, value: parseFloat((d.newSubs / (d.views / 100000)).toFixed(1)) }))
       .sort((a, b) => b.value - a.value);
 
+    const followersPer100k = entries
+      .filter(([_, d]) => d.views > 0 && d.followers > 0)
+      .map(([_id, d]) => ({ name: d.name, value: parseFloat((d.followers / (d.views / 100000)).toFixed(1)) }))
+      .sort((a, b) => b.value - a.value);
+
     return {
       views: buildBars("views"),
       likes: buildBars("likes"),
@@ -892,6 +897,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       clickRate,
       conversionRate,
       subsPer100k,
+      followersPer100k,
     };
   }, [stats.perProfile, profileColorMap]);
 
@@ -1051,6 +1057,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
         <MetricRankList title="Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" />
         <MetricRankList title="Conversion Rate" data={barData.conversionRate} showCount={showCount} suffix="%" />
         <MetricRankList title="Subs / 100K Views" data={barData.subsPer100k} showCount={showCount} />
+        <MetricRankList title="Followers / 100K Views" data={barData.followersPer100k} showCount={showCount} />
       </div>
     </div>
   );
