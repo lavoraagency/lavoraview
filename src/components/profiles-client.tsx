@@ -7,7 +7,6 @@ import { StatusBadge } from "@/components/status-badge";
 import { TagBadge } from "@/components/tag-badge";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 
 interface ProfilesClientProps {
   initialProfiles: any[];
@@ -50,7 +49,7 @@ function TagEditor({
   currentTags: string[];
   allTags: { id: string; name: string; color: string | null }[];
   tagColorMap: Record<string, string>;
-  onUpdate: (profileId: string, newTags: string[]) => void;
+  onUpdate: (profileId: string, newTags: string[], allTags?: any[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [newTagName, setNewTagName] = useState("");
@@ -71,9 +70,13 @@ function TagEditor({
       ? currentTags.filter(t => t !== tagName)
       : [...currentTags, tagName];
 
-    const supabase = createClient();
-    await supabase.from("profiles").update({ tags: newTags }).eq("id", profileId);
-    onUpdate(profileId, newTags);
+    const res = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId, tags: newTags }),
+    });
+    const data = await res.json();
+    onUpdate(profileId, newTags, data.allTags);
     setSaving(false);
   }
 
@@ -82,20 +85,20 @@ function TagEditor({
     if (!name) return;
     setSaving(true);
 
-    const supabase = createClient();
-    // Create the tag in the tags table if it doesn't exist
     const existing = allTags.find(t => t.name.toLowerCase() === name.toLowerCase());
-    if (!existing) {
-      // Generate a random color
-      const colors = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#06b6d4", "#84cc16"];
-      const color = colors[Math.floor(Math.random() * colors.length)];
-      await supabase.from("tags").insert({ name, color });
-    }
-
-    // Add to profile
     const newTags = [...currentTags, existing?.name || name];
-    await supabase.from("profiles").update({ tags: newTags }).eq("id", profileId);
-    onUpdate(profileId, newTags);
+
+    const res = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        profileId,
+        tags: newTags,
+        newTag: existing ? null : { name },
+      }),
+    });
+    const data = await res.json();
+    onUpdate(profileId, newTags, data.allTags);
     setNewTagName("");
     setSaving(false);
   }
@@ -184,7 +187,7 @@ function GroupTable({
   groupName: string;
   profiles: any[];
   tags: any[];
-  onTagUpdate: (profileId: string, newTags: string[]) => void;
+  onTagUpdate: (profileId: string, newTags: string[], allTags?: any[]) => void;
 }) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -344,16 +347,13 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
   const [tagsState, setTagsState] = useState(tags);
 
   // Handle tag updates from TagEditor
-  function handleTagUpdate(profileId: string, newTags: string[]) {
+  function handleTagUpdate(profileId: string, newTags: string[], allTags?: any[]) {
     setProfilesState(prev =>
       prev.map(p => p.id === profileId ? { ...p, tags: newTags } : p)
     );
-    // Add any new tag names to tagsState if not already there
-    for (const tagName of newTags) {
-      if (!tagsState.find(t => t.name === tagName)) {
-        const colors = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#06b6d4", "#84cc16"];
-        setTagsState(prev => [...prev, { id: tagName, name: tagName, color: colors[Math.floor(Math.random() * colors.length)] }]);
-      }
+    // Refresh full tags list from API response if provided
+    if (allTags) {
+      setTagsState(allTags);
     }
   }
 
