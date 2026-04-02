@@ -532,7 +532,8 @@ function DonutCard({
               </Pie>
               <Tooltip
                 formatter={(value: number, _name: string, props: any) => [formatNumber(value), props.payload.name]}
-                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb", backgroundColor: "#fff", zIndex: 50, boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
+                wrapperStyle={{ zIndex: 50 }}
               />
             </PieChart>
           </ResponsiveContainer>
