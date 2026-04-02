@@ -47,7 +47,7 @@ function GroupTable({
   tags: any[];
 }) {
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const health = getHealthBadge(profiles);
   const totalPages = Math.max(1, Math.ceil(profiles.length / rowsPerPage));
