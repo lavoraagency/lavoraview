@@ -51,7 +51,6 @@ export default async function DashboardPage() {
     dailyData[date].views += snap.total_reel_views || 0;
     dailyData[date].count += 1;
   }
-  const chartData = Object.values(dailyData).sort((a, b) => a.date.localeCompare(b.date));
 
   // Top 10 accounts by views in last 5 available days
   const availableDates = Object.keys(dailyData).sort();
@@ -65,6 +64,31 @@ export default async function DashboardPage() {
     if (!snapByDateProfile[date]) snapByDateProfile[date] = {};
     snapByDateProfile[date][snap.profile_id] = snap;
   }
+
+  // Compute per-profile daily deltas (same approach as Analytics)
+  const sortedDates = availableDates;
+  const dailyDeltaData: Record<string, { followerDelta: number; viewDelta: number }> = {};
+  for (let i = 0; i < sortedDates.length; i++) {
+    const date = sortedDates[i];
+    const prevDate = i > 0 ? sortedDates[i - 1] : null;
+    let followerDelta = 0;
+    let viewDelta = 0;
+    const todaySnaps = snapByDateProfile[date] || {};
+    const prevSnaps = prevDate ? (snapByDateProfile[prevDate] || {}) : {};
+    for (const profileId of Object.keys(todaySnaps)) {
+      const today = todaySnaps[profileId];
+      const prev = prevSnaps[profileId];
+      if (prev) {
+        followerDelta += Math.max(0, (today.followers || 0) - (prev.followers || 0));
+        viewDelta += Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0));
+      }
+    }
+    dailyDeltaData[date] = { followerDelta, viewDelta };
+  }
+
+  const chartData = Object.values(dailyData)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(d => ({ ...d, followerDelta: dailyDeltaData[d.date]?.followerDelta || 0, viewDelta: dailyDeltaData[d.date]?.viewDelta || 0 }));
 
   // Fetch profiles for display info
   const { data: allProfiles } = await supabase
