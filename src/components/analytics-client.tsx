@@ -416,8 +416,15 @@ function MultiSelect({
                 <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
                   <input
                     type="checkbox"
-                    checked={noneSelected}
-                    onChange={() => onChange([])}
+                    checked={noneSelected || selected.length === options.length}
+                    onChange={() => {
+                      if (noneSelected) {
+                        // Switch to explicit selection so user can deselect individual items
+                        onChange(options.map(o => o.id));
+                      } else {
+                        onChange([]);
+                      }
+                    }}
                     className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
                   />
                   <span className="text-sm font-medium">{noneLabel ? "No Tags" : "Select All"}</span>
