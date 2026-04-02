@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Calendar, ChevronDown, X, ExternalLink } from "lucide-react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { ChevronLeft, ChevronRight, Calendar, ChevronDown, ExternalLink } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from "recharts";
 
@@ -21,7 +21,27 @@ const COLORS = [
   "#f5d0fe", "#a7f3d0", "#fecdd3", "#bfdbfe", "#ecfccb",
 ];
 
-const SHOW_OPTIONS = [15, 30, 50, 0] as const; // 0 = all
+const SHOW_OPTIONS = [15, 30, 50, 0] as const;
+const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+// Helper: local date string YYYY-MM-DD
+function toLocalDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function localToday() {
+  return toLocalDateStr(new Date());
+}
+
+function addDays(dateStr: string, n: number) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return toLocalDateStr(d);
+}
 
 interface AnalyticsClientProps {
   profiles: any[];
@@ -31,7 +51,284 @@ interface AnalyticsClientProps {
   tags: any[];
 }
 
-// Multi-select dropdown component
+// ── Date Range Picker ──────────────────────────────────────────────
+interface DateRange { from: string; to: string }
+
+function DateRangePicker({
+  range,
+  onChange,
+  minDate,
+  maxDate,
+}: {
+  range: DateRange;
+  onChange: (r: DateRange) => void;
+  minDate: string;
+  maxDate: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selecting, setSelecting] = useState<"from" | "to" | null>(null);
+  const [tempFrom, setTempFrom] = useState<string | null>(null);
+  const [viewMonth, setViewMonth] = useState(() => {
+    const d = new Date(range.to + "T00:00:00");
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSelecting(null);
+        setTempFrom(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // Reset view month when opening
+  useEffect(() => {
+    if (open) {
+      const d = new Date(range.to + "T00:00:00");
+      setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
+      setSelecting("from");
+      setTempFrom(null);
+    }
+  }, [open]);
+
+  function applyPreset(from: string, to: string) {
+    // Clamp to min/max
+    const clampedFrom = from < minDate ? minDate : from;
+    const clampedTo = to > maxDate ? maxDate : to;
+    onChange({ from: clampedFrom, to: clampedTo });
+    setOpen(false);
+    setSelecting(null);
+    setTempFrom(null);
+  }
+
+  function handleDayClick(dateStr: string) {
+    if (dateStr < minDate || dateStr > maxDate) return;
+
+    if (!tempFrom) {
+      // First click — set start
+      setTempFrom(dateStr);
+      setSelecting("to");
+    } else {
+      // Second click — set end
+      const from = dateStr < tempFrom ? dateStr : tempFrom;
+      const to = dateStr < tempFrom ? tempFrom : dateStr;
+      onChange({ from, to });
+      setOpen(false);
+      setSelecting(null);
+      setTempFrom(null);
+    }
+  }
+
+  // Build calendar grid
+  const calendarDays = useMemo(() => {
+    const { year, month } = viewMonth;
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    // Monday = 0
+    let startWeekday = firstDay.getDay() - 1;
+    if (startWeekday < 0) startWeekday = 6;
+
+    const days: { dateStr: string; day: number; inMonth: boolean }[] = [];
+
+    // Previous month padding
+    for (let i = startWeekday - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i);
+      days.push({ dateStr: toLocalDateStr(d), day: d.getDate(), inMonth: false });
+    }
+
+    // Current month
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const date = new Date(year, month, d);
+      days.push({ dateStr: toLocalDateStr(date), day: d, inMonth: true });
+    }
+
+    // Next month padding to fill 6 rows
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(year, month + 1, i);
+      days.push({ dateStr: toLocalDateStr(d), day: d.getDate(), inMonth: false });
+    }
+
+    return days;
+  }, [viewMonth]);
+
+  function prevMonth() {
+    setViewMonth(prev => {
+      if (prev.month === 0) return { year: prev.year - 1, month: 11 };
+      return { year: prev.year, month: prev.month - 1 };
+    });
+  }
+  function nextMonth() {
+    setViewMonth(prev => {
+      if (prev.month === 11) return { year: prev.year + 1, month: 0 };
+      return { year: prev.year, month: prev.month + 1 };
+    });
+  }
+
+  const today = localToday();
+
+  // Presets
+  const presets = useMemo(() => {
+    const t = new Date();
+    const todayStr = toLocalDateStr(t);
+
+    const yesterdayD = new Date(t);
+    yesterdayD.setDate(yesterdayD.getDate() - 1);
+    const yesterdayStr = toLocalDateStr(yesterdayD);
+
+    // Current week (Monday to today)
+    const dayOfWeek = t.getDay() === 0 ? 6 : t.getDay() - 1;
+    const mondayD = new Date(t);
+    mondayD.setDate(mondayD.getDate() - dayOfWeek);
+    const mondayStr = toLocalDateStr(mondayD);
+
+    // Current month
+    const monthStartStr = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-01`;
+
+    return [
+      { label: "Today", from: todayStr, to: todayStr },
+      { label: "Yesterday", from: yesterdayStr, to: yesterdayStr },
+      { label: "Current Week", from: mondayStr, to: todayStr },
+      { label: "Last 7 Days", from: addDays(todayStr, -6), to: todayStr },
+      { label: "Last 14 Days", from: addDays(todayStr, -13), to: todayStr },
+      { label: "Current Month", from: monthStartStr, to: todayStr },
+      { label: "Last 30 Days", from: addDays(todayStr, -29), to: todayStr },
+      { label: "Last 90 Days", from: addDays(todayStr, -89), to: todayStr },
+    ];
+  }, []);
+
+  // Display text
+  const displayText = useMemo(() => {
+    // Check if matches a preset
+    for (const p of presets) {
+      const clampedFrom = p.from < minDate ? minDate : p.from;
+      const clampedTo = p.to > maxDate ? maxDate : p.to;
+      if (range.from === clampedFrom && range.to === clampedTo) return p.label;
+    }
+    if (range.from === range.to) {
+      if (range.from === today) return "Today";
+      const d = new Date(range.from + "T00:00:00");
+      return d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+    }
+    const f = new Date(range.from + "T00:00:00");
+    const t = new Date(range.to + "T00:00:00");
+    const fmt = (d: Date) => d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+    return `${fmt(f)} - ${fmt(t)}`;
+  }, [range, presets, today, minDate, maxDate]);
+
+  // Active preset
+  const activePreset = useMemo(() => {
+    for (const p of presets) {
+      const clampedFrom = p.from < minDate ? minDate : p.from;
+      const clampedTo = p.to > maxDate ? maxDate : p.to;
+      if (range.from === clampedFrom && range.to === clampedTo) return p.label;
+    }
+    return null;
+  }, [range, presets, minDate, maxDate]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium cursor-pointer hover:border-gray-300 transition-colors"
+      >
+        <Calendar className="w-4 h-4 text-gray-400" />
+        {displayText}
+        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 flex">
+          {/* Presets */}
+          <div className="border-r border-gray-100 py-2 w-40">
+            {presets.map(p => (
+              <button
+                key={p.label}
+                onClick={() => applyPreset(p.from, p.to)}
+                className={cn(
+                  "block w-full text-left px-4 py-2 text-sm transition-colors",
+                  activePreset === p.label
+                    ? "bg-brand-50 text-brand-600 font-medium"
+                    : "text-gray-600 hover:bg-gray-50"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Calendar */}
+          <div className="p-4 w-[280px]">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+              <span className="text-sm font-semibold text-gray-900">
+                {MONTH_NAMES[viewMonth.month]} {viewMonth.year}
+              </span>
+              <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Weekday headers */}
+            <div className="grid grid-cols-7 mb-1">
+              {WEEKDAYS.map(d => (
+                <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+              ))}
+            </div>
+
+            {/* Days grid */}
+            <div className="grid grid-cols-7">
+              {calendarDays.map(({ dateStr, day, inMonth }, i) => {
+                const disabled = dateStr < minDate || dateStr > maxDate;
+                const isRangeStart = dateStr === (tempFrom || range.from);
+                const isRangeEnd = tempFrom ? null : dateStr === range.to;
+                const inRange = tempFrom
+                  ? dateStr >= tempFrom && dateStr <= tempFrom // single selection so far
+                  : dateStr >= range.from && dateStr <= range.to;
+                const isSelected = isRangeStart || isRangeEnd;
+
+                return (
+                  <button
+                    key={i}
+                    disabled={disabled}
+                    onClick={() => handleDayClick(dateStr)}
+                    className={cn(
+                      "h-8 text-xs rounded transition-colors relative",
+                      !inMonth && "text-gray-300",
+                      inMonth && !disabled && !isSelected && !inRange && "text-gray-700 hover:bg-gray-100",
+                      disabled && "text-gray-200 cursor-not-allowed",
+                      inRange && !isSelected && "bg-brand-50 text-brand-700",
+                      isSelected && "bg-gray-900 text-white font-semibold rounded-lg",
+                    )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selection hint */}
+            <div className="mt-3 text-xs text-gray-400 text-center">
+              {tempFrom
+                ? "Select end date"
+                : "Select start date"}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Shared components ──────────────────────────────────────────────
 function MultiSelect({
   label,
   options,
@@ -184,16 +481,13 @@ function DonutCard({
 function MetricBarChart({
   title,
   data,
-  colorMap,
   showCount,
 }: {
   title: string;
   data: { name: string; value: number; fill: string }[];
-  colorMap: Record<string, string>;
   showCount: number;
 }) {
   const visibleData = showCount === 0 ? data : data.slice(0, showCount);
-
   const barHeight = 32;
   const chartHeight = Math.max(150, visibleData.length * (barHeight + 8) + 40);
 
@@ -207,18 +501,8 @@ function MetricBarChart({
           <BarChart data={visibleData} layout="vertical" margin={{ left: 10, right: 20, top: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
             <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatNumber(v)} />
-            <YAxis
-              type="category"
-              dataKey="name"
-              tick={{ fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-              width={130}
-            />
-            <Tooltip
-              formatter={(value: number) => formatNumber(value)}
-              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
-            />
+            <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={130} />
+            <Tooltip formatter={(value: number) => formatNumber(value)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }} />
             <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={barHeight}>
               {visibleData.map((entry, i) => (
                 <Cell key={i} fill={entry.fill} />
@@ -231,21 +515,12 @@ function MetricBarChart({
   );
 }
 
+// ── Main Component ─────────────────────────────────────────────────
 export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: AnalyticsClientProps) {
-  // Filters
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showCount, setShowCount] = useState(15);
-  const [selectedDate, setSelectedDate] = useState(() => {
-    // Default to yesterday (local time, not UTC)
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  });
 
   // Build profile color map
   const profileColorMap = useMemo(() => {
@@ -256,7 +531,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     return map;
   }, [profiles]);
 
-  // Filter profiles based on selections
+  // Filter profiles
   const filteredProfiles = useMemo(() => {
     return profiles.filter(p => {
       if (selectedModels.length > 0 && !selectedModels.includes(p.models?.id)) return false;
@@ -272,7 +547,6 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
 
   const filteredProfileIds = useMemo(() => new Set(filteredProfiles.map(p => p.id)), [filteredProfiles]);
 
-  // Build profile id->username map
   const profileNameMap = useMemo(() => {
     const map: Record<string, string> = {};
     profiles.forEach(p => { map[p.id] = p.instagram_username; });
@@ -290,107 +564,125 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     return map;
   }, [snapshots]);
 
-  // Get sorted available dates
+  // Sorted available dates
   const availableDates = useMemo(() => {
     return Object.keys(snapshotsByDateProfile).sort();
   }, [snapshotsByDateProfile]);
 
-  // Auto-fallback: if selectedDate has no data, jump to latest available date
+  const minDate = availableDates[0] || localToday();
+  const maxDate = localToday();
+
+  // Date range state — default to yesterday
+  const [dateRange, setDateRange] = useState<DateRange>(() => {
+    const yesterday = addDays(localToday(), -1);
+    return { from: yesterday, to: yesterday };
+  });
+
+  // Auto-clamp to available dates on mount
   useEffect(() => {
-    if (availableDates.length > 0 && !availableDates.includes(selectedDate)) {
-      setSelectedDate(availableDates[availableDates.length - 1]);
+    if (availableDates.length > 0) {
+      const first = availableDates[0];
+      const last = availableDates[availableDates.length - 1];
+      // If entire range is outside available data, snap to last available
+      if (dateRange.from > last || dateRange.to < first) {
+        setDateRange({ from: last, to: last });
+      }
     }
-  }, [availableDates, selectedDate]);
+  }, [availableDates]);
 
-  // Navigate date
-  function prevDate() {
-    const idx = availableDates.indexOf(selectedDate);
-    if (idx > 0) setSelectedDate(availableDates[idx - 1]);
-  }
-  function nextDate() {
-    const idx = availableDates.indexOf(selectedDate);
-    if (idx < availableDates.length - 1) setSelectedDate(availableDates[idx + 1]);
-  }
+  // Get dates in range that have data
+  const datesInRange = useMemo(() => {
+    return availableDates.filter(d => d >= dateRange.from && d <= dateRange.to);
+  }, [availableDates, dateRange]);
 
-  // Get previous date for delta calculation
-  const prevDateStr = useMemo(() => {
-    const idx = availableDates.indexOf(selectedDate);
+  // The date BEFORE the range start, for delta calculation of first day
+  const dateBeforeRange = useMemo(() => {
+    const idx = availableDates.indexOf(datesInRange[0]);
     if (idx > 0) return availableDates[idx - 1];
     return null;
-  }, [availableDates, selectedDate]);
+  }, [availableDates, datesInRange]);
 
-  // Calculate stats for selected date
+  // Calculate aggregated stats across the date range
   const stats = useMemo(() => {
-    const todaySnaps = snapshotsByDateProfile[selectedDate] || {};
-    const yesterdaySnaps = prevDateStr ? (snapshotsByDateProfile[prevDateStr] || {}) : {};
-
-    let totalFollowers = 0, totalViews = 0, totalLikes = 0, totalComments = 0;
-    let deltaFollowers = 0, deltaViews = 0, deltaLikes = 0, deltaComments = 0;
-    let profileCount = 0;
-
-    // Per-profile deltas for donut charts
+    // For each profile, sum up daily deltas across all days in range
     const perProfile: Record<string, {
       name: string; followers: number; views: number;
       likes: number; comments: number; interactions: number;
     }> = {};
 
+    let totalFollowers = 0, totalViews = 0, totalLikes = 0, totalComments = 0;
+    let deltaFollowers = 0, deltaViews = 0, deltaLikes = 0, deltaComments = 0;
+    let profileCount = 0;
+
+    // Get the latest snapshot in range for absolute totals
+    const lastDateInRange = datesInRange[datesInRange.length - 1];
+    const lastDaySnaps = lastDateInRange ? (snapshotsByDateProfile[lastDateInRange] || {}) : {};
+
+    // Absolute totals from last day in range
     for (const profileId of Array.from(filteredProfileIds)) {
-      const today = todaySnaps[profileId];
-      if (!today) continue;
-
-      const yesterday = yesterdaySnaps[profileId];
-      const name = profileNameMap[profileId] || "unknown";
+      const snap = lastDaySnaps[profileId];
+      if (!snap) continue;
+      totalFollowers += snap.followers || 0;
+      totalViews += snap.total_reel_views || 0;
+      totalLikes += snap.total_reel_likes || 0;
+      totalComments += snap.total_reel_comments || 0;
       profileCount++;
+    }
 
-      totalFollowers += today.followers || 0;
-      totalViews += today.total_reel_views || 0;
-      totalLikes += today.total_reel_likes || 0;
-      totalComments += today.total_reel_comments || 0;
+    // Calculate deltas: sum daily changes across the range
+    const allDatesForDelta = [...datesInRange];
+    for (let i = 0; i < allDatesForDelta.length; i++) {
+      const date = allDatesForDelta[i];
+      const prevDate = i === 0 ? dateBeforeRange : allDatesForDelta[i - 1];
+      const todaySnaps = snapshotsByDateProfile[date] || {};
+      const prevSnaps = prevDate ? (snapshotsByDateProfile[prevDate] || {}) : {};
 
-      // If no previous day exists, show absolute values instead of 0
-      const dF = yesterday ? Math.max(0, (today.followers || 0) - (yesterday.followers || 0)) : (today.followers || 0);
-      const dV = yesterday ? Math.max(0, (today.total_reel_views || 0) - (yesterday.total_reel_views || 0)) : (today.total_reel_views || 0);
-      const dL = yesterday ? Math.max(0, (today.total_reel_likes || 0) - (yesterday.total_reel_likes || 0)) : (today.total_reel_likes || 0);
-      const dC = yesterday ? Math.max(0, (today.total_reel_comments || 0) - (yesterday.total_reel_comments || 0)) : (today.total_reel_comments || 0);
+      for (const profileId of Array.from(filteredProfileIds)) {
+        const today = todaySnaps[profileId];
+        if (!today) continue;
+        const prev = prevSnaps[profileId];
+        const name = profileNameMap[profileId] || "unknown";
 
-      deltaFollowers += dF;
-      deltaViews += dV;
-      deltaLikes += dL;
-      deltaComments += dC;
+        const dF = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : (i === 0 && !dateBeforeRange ? (today.followers || 0) : 0);
+        const dV = prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : (i === 0 && !dateBeforeRange ? (today.total_reel_views || 0) : 0);
+        const dL = prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : (i === 0 && !dateBeforeRange ? (today.total_reel_likes || 0) : 0);
+        const dC = prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : (i === 0 && !dateBeforeRange ? (today.total_reel_comments || 0) : 0);
 
-      perProfile[profileId] = {
-        name,
-        followers: dF,
-        views: dV,
-        likes: dL,
-        comments: dC,
-        interactions: dL + dC,
-      };
+        deltaFollowers += dF;
+        deltaViews += dV;
+        deltaLikes += dL;
+        deltaComments += dC;
+
+        if (!perProfile[profileId]) {
+          perProfile[profileId] = { name, followers: 0, views: 0, likes: 0, comments: 0, interactions: 0 };
+        }
+        perProfile[profileId].followers += dF;
+        perProfile[profileId].views += dV;
+        perProfile[profileId].likes += dL;
+        perProfile[profileId].comments += dC;
+        perProfile[profileId].interactions += dL + dC;
+      }
     }
 
     const totalInteractions = deltaLikes + deltaComments;
     const totalPosts = Array.from(filteredProfileIds).reduce((sum, pid) => {
-      const snap = todaySnaps[pid];
+      const snap = lastDaySnaps[pid];
       return sum + (snap?.media_count || 0);
     }, 0);
     const avgViews = profileCount > 0 && totalPosts > 0 ? Math.round(totalViews / totalPosts) : 0;
-    const engagementPerPost = totalPosts > 0 ? Math.round(totalInteractions / totalPosts) : 0;
     const viralityRatio = totalViews > 0 ? ((totalInteractions / totalViews) * 100).toFixed(2) : "0.00";
-
-    const hasPrevDay = !!prevDateStr;
 
     return {
       totalFollowers, totalViews, totalLikes, totalComments,
       deltaFollowers, deltaViews, deltaLikes, deltaComments,
-      totalInteractions, avgViews, engagementPerPost, viralityRatio,
-      perProfile, profileCount, hasPrevDay,
+      totalInteractions, avgViews, viralityRatio,
+      perProfile, profileCount,
     };
-  }, [snapshotsByDateProfile, selectedDate, prevDateStr, filteredProfileIds, profileNameMap]);
+  }, [snapshotsByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap]);
 
-  // Donut chart data
+  // Donut data
   const donutData = useMemo(() => {
     const entries = Object.entries(stats.perProfile);
-
     function buildDonut(field: string) {
       return entries
         .map(([id, d]) => ({
@@ -402,7 +694,6 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
         .filter(d => d.value > 0)
         .sort((a, b) => b.value - a.value);
     }
-
     return {
       followers: buildDonut("followers"),
       views: buildDonut("views"),
@@ -410,13 +701,12 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     };
   }, [stats.perProfile, profileColorMap]);
 
-  // Horizontal bar chart data (sorted, per profile)
+  // Bar data
   const barData = useMemo(() => {
     const entries = Object.entries(stats.perProfile);
-
     function buildBars(field: string) {
       return entries
-        .map(([id, d]) => ({
+        .map(([_id, d]) => ({
           name: d.name,
           value: (d as any)[field] as number,
           fill: profileColorMap[d.name] || "#6366f1",
@@ -424,7 +714,6 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
         .filter(d => d.value > 0)
         .sort((a, b) => b.value - a.value);
     }
-
     return {
       views: buildBars("views"),
       likes: buildBars("likes"),
@@ -433,31 +722,17 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     };
   }, [stats.perProfile, profileColorMap]);
 
-  // Format selected date display
-  const dateDisplay = useMemo(() => {
-    const d = new Date(selectedDate + "T00:00:00");
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const sel = new Date(selectedDate + "T00:00:00");
-    sel.setHours(0, 0, 0, 0);
-
-    if (sel.getTime() === today.getTime()) return "Today";
-    if (sel.getTime() === yesterday.getTime()) return "Yesterday";
-    return d.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
-  }, [selectedDate]);
-
   // Profile options for multi-select
   const profileOptions = useMemo(() => {
     let opts = profiles.map(p => ({ id: p.id, name: `@${p.instagram_username}` }));
-    // Filter by selected models if any
     if (selectedModels.length > 0) {
       const modelFilteredIds = new Set(profiles.filter(p => selectedModels.includes(p.models?.id)).map(p => p.id));
       opts = opts.filter(o => modelFilteredIds.has(o.id));
     }
     return opts;
   }, [profiles, selectedModels]);
+
+  const isMultiDay = dateRange.from !== dateRange.to;
 
   return (
     <div className="p-6 space-y-5">
@@ -506,32 +781,14 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
           ))}
         </div>
 
-        {/* Date Picker */}
-        <div className="flex items-center gap-1 ml-auto">
-          <button
-            onClick={prevDate}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ChevronLeft className="w-4 h-4 text-gray-600" />
-          </button>
-          <div className="relative">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={e => setSelectedDate(e.target.value)}
-              className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
-            />
-            <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium cursor-pointer hover:border-gray-300">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              {dateDisplay}
-            </div>
-          </div>
-          <button
-            onClick={nextDate}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ChevronRight className="w-4 h-4 text-gray-600" />
-          </button>
+        {/* Date Range Picker */}
+        <div className="ml-auto">
+          <DateRangePicker
+            range={dateRange}
+            onChange={setDateRange}
+            minDate={minDate}
+            maxDate={maxDate}
+          />
         </div>
       </div>
 
@@ -545,7 +802,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
         </div>
       </div>
 
-      {/* Stats Row 2 - Daily / Derived */}
+      {/* Stats Row 2 - Deltas / Derived */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
           <StatCard label="New Followers" value={formatNumber(stats.deltaFollowers)} sub />
@@ -557,49 +814,17 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
 
       {/* Donut Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <DonutCard
-          title={stats.hasPrevDay ? "New Followers" : "Followers"}
-          total={formatNumber(stats.deltaFollowers)}
-          data={donutData.followers}
-        />
-        <DonutCard
-          title={stats.hasPrevDay ? "New Views" : "Views"}
-          total={formatNumber(stats.deltaViews)}
-          data={donutData.views}
-        />
-        <DonutCard
-          title={stats.hasPrevDay ? "New Interactions" : "Interactions"}
-          total={formatNumber(stats.totalInteractions)}
-          data={donutData.interactions}
-        />
+        <DonutCard title="New Followers" total={formatNumber(stats.deltaFollowers)} data={donutData.followers} />
+        <DonutCard title="New Views" total={formatNumber(stats.deltaViews)} data={donutData.views} />
+        <DonutCard title="Interactions" total={formatNumber(stats.totalInteractions)} data={donutData.interactions} />
       </div>
 
       {/* Bar Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <MetricBarChart
-          title="Views"
-          data={barData.views}
-          colorMap={profileColorMap}
-          showCount={showCount}
-        />
-        <MetricBarChart
-          title="Likes"
-          data={barData.likes}
-          colorMap={profileColorMap}
-          showCount={showCount}
-        />
-        <MetricBarChart
-          title="Comments"
-          data={barData.comments}
-          colorMap={profileColorMap}
-          showCount={showCount}
-        />
-        <MetricBarChart
-          title="New Followers"
-          data={barData.followers}
-          colorMap={profileColorMap}
-          showCount={showCount}
-        />
+        <MetricBarChart title="Views" data={barData.views} showCount={showCount} />
+        <MetricBarChart title="Likes" data={barData.likes} showCount={showCount} />
+        <MetricBarChart title="Comments" data={barData.comments} showCount={showCount} />
+        <MetricBarChart title="New Followers" data={barData.followers} showCount={showCount} />
       </div>
     </div>
   );
