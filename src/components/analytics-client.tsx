@@ -9,55 +9,24 @@ import {
   PieChart, Pie, Cell
 } from "recharts";
 
-// 15 gradient definitions — each a clean two-stop gradient in its own color family
-const GRADIENT_DEFS = [
-  { id: "g0",  from: "#8B6914", to: "#F0D060" }, // gold
-  { id: "g1",  from: "#1A3A7A", to: "#60A0E8" }, // sapphire
-  { id: "g2",  from: "#5B1A8B", to: "#C070F0" }, // violet
-  { id: "g3",  from: "#8B2010", to: "#F07050" }, // coral red
-  { id: "g4",  from: "#0F5C3A", to: "#50D090" }, // emerald
-  { id: "g5",  from: "#6B2A0F", to: "#F0A060" }, // copper
-  { id: "g6",  from: "#0F3A5C", to: "#40B0D8" }, // teal blue
-  { id: "g7",  from: "#8B1A4A", to: "#F060A0" }, // rose pink
-  { id: "g8",  from: "#1A5C1A", to: "#70D040" }, // lime green
-  { id: "g9",  from: "#4A1A8B", to: "#90A0F8" }, // indigo
-  { id: "g10", from: "#8B4A00", to: "#F8C060" }, // amber
-  { id: "g11", from: "#1A4A5C", to: "#40D0C0" }, // cyan teal
-  { id: "g12", from: "#5C1A1A", to: "#D06060" }, // dusty red
-  { id: "g13", from: "#2A5C0F", to: "#A0D840" }, // yellow-green
-  { id: "g14", from: "#3A1A5C", to: "#A060D0" }, // purple
+// 15 premium flat colors — varied, vibrant, luxury feel
+const COLORS = [
+  "#C9A227", // rich gold
+  "#3B82C4", // sapphire blue
+  "#9B59B6", // amethyst
+  "#E8724A", // coral
+  "#27AE8F", // emerald teal
+  "#D4820A", // amber
+  "#5B7FD4", // periwinkle blue
+  "#E84393", // hot pink
+  "#56B870", // fresh green
+  "#8E44AD", // deep purple
+  "#E8A020", // warm orange
+  "#2E9EC4", // sky blue
+  "#C0392B", // crimson
+  "#A0C030", // lime
+  "#B87333", // copper
 ];
-
-// Flat mid-color for contexts that don't support gradients (donut legend etc.)
-const GRADIENT_MIDS = GRADIENT_DEFS.map(g => {
-  // Blend from/to at 55% for a nice mid-tone
-  const hex = (h: string) => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
-  const [r1,g1,b1] = hex(g.from);
-  const [r2,g2,b2] = hex(g.to);
-  const blend = (a: number, b: number) => Math.round(a + (b - a) * 0.55).toString(16).padStart(2,"0");
-  return `#${blend(r1,r2)}${blend(g1,g2)}${blend(b1,b2)}`;
-});
-
-function gradientId(i: number) { return `brand-grad-${GRADIENT_DEFS[i % GRADIENT_DEFS.length].id}`; }
-function gradientFill(i: number) { return `url(#${gradientId(i)})`; }
-function gradientMid(i: number) { return GRADIENT_MIDS[i % GRADIENT_MIDS.length]; }
-
-// SVG defs component — must be rendered inside each Recharts chart
-function ChartGradientDefs() {
-  return (
-    <defs>
-      {GRADIENT_DEFS.map((g, i) => (
-        <linearGradient key={g.id} id={`brand-grad-${g.id}`} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor={g.from} />
-          <stop offset="100%" stopColor={g.to} />
-        </linearGradient>
-      ))}
-    </defs>
-  );
-}
-
-// Keep a simple array for index lookups
-const COLORS = GRADIENT_MIDS;
 
 const SHOW_OPTIONS = [15, 30, 50, 0] as const;
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -488,7 +457,6 @@ function DonutCard({
         <div className="w-36 h-36 flex-shrink-0 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <ChartGradientDefs />
               <Pie
                 data={data.length > 0 ? data : [{ name: "empty", value: 1, color: "#e5e7eb" }]}
                 cx="50%"
@@ -557,7 +525,6 @@ function MetricBarChart({
       ) : (
         <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart data={visibleData} layout="vertical" margin={{ left: 10, right: 20, top: 0, bottom: 0 }}>
-            <ChartGradientDefs />
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
             <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatNumber(v)} />
             <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={130} />
@@ -582,15 +549,13 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showCount, setShowCount] = useState(15);
 
-  // Build profile color maps — fill (gradient url) and mid (flat color for legends)
+  // Build profile color map
   const profileColorMap = useMemo(() => {
-    const fill: Record<string, string> = {};
-    const mid: Record<string, string> = {};
+    const map: Record<string, string> = {};
     profiles.forEach((p, i) => {
-      fill[p.instagram_username] = gradientFill(i);
-      mid[p.instagram_username] = gradientMid(i);
+      map[p.instagram_username] = COLORS[i % COLORS.length];
     });
-    return { fill, mid };
+    return map;
   }, [profiles]);
 
   // Filter profiles
@@ -751,7 +716,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
         .map(([id, d]) => ({
           name: d.name,
           value: (d as any)[field] as number,
-          color: profileColorMap.mid[d.name] || "#C9A227",
+          color: profileColorMap[d.name] || "#C9A227",
           profileId: id,
         }))
         .filter(d => d.value > 0)
@@ -772,7 +737,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
         .map(([_id, d]) => ({
           name: d.name,
           value: (d as any)[field] as number,
-          fill: profileColorMap.fill[d.name] || "url(#brand-grad-g0)",
+          fill: profileColorMap[d.name] || "#C9A227",
         }))
         .filter(d => d.value > 0)
         .sort((a, b) => b.value - a.value);
