@@ -525,6 +525,7 @@ function MetricBarChart({
 // ── Main Component ─────────────────────────────────────────────────
 export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: AnalyticsClientProps) {
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showCount, setShowCount] = useState(15);
@@ -542,6 +543,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
   const filteredProfiles = useMemo(() => {
     return profiles.filter(p => {
       if (selectedModels.length > 0 && !selectedModels.includes(p.models?.id)) return false;
+      if (selectedGroups.length > 0 && !selectedGroups.includes(p.account_groups?.id)) return false;
       if (selectedProfiles.length > 0 && !selectedProfiles.includes(p.id)) return false;
       if (selectedTags.length > 0) {
         const profileTags = p.tags || [];
@@ -550,7 +552,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
       }
       return true;
     });
-  }, [profiles, selectedModels, selectedProfiles, selectedTags, tags]);
+  }, [profiles, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags]);
 
   const filteredProfileIds = useMemo(() => new Set(filteredProfiles.map(p => p.id)), [filteredProfiles]);
 
@@ -736,8 +738,12 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
       const modelFilteredIds = new Set(profiles.filter(p => selectedModels.includes(p.models?.id)).map(p => p.id));
       opts = opts.filter(o => modelFilteredIds.has(o.id));
     }
+    if (selectedGroups.length > 0) {
+      const groupFilteredIds = new Set(profiles.filter(p => selectedGroups.includes(p.account_groups?.id)).map(p => p.id));
+      opts = opts.filter(o => groupFilteredIds.has(o.id));
+    }
     return opts;
-  }, [profiles, selectedModels]);
+  }, [profiles, selectedModels, selectedGroups]);
 
   const isMultiDay = dateRange.from !== dateRange.to;
 
@@ -756,6 +762,12 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
           options={models.map(m => ({ id: m.id, name: m.name }))}
           selected={selectedModels}
           onChange={setSelectedModels}
+        />
+        <MultiSelect
+          label="Groups"
+          options={groups.map(g => ({ id: g.id, name: g.name }))}
+          selected={selectedGroups}
+          onChange={setSelectedGroups}
         />
         <MultiSelect
           label="Profiles"
