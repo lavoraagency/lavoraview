@@ -123,20 +123,21 @@ function DonutCard({
   total: string;
   data: { name: string; value: number; color: string; profileId?: string }[];
 }) {
-  const top3 = data.slice(0, 3);
+  const top5 = data.slice(0, 5);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center gap-4">
-        <div className="w-28 h-28 flex-shrink-0">
+      <h3 className="text-sm font-semibold text-gray-900 mb-3">{title}</h3>
+      <div className="flex items-start gap-5">
+        <div className="w-36 h-36 flex-shrink-0 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={data.length > 0 ? data : [{ name: "empty", value: 1, color: "#e5e7eb" }]}
                 cx="50%"
                 cy="50%"
-                innerRadius={30}
-                outerRadius={48}
+                innerRadius={40}
+                outerRadius={65}
                 dataKey="value"
                 strokeWidth={2}
                 stroke="#fff"
@@ -147,14 +148,13 @@ function DonutCard({
               </Pie>
             </PieChart>
           </ResponsiveContainer>
-          <div className="text-center -mt-[72px]">
-            <div className="text-lg font-bold text-gray-900">{total}</div>
-            <div className="text-[10px] text-gray-500">{title}</div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <div className="text-xl font-bold text-gray-900">{total}</div>
           </div>
         </div>
-        <div className="flex-1 space-y-2 ml-2 mt-6">
-          {top3.map((d, i) => (
-            <div key={i} className="flex items-center justify-between text-sm">
+        <div className="flex-1 space-y-2.5 pt-1">
+          {top5.map((d, i) => (
+            <div key={i} className="flex items-center justify-between">
               <div className="flex items-center gap-2 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
                 <span className="text-gray-600 truncate text-xs">{d.name}</span>
@@ -169,7 +169,7 @@ function DonutCard({
                   </a>
                 )}
               </div>
-              <span className="font-medium text-gray-900 ml-2 text-xs">{formatNumber(d.value)}</span>
+              <span className="font-semibold text-gray-900 ml-2 text-xs tabular-nums">{formatNumber(d.value)}</span>
             </div>
           ))}
           {data.length === 0 && <div className="text-xs text-gray-400">No data</div>}
@@ -190,29 +190,50 @@ function MetricBarChart({
   profileKeys: string[];
   colorMap: Record<string, string>;
 }) {
+  // Build horizontal data: one row per profile with the sum across all dates
+  const horizontalData = useMemo(() => {
+    return profileKeys
+      .map(key => {
+        const total = data.reduce((sum, row) => sum + (row[key] || 0), 0);
+        return { name: key, value: total, fill: colorMap[key] || "#6366f1" };
+      })
+      .filter(d => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [data, profileKeys, colorMap]);
+
+  const barHeight = 32;
+  const chartHeight = Math.max(150, horizontalData.length * (barHeight + 8) + 40);
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
       <h3 className="font-semibold text-gray-900 mb-4">{title}</h3>
-      <ResponsiveContainer width="100%" height={250}>
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-          <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatNumber(v)} />
-          <Tooltip
-            formatter={(value: number) => formatNumber(value)}
-            contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
-          />
-          {profileKeys.map(key => (
-            <Bar
-              key={key}
-              dataKey={key}
-              stackId="a"
-              fill={colorMap[key] || "#6366f1"}
-              radius={profileKeys.indexOf(key) === profileKeys.length - 1 ? [2, 2, 0, 0] : [0, 0, 0, 0]}
+      {horizontalData.length === 0 ? (
+        <div className="text-sm text-gray-400 py-8 text-center">No data</div>
+      ) : (
+        <ResponsiveContainer width="100%" height={chartHeight}>
+          <BarChart data={horizontalData} layout="vertical" margin={{ left: 10, right: 20, top: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatNumber(v)} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              tick={{ fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+              width={130}
             />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
+            <Tooltip
+              formatter={(value: number) => formatNumber(value)}
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+            />
+            <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={barHeight}>
+              {horizontalData.map((entry, i) => (
+                <Cell key={i} fill={entry.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }
