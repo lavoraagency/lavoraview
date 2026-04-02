@@ -2,11 +2,10 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Search, Plus, ExternalLink, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { Search, ExternalLink, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { TagBadge } from "@/components/tag-badge";
 import { formatNumber } from "@/lib/utils";
-import { AddProfileDialog } from "@/components/add-profile-dialog";
 import { cn } from "@/lib/utils";
 
 interface ProfilesClientProps {
@@ -36,24 +35,17 @@ function formatUpdatedAt(date: string | null): string {
   return `${day}. ${month}, ${hours}:${mins}`;
 }
 
-function ModelGroupTable({
-  modelName,
+function GroupTable({
+  groupName,
   profiles,
-  groups,
-  models,
   tags,
-  onProfileAdded,
 }: {
-  modelName: string;
+  groupName: string;
   profiles: any[];
-  groups: any[];
-  models: any[];
   tags: any[];
-  onProfileAdded: (p: any) => void;
 }) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const health = getHealthBadge(profiles);
   const totalPages = Math.max(1, Math.ceil(profiles.length / rowsPerPage));
@@ -73,7 +65,7 @@ function ModelGroupTable({
           <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
             {profiles.length} {profiles.length === 1 ? "Profile" : "Profiles"}
           </span>
-          <h2 className="text-lg font-semibold text-gray-900">{modelName}</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{groupName}</h2>
           <span className={cn(
             "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
             health.className
@@ -82,13 +74,6 @@ function ModelGroupTable({
             {health.label} | {health.pct}%
           </span>
         </div>
-        <button
-          onClick={() => setShowAddDialog(true)}
-          className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Profiles
-        </button>
       </div>
 
       {/* Table */}
@@ -203,18 +188,6 @@ function ModelGroupTable({
           </div>
         </div>
       </div>
-
-      {showAddDialog && (
-        <AddProfileDialog
-          models={models}
-          groups={groups}
-          onClose={() => setShowAddDialog(false)}
-          onAdded={(newProfile) => {
-            onProfileAdded(newProfile);
-            setShowAddDialog(false);
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -222,7 +195,7 @@ function ModelGroupTable({
 export function ProfilesClient({ initialProfiles, models, groups, tags }: ProfilesClientProps) {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [profiles, setProfiles] = useState(initialProfiles);
+  const profiles = initialProfiles;
 
   // Apply global filters
   const filtered = useMemo(() => {
@@ -233,22 +206,21 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
     });
   }, [profiles, search, filterStatus]);
 
-  // Group by model
+  // Group by account_groups
   const grouped = useMemo(() => {
-    const map = new Map<string, { model: any; profiles: any[] }>();
+    const map = new Map<string, { group: any; profiles: any[] }>();
 
-    // Initialize groups for all models (even if empty after filter)
-    for (const m of models) {
-      map.set(m.id, { model: m, profiles: [] });
+    // Initialize all groups
+    for (const g of groups) {
+      map.set(g.id, { group: g, profiles: [] });
     }
 
-    // Also prepare an "Unassigned" group
     const unassigned: any[] = [];
 
     for (const p of filtered) {
-      const modelId = p.models?.id;
-      if (modelId && map.has(modelId)) {
-        map.get(modelId)!.profiles.push(p);
+      const groupId = p.account_groups?.id;
+      if (groupId && map.has(groupId)) {
+        map.get(groupId)!.profiles.push(p);
       } else {
         unassigned.push(p);
       }
@@ -264,18 +236,18 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
     const result = allGroups.filter(g => g.profiles.length > 0);
 
     if (unassigned.length > 0) {
-      result.push({ model: { id: "unassigned", name: "Unassigned" }, profiles: unassigned });
+      result.push({ group: { id: "unassigned", name: "Unassigned" }, profiles: unassigned });
     }
 
     return result;
-  }, [filtered, models]);
+  }, [filtered, groups]);
 
   return (
     <div className="p-6 space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Profiles</h1>
-        <p className="text-gray-500 text-sm mt-1">{profiles.length} profiles across {models.length} models</p>
+        <p className="text-gray-500 text-sm mt-1">{profiles.length} profiles across {groups.length} groups</p>
       </div>
 
       {/* Search & Filters */}
@@ -303,19 +275,14 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
         </select>
       </div>
 
-      {/* Model Groups */}
+      {/* Account Groups */}
       <div className="space-y-6">
         {grouped.map(g => (
-          <ModelGroupTable
-            key={g.model.id}
-            modelName={g.model.name}
+          <GroupTable
+            key={g.group.id}
+            groupName={g.group.name}
             profiles={g.profiles}
-            groups={groups}
-            models={models}
             tags={tags}
-            onProfileAdded={(newProfile) => {
-              setProfiles(prev => [...prev, newProfile]);
-            }}
           />
         ))}
         {grouped.length === 0 && (
