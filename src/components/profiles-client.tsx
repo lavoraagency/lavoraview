@@ -86,6 +86,7 @@ function GroupTable({
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profile</th>
               <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Followers</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Posts</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated At</th>
             </tr>
@@ -124,6 +125,9 @@ function GroupTable({
                 <td className="px-5 py-3.5 text-right font-medium text-gray-700">
                   {p.latestFollowers != null ? formatNumber(p.latestFollowers) : <span className="text-gray-300">-</span>}
                 </td>
+                <td className="px-5 py-3.5 text-right text-gray-500">
+                  {p.latestPosts != null ? p.latestPosts : <span className="text-gray-300">-</span>}
+                </td>
                 <td className="px-5 py-3.5">
                   <div className="flex flex-wrap gap-1">
                     {(p.tags || []).slice(0, 3).map((tag: string) => (
@@ -141,7 +145,7 @@ function GroupTable({
             ))}
             {profiles.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-5 py-8 text-center text-gray-400">
+                <td colSpan={6} className="px-5 py-8 text-center text-gray-400">
                   Keine Profile in dieser Gruppe
                 </td>
               </tr>

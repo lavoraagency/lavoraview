@@ -13,7 +13,7 @@ export default async function ProfilesPage() {
         id, instagram_username, status, is_active, tags, va_name, editor_name, account_slot,
         models(id, name),
         account_groups(id, name, group_type),
-        profile_snapshots(followers, total_reel_views, scraped_at)
+        profile_snapshots(followers, total_reel_views, media_count, scraped_at)
       `)
       .order("instagram_username"),
     supabase.from("models").select("id, name").order("name"),
@@ -30,6 +30,7 @@ export default async function ProfilesPage() {
       ...p,
       latestFollowers: snaps[0]?.followers ?? null,
       latestViews: snaps[0]?.total_reel_views ?? null,
+      latestPosts: snaps[0]?.media_count ?? null,
       latestScrapedAt: snaps[0]?.scraped_at ?? null,
     };
   });
