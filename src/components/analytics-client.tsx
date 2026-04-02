@@ -336,6 +336,8 @@ function DateRangePicker({
 }
 
 // ── Shared components ──────────────────────────────────────────────
+// For non-noneLabel filters: selected=null means "all", selected=[] means "none"
+// For noneLabel filters (Tags): selected=[] means "no tag filter" (original behavior)
 function MultiSelect({
   label,
   options,
@@ -346,8 +348,8 @@ function MultiSelect({
 }: {
   label: string;
   options: { id: string; name: string }[];
-  selected: string[];
-  onChange: (ids: string[]) => void;
+  selected: string[] | null;
+  onChange: (ids: string[] | null) => void;
   noneLabel?: string;
   searchable?: boolean;
 }) {
@@ -374,18 +376,21 @@ function MultiSelect({
     if (!open) setSearch("");
   }, [open, searchable]);
 
-  const noneSelected = selected.length === 0;
-  const allSelected = !noneLabel && noneSelected;
+  // For noneLabel: "all" = empty array. For normal: "all" = null
+  const isAll = noneLabel ? (selected as string[]).length === 0 : selected === null;
+  const sel = selected ?? [];
 
   const filteredOptions = searchable && search.trim()
     ? options.filter(o => o.name.toLowerCase().includes(search.toLowerCase()))
     : options;
 
-  const displayText = noneSelected
+  const displayText = isAll
     ? (noneLabel ? noneLabel : `All ${label}`)
-    : selected.length === 1
-    ? options.find(o => o.id === selected[0])?.name || label
-    : `${selected.length} ${label}`;
+    : sel.length === 1
+    ? options.find(o => o.id === sel[0])?.name || label
+    : sel.length === 0
+    ? `No ${label}`
+    : `${sel.length} ${label}`;
 
   return (
     <div className="relative" ref={ref}>
@@ -416,13 +421,13 @@ function MultiSelect({
                 <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
                   <input
                     type="checkbox"
-                    checked={noneSelected || selected.length === options.length}
+                    checked={isAll}
                     onChange={() => {
-                      if (noneSelected) {
-                        // Switch to explicit selection so user can deselect individual items
-                        onChange(options.map(o => o.id));
+                      // Toggle: all → none, none/partial → all
+                      if (noneLabel) {
+                        onChange(isAll ? options.map(o => o.id) : []);
                       } else {
-                        onChange([]);
+                        onChange(isAll ? [] : null);
                       }
                     }}
                     className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
@@ -433,8 +438,8 @@ function MultiSelect({
                   <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
                     <input
                       type="checkbox"
-                      checked={selected.length === options.length}
-                      onChange={() => onChange(selected.length === options.length ? [] : options.map(o => o.id))}
+                      checked={sel.length === options.length}
+                      onChange={() => onChange(sel.length === options.length ? [] : options.map(o => o.id))}
                       className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
                     />
                     <span className="text-sm font-medium">Select All</span>
@@ -449,16 +454,21 @@ function MultiSelect({
               <label key={o.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={allSelected || selected.includes(o.id)}
+                  checked={isAll || sel.includes(o.id)}
                   onChange={() => {
-                    if (allSelected) {
+                    if (isAll && !noneLabel) {
+                      // null → remove this one item
                       onChange(options.filter(opt => opt.id !== o.id).map(opt => opt.id));
-                    } else if (selected.includes(o.id)) {
-                      const newSelected = selected.filter(id => id !== o.id);
-                      onChange(noneLabel ? newSelected : (newSelected.length === 0 ? [] : newSelected));
+                    } else if (sel.includes(o.id)) {
+                      const next = sel.filter(id => id !== o.id);
+                      onChange(noneLabel ? next : (next.length === 0 ? [] : next));
                     } else {
-                      const newSelected = [...selected, o.id];
-                      onChange(noneLabel ? newSelected : (newSelected.length === options.length ? [] : newSelected));
+                      const next = [...sel, o.id];
+                      if (!noneLabel && next.length === options.length) {
+                        onChange(null); // back to "all"
+                      } else {
+                        onChange(next);
+                      }
                     }
                   }}
                   className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
@@ -589,9 +599,9 @@ function MetricBarChart({
 
 // ── Main Component ─────────────────────────────────────────────────
 export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: AnalyticsClientProps) {
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-  const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
+  const [selectedModels, setSelectedModels] = useState<string[] | null>(null);
+  const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
+  const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showCount, setShowCount] = useState(15);
 
@@ -607,9 +617,9 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
   // Filter profiles
   const filteredProfiles = useMemo(() => {
     return profiles.filter(p => {
-      if (selectedModels.length > 0 && !selectedModels.includes(p.models?.id)) return false;
-      if (selectedGroups.length > 0 && !selectedGroups.includes(p.account_groups?.id)) return false;
-      if (selectedProfiles.length > 0 && !selectedProfiles.includes(p.id)) return false;
+      if (selectedModels !== null && !selectedModels.includes(p.models?.id)) return false;
+      if (selectedGroups !== null && !selectedGroups.includes(p.account_groups?.id)) return false;
+      if (selectedProfiles !== null && !selectedProfiles.includes(p.id)) return false;
       if (selectedTags.length > 0) {
         const profileTags = p.tags || [];
         const tagNames = tags.filter(t => selectedTags.includes(t.id)).map(t => t.name);
@@ -800,7 +810,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
   // Group options filtered by selected creators
   const groupOptions = useMemo(() => {
     let opts = groups.map(g => ({ id: g.id, name: g.name, model_id: g.model_id }));
-    if (selectedModels.length > 0) {
+    if (selectedModels !== null && selectedModels.length > 0) {
       opts = opts.filter(g => selectedModels.includes(g.model_id));
     }
     return opts.map(g => ({ id: g.id, name: g.name }));
@@ -809,11 +819,11 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
   // Profile options for multi-select
   const profileOptions = useMemo(() => {
     let opts = profiles.map(p => ({ id: p.id, name: `@${p.instagram_username}` }));
-    if (selectedModels.length > 0) {
+    if (selectedModels !== null && selectedModels.length > 0) {
       const modelFilteredIds = new Set(profiles.filter(p => selectedModels.includes(p.models?.id)).map(p => p.id));
       opts = opts.filter(o => modelFilteredIds.has(o.id));
     }
-    if (selectedGroups.length > 0) {
+    if (selectedGroups !== null && selectedGroups.length > 0) {
       const groupFilteredIds = new Set(profiles.filter(p => selectedGroups.includes(p.account_groups?.id)).map(p => p.id));
       opts = opts.filter(o => groupFilteredIds.has(o.id));
     }
@@ -855,7 +865,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
           label="Tags"
           options={tags.map(t => ({ id: t.id, name: t.name }))}
           selected={selectedTags}
-          onChange={setSelectedTags}
+          onChange={(ids) => setSelectedTags((ids ?? []) as string[])}
           noneLabel="No Tags"
         />
 
