@@ -334,11 +334,13 @@ function MultiSelect({
   options,
   selected,
   onChange,
+  noneLabel,
 }: {
   label: string;
   options: { id: string; name: string }[];
   selected: string[];
   onChange: (ids: string[]) => void;
+  noneLabel?: string; // if set: empty selection = "no filter" label, checkboxes NOT all-checked
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -351,9 +353,11 @@ function MultiSelect({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const allSelected = selected.length === 0;
-  const displayText = allSelected
-    ? `All ${label}`
+  const noneSelected = selected.length === 0;
+  const allSelected = !noneLabel && noneSelected; // "all" mode only for non-noneLabel filters
+
+  const displayText = noneSelected
+    ? (noneLabel ? noneLabel : `All ${label}`)
     : selected.length === 1
     ? options.find(o => o.id === selected[0])?.name || label
     : `${selected.length} ${label}`;
@@ -372,12 +376,23 @@ function MultiSelect({
           <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
             <input
               type="checkbox"
-              checked={allSelected}
+              checked={noneSelected}
               onChange={() => onChange([])}
               className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
             />
-            <span className="text-sm font-medium">Select All</span>
+            <span className="text-sm font-medium">{noneLabel ? "No Tags" : "Select All"}</span>
           </label>
+          {noneLabel && (
+            <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+              <input
+                type="checkbox"
+                checked={selected.length === options.length}
+                onChange={() => onChange(selected.length === options.length ? [] : options.map(o => o.id))}
+                className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+              />
+              <span className="text-sm font-medium">Select All</span>
+            </label>
+          )}
           {options.map(o => (
             <label key={o.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
               <input
@@ -385,16 +400,13 @@ function MultiSelect({
                 checked={allSelected || selected.includes(o.id)}
                 onChange={() => {
                   if (allSelected) {
-                    // Was "all selected" — now deselect this one (select all others)
                     onChange(options.filter(opt => opt.id !== o.id).map(opt => opt.id));
                   } else if (selected.includes(o.id)) {
                     const newSelected = selected.filter(id => id !== o.id);
-                    // If nothing left, go back to "all"
-                    onChange(newSelected.length === 0 ? [] : newSelected);
+                    onChange(noneLabel ? newSelected : (newSelected.length === 0 ? [] : newSelected));
                   } else {
                     const newSelected = [...selected, o.id];
-                    // If all are now selected, go back to "all" (empty = all)
-                    onChange(newSelected.length === options.length ? [] : newSelected);
+                    onChange(noneLabel ? newSelected : (newSelected.length === options.length ? [] : newSelected));
                   }
                 }}
                 className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
@@ -789,6 +801,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
           options={tags.map(t => ({ id: t.id, name: t.name }))}
           selected={selectedTags}
           onChange={setSelectedTags}
+          noneLabel="No Tags"
         />
 
         {/* Show count selector */}
