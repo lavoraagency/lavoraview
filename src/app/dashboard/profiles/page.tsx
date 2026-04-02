@@ -6,7 +6,7 @@ import { ProfilesClient } from "@/components/profiles-client";
 export default async function ProfilesPage() {
   const supabase = createClient();
 
-  const [{ data: profiles }, { data: models }, { data: groups }] = await Promise.all([
+  const [{ data: profiles }, { data: models }, { data: groups }, { data: tags }] = await Promise.all([
     supabase
       .from("profiles")
       .select(`
@@ -18,6 +18,7 @@ export default async function ProfilesPage() {
       .order("instagram_username"),
     supabase.from("models").select("id, name").order("name"),
     supabase.from("account_groups").select("id, name, model_id, group_type").order("name"),
+    supabase.from("tags").select("id, name, color").order("name"),
   ]);
 
   // Attach latest snapshot to each profile
@@ -29,6 +30,7 @@ export default async function ProfilesPage() {
       ...p,
       latestFollowers: snaps[0]?.followers ?? null,
       latestViews: snaps[0]?.total_reel_views ?? null,
+      latestScrapedAt: snaps[0]?.scraped_at ?? null,
     };
   });
 
@@ -37,6 +39,7 @@ export default async function ProfilesPage() {
       initialProfiles={profilesWithLatest as any}
       models={models || []}
       groups={groups || []}
+      tags={tags || []}
     />
   );
 }
