@@ -4,15 +4,15 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Flame, ExternalLink } from "lucide-react";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { StatusBadge } from "@/components/status-badge";
 import { TagBadge } from "@/components/tag-badge";
 import { formatNumber, formatDate, formatDateShort } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { ReelDetailModal } from "@/components/reel-detail-modal";
 
-export function ProfileDetailClient({ profile, reels, snapshots, conversions, allTags }: {
-  profile: any; reels: any[]; snapshots: any[]; conversions: any[]; allTags: any[];
+export function ProfileDetailClient({ profile, reels, snapshots, allTags }: {
+  profile: any; reels: any[]; snapshots: any[]; allTags: any[];
 }) {
   const [tags, setTags] = useState<string[]>(profile.tags || []);
   const [selectedReel, setSelectedReel] = useState<any | null>(null);
@@ -27,16 +27,7 @@ export function ProfileDetailClient({ profile, reels, snapshots, conversions, al
     views: s.total_reel_views,
   }));
 
-  const conversionData = conversions.map((c: any) => ({
-    date: formatDateShort(c.date + "T00:00:00"),
-    link_clicks: c.link_clicks,
-    new_subs: c.new_subs,
-  }));
-
-  const totalClicks = conversions.reduce((s: number, c: any) => s + (c.link_clicks || 0), 0);
-  const totalSubs = conversions.reduce((s: number, c: any) => s + (c.new_subs || 0), 0);
-
-  async function addTag(tagName: string) {
+async function addTag(tagName: string) {
     const newTags = Array.from(new Set([...tags, tagName]));
     setTags(newTags);
     const supabase = createClient();
@@ -129,42 +120,6 @@ export function ProfileDetailClient({ profile, reels, snapshots, conversions, al
                 <Tooltip formatter={(v) => [formatNumber(v as number), "Views"]} />
                 <Line type="monotone" dataKey="views" stroke="#8b5cf6" strokeWidth={2} dot={false} />
               </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* Conversion Charts */}
-      {conversionData.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">Link Clicks</h3>
-              <span className="text-sm text-gray-500">Total: {formatNumber(totalClicks)}</span>
-            </div>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={conversionData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                <YAxis tickFormatter={v => formatNumber(v)} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(v) => [formatNumber(v as number), "Clicks"]} />
-                <Bar dataKey="link_clicks" fill="#E8CC7A" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-900">New Subscribers</h3>
-              <span className="text-sm text-gray-500">Total: {formatNumber(totalSubs)}</span>
-            </div>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={conversionData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                <YAxis tickFormatter={v => formatNumber(v)} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(v) => [formatNumber(v as number), "Subscribers"]} />
-                <Bar dataKey="new_subs" fill="#84CDB0" radius={[4, 4, 0, 0]} />
-              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
