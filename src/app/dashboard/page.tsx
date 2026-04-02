@@ -32,9 +32,15 @@ export default async function DashboardPage() {
     .order("scraped_at", { ascending: true });
 
   // Yesterday's snapshots for KPIs
+  const dayBeforeYesterday = getLocalDateStr(-2);
   const yesterdaySnaps = (snapshotHistory || []).filter(s => s.scraped_at.startsWith(yesterday));
-  const totalFollowers = yesterdaySnaps.reduce((sum, s) => sum + (s.followers || 0), 0);
+  const dayBeforeSnaps = (snapshotHistory || []).filter(s => s.scraped_at.startsWith(dayBeforeYesterday));
   const totalViewsYesterday = yesterdaySnaps.reduce((sum, s) => sum + (s.total_reel_views || 0), 0);
+  const totalFollowersYesterday = yesterdaySnaps.reduce((sum, s) => sum + (s.followers || 0), 0);
+  const totalFollowersDayBefore = dayBeforeSnaps.reduce((sum, s) => sum + (s.followers || 0), 0);
+  const newFollowers = dayBeforeSnaps.length > 0
+    ? Math.max(0, totalFollowersYesterday - totalFollowersDayBefore)
+    : totalFollowersYesterday;
 
   // Aggregate daily data for charts
   const dailyData: Record<string, { date: string; followers: number; views: number; count: number }> = {};
@@ -94,6 +100,7 @@ export default async function DashboardPage() {
     .slice(0, 10);
 
   const dayCount = last5Dates.length;
+  const displayDays = Math.min(availableDates.length, 5);
 
   return (
     <div className="p-6 space-y-6">
@@ -105,9 +112,9 @@ export default async function DashboardPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard title="Active Profiles" value={totalProfiles ?? 0} icon="👤" color="blue" />
-        <KpiCard title="Total Followers" value={totalFollowers} icon="❤️" color="pink" />
+        <KpiCard title="New Followers" value={newFollowers} icon="❤️" color="pink" />
         <KpiCard title="Views Yesterday" value={totalViewsYesterday} icon="👁️" color="purple" />
-        <KpiCard title="Tracking Days" value={availableDates.length} suffix="days" icon="📅" color="green" />
+        <KpiCard title="Data from" value={0} valueOverride={`Last ${displayDays} days`} icon="📅" color="green" />
       </div>
 
       {/* Charts */}
@@ -159,8 +166,8 @@ export default async function DashboardPage() {
   );
 }
 
-function KpiCard({ title, value, icon, color, suffix }: {
-  title: string; value: number; icon: string; color: string; suffix?: string;
+function KpiCard({ title, value, icon, color, suffix, valueOverride }: {
+  title: string; value: number; icon: string; color: string; suffix?: string; valueOverride?: string;
 }) {
   const colors: Record<string, string> = {
     blue: "bg-blue-50 text-blue-600",
@@ -175,8 +182,9 @@ function KpiCard({ title, value, icon, color, suffix }: {
         <span className={`text-xl p-2 rounded-lg ${colors[color]}`}>{icon}</span>
       </div>
       <div className="text-2xl font-bold text-gray-900">
-        {suffix ? `${value} ${suffix}` : value >= 1000 ? formatNumber(value) : value.toLocaleString("en-US")}
+        {valueOverride ?? (value >= 1000 ? formatNumber(value) : value.toLocaleString("en-US"))}
       </div>
+      {suffix && <div className="text-xs text-gray-400 mt-1">{suffix}</div>}
     </div>
   );
 }
