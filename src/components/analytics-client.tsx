@@ -889,12 +889,12 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
 
     const subsPer100k = entries
       .filter(([_, d]) => d.views > 0 && d.newSubs > 0)
-      .map(([_id, d]) => ({ name: d.name, value: parseFloat((d.newSubs / (d.views / 100000)).toFixed(1)) }))
+      .map(([_id, d]) => ({ name: d.name, value: Math.round(d.newSubs / (d.views / 100000)) }))
       .sort((a, b) => b.value - a.value);
 
     const followersPer100k = entries
       .filter(([_, d]) => d.views > 0 && d.followers > 0)
-      .map(([_id, d]) => ({ name: d.name, value: parseFloat((d.followers / (d.views / 100000)).toFixed(1)) }))
+      .map(([_id, d]) => ({ name: d.name, value: Math.round(d.followers / (d.views / 100000)) }))
       .sort((a, b) => b.value - a.value);
 
     return {
