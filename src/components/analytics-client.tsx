@@ -9,23 +9,12 @@ import {
   PieChart, Pie, Cell
 } from "recharts";
 
-// 15 soft pastel colors — level ~70 (between washed-out and punchy)
 const COLORS = [
-  "#E8CC7A", // champagne gold
-  "#9DC4E8", // powder blue
-  "#C4A0E8", // soft lavender
-  "#F0A888", // peach coral
-  "#84CDB0", // mint jade
-  "#F0D870", // butter yellow
-  "#90BCE8", // sky blue
-  "#F090B8", // blush pink
-  "#9DD49D", // sage green
-  "#C090D8", // dusty lilac
-  "#F0B870", // apricot
-  "#80CCE0", // baby teal
-  "#E89898", // dusty rose
-  "#B8E080", // pistachio
-  "#D8B488", // warm sand
+  "#111F39",
+  "#13223F",
+  "#162748",
+  "#17294D",
+  "#1A2E57",
 ];
 
 const SHOW_OPTIONS = [15, 30, 50, 0] as const;
