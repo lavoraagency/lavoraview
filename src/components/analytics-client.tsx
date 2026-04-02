@@ -567,6 +567,41 @@ function DonutCard({
   );
 }
 
+function MetricRankList({
+  title,
+  data,
+  showCount,
+  suffix,
+}: {
+  title: string;
+  data: { name: string; value: number }[];
+  showCount: number;
+  suffix?: string;
+}) {
+  const visibleData = showCount === 0 ? data : data.slice(0, showCount);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <h3 className="font-semibold text-gray-900 mb-4">{title}</h3>
+      {visibleData.length === 0 ? (
+        <div className="text-sm text-gray-400 py-8 text-center">No data</div>
+      ) : (
+        <div className="space-y-2">
+          {visibleData.map((d, i) => (
+            <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-b-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs text-gray-400 w-5 text-right flex-shrink-0">{i + 1}.</span>
+                <span className="text-sm text-gray-700 truncate">{d.name}</span>
+              </div>
+              <span className="text-sm font-semibold text-gray-900 ml-3 tabular-nums flex-shrink-0">{d.value}{suffix || ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MetricBarChart({
   title,
   data,
@@ -831,6 +866,21 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
         .filter(d => d.value > 0)
         .sort((a, b) => b.value - a.value);
     }
+    const clickRate = entries
+      .filter(([_, d]) => d.views > 0 && d.linkClicks > 0)
+      .map(([_id, d]) => ({ name: d.name, value: parseFloat(((d.linkClicks / d.views) * 100).toFixed(2)) }))
+      .sort((a, b) => b.value - a.value);
+
+    const conversionRate = entries
+      .filter(([_, d]) => d.linkClicks > 0)
+      .map(([_id, d]) => ({ name: d.name, value: parseFloat(((d.newSubs / d.linkClicks) * 100).toFixed(1)) }))
+      .sort((a, b) => b.value - a.value);
+
+    const subsPer100k = entries
+      .filter(([_, d]) => d.views > 0 && d.newSubs > 0)
+      .map(([_id, d]) => ({ name: d.name, value: parseFloat((d.newSubs / (d.views / 100000)).toFixed(1)) }))
+      .sort((a, b) => b.value - a.value);
+
     return {
       views: buildBars("views"),
       likes: buildBars("likes"),
@@ -838,6 +888,9 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       followers: buildBars("followers"),
       linkClicks: buildBars("linkClicks"),
       newSubs: buildBars("newSubs"),
+      clickRate,
+      conversionRate,
+      subsPer100k,
     };
   }, [stats.perProfile, profileColorMap]);
 
@@ -993,6 +1046,12 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MetricBarChart title="Link Clicks" data={barData.linkClicks} showCount={showCount} />
         <MetricBarChart title="New Subscribers" data={barData.newSubs} showCount={showCount} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <MetricRankList title="Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" />
+        <MetricRankList title="Conversion Rate" data={barData.conversionRate} showCount={showCount} suffix="%" />
+        <MetricRankList title="Subs / 100K Views" data={barData.subsPer100k} showCount={showCount} />
       </div>
     </div>
   );
