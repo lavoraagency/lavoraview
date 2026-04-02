@@ -782,13 +782,23 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       for (const profileId of Array.from(filteredProfileIds)) {
         const today = todaySnaps[profileId];
         if (!today) continue;
-        const prev = prevSnaps[profileId];
+        let prev = prevSnaps[profileId];
+
+        // If no prev on standard previous date, look further back for this profile
+        if (!prev) {
+          const dateIdx = availableDates.indexOf(date);
+          for (let j = dateIdx - 1; j >= 0; j--) {
+            const candidate = snapshotsByDateProfile[availableDates[j]]?.[profileId];
+            if (candidate) { prev = candidate; break; }
+          }
+        }
+
         const name = profileNameMap[profileId] || "unknown";
 
-        const dF = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : (i === 0 && !dateBeforeRange ? (today.followers || 0) : 0);
-        const dV = prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : (i === 0 && !dateBeforeRange ? (today.total_reel_views || 0) : 0);
-        const dL = prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : (i === 0 && !dateBeforeRange ? (today.total_reel_likes || 0) : 0);
-        const dC = prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : (i === 0 && !dateBeforeRange ? (today.total_reel_comments || 0) : 0);
+        const dF = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : 0;
+        const dV = prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : 0;
+        const dL = prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : 0;
+        const dC = prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : 0;
 
         const conv = convSnaps[profileId];
         const lc = conv?.link_clicks || 0;

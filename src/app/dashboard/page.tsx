@@ -31,16 +31,7 @@ export default async function DashboardPage() {
     .gte("scraped_at", thirtyDaysAgo.toISOString())
     .order("scraped_at", { ascending: true });
 
-  // Yesterday's snapshots for KPIs
-  const dayBeforeYesterday = getLocalDateStr(-2);
-  const yesterdaySnaps = (snapshotHistory || []).filter(s => s.scraped_at.startsWith(yesterday));
-  const dayBeforeSnaps = (snapshotHistory || []).filter(s => s.scraped_at.startsWith(dayBeforeYesterday));
-  const totalViewsYesterday = yesterdaySnaps.reduce((sum, s) => sum + (s.total_reel_views || 0), 0);
-  const totalFollowersYesterday = yesterdaySnaps.reduce((sum, s) => sum + (s.followers || 0), 0);
-  const totalFollowersDayBefore = dayBeforeSnaps.reduce((sum, s) => sum + (s.followers || 0), 0);
-  const newFollowers = dayBeforeSnaps.length > 0
-    ? Math.max(0, totalFollowersYesterday - totalFollowersDayBefore)
-    : totalFollowersYesterday;
+  // Yesterday's snapshots for KPIs (computed after dailyDeltaData below)
 
   // Aggregate daily data for charts
   const dailyData: Record<string, { date: string; followers: number; views: number; count: number }> = {};
@@ -65,7 +56,7 @@ export default async function DashboardPage() {
     snapByDateProfile[date][snap.profile_id] = snap;
   }
 
-  // Compute per-profile daily deltas (same approach as Analytics)
+  // Compute per-profile daily deltas with lookback for missing days
   const sortedDates = availableDates;
   const dailyDeltaData: Record<string, { followerDelta: number; viewDelta: number }> = {};
   for (let i = 0; i < sortedDates.length; i++) {
@@ -77,7 +68,14 @@ export default async function DashboardPage() {
     const prevSnaps = prevDate ? (snapByDateProfile[prevDate] || {}) : {};
     for (const profileId of Object.keys(todaySnaps)) {
       const today = todaySnaps[profileId];
-      const prev = prevSnaps[profileId];
+      let prev = prevSnaps[profileId];
+      // If no prev on standard previous date, look further back for this profile
+      if (!prev) {
+        for (let j = i - 2; j >= 0; j--) {
+          const candidate = snapByDateProfile[sortedDates[j]]?.[profileId];
+          if (candidate) { prev = candidate; break; }
+        }
+      }
       if (prev) {
         followerDelta += Math.max(0, (today.followers || 0) - (prev.followers || 0));
         viewDelta += Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0));
@@ -85,6 +83,11 @@ export default async function DashboardPage() {
     }
     dailyDeltaData[date] = { followerDelta, viewDelta };
   }
+
+  // KPIs from per-profile deltas
+  const yesterdayDeltas = dailyDeltaData[yesterday] || { followerDelta: 0, viewDelta: 0 };
+  const newFollowers = yesterdayDeltas.followerDelta;
+  const totalViewsYesterday = yesterdayDeltas.viewDelta;
 
   const chartData = Object.values(dailyData)
     .sort((a, b) => a.date.localeCompare(b.date))

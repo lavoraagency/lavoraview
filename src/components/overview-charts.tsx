@@ -53,7 +53,7 @@ export function OverviewCharts({ chartData }: { chartData: ChartData[] }) {
               <XAxis dataKey="dateLabel" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis tickFormatter={(v) => formatNumber(v)} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <Tooltip formatter={(value) => [formatNumber(value as number), "Views"]} />
-              <Bar dataKey="views" fill="#C9A227" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="viewDelta" fill="#C9A227" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
