@@ -831,34 +831,6 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
         .filter(d => d.value > 0)
         .sort((a, b) => b.value - a.value);
     }
-    // Computed rate bars (per-profile)
-    const clickRateBars = entries
-      .filter(([_, d]) => d.views > 0 && d.linkClicks > 0)
-      .map(([_id, d]) => ({
-        name: d.name,
-        value: parseFloat(((d.linkClicks / d.views) * 100).toFixed(2)),
-        fill: profileColorMap[d.name] || "#C9A227",
-      }))
-      .sort((a, b) => b.value - a.value);
-
-    const conversionRateBars = entries
-      .filter(([_, d]) => d.linkClicks > 0)
-      .map(([_id, d]) => ({
-        name: d.name,
-        value: parseFloat(((d.newSubs / d.linkClicks) * 100).toFixed(1)),
-        fill: profileColorMap[d.name] || "#C9A227",
-      }))
-      .sort((a, b) => b.value - a.value);
-
-    const subsPer100kBars = entries
-      .filter(([_, d]) => d.views > 0 && d.newSubs > 0)
-      .map(([_id, d]) => ({
-        name: d.name,
-        value: parseFloat((d.newSubs / (d.views / 100000)).toFixed(1)),
-        fill: profileColorMap[d.name] || "#C9A227",
-      }))
-      .sort((a, b) => b.value - a.value);
-
     return {
       views: buildBars("views"),
       likes: buildBars("likes"),
@@ -866,9 +838,6 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       followers: buildBars("followers"),
       linkClicks: buildBars("linkClicks"),
       newSubs: buildBars("newSubs"),
-      clickRate: clickRateBars,
-      conversionRate: conversionRateBars,
-      subsPer100k: subsPer100kBars,
     };
   }, [stats.perProfile, profileColorMap]);
 
@@ -1024,9 +993,6 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MetricBarChart title="Link Clicks" data={barData.linkClicks} showCount={showCount} />
         <MetricBarChart title="New Subscribers" data={barData.newSubs} showCount={showCount} />
-        <MetricBarChart title="Click Rate (%)" data={barData.clickRate} showCount={showCount} />
-        <MetricBarChart title="Conversion Rate (%)" data={barData.conversionRate} showCount={showCount} />
-        <MetricBarChart title="Subs / 100K Views" data={barData.subsPer100k} showCount={showCount} />
       </div>
     </div>
   );
