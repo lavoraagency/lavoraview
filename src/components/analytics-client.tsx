@@ -952,17 +952,6 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
         </div>
       </div>
 
-      {/* Stats Row 3 - Conversions */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-3 lg:grid-cols-6 divide-x divide-gray-200">
-          <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
-          <StatCard label="New Subscribers" value={formatNumber(stats.totalNewSubs)} sub />
-          <StatCard label="Profiles Tracked" value={String(stats.profileCount)} sub />
-          <StatCard label="Click Rate" value={stats.deltaViews > 0 ? `${((stats.totalLinkClicks / stats.deltaViews) * 100).toFixed(2)}%` : "—"} sub />
-          <StatCard label="Conversion Rate" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
-          <StatCard label="Subs / 100K Views" value={stats.deltaViews > 0 ? `${(stats.totalNewSubs / (stats.deltaViews / 100000)).toFixed(1)}` : "—"} sub />
-        </div>
-      </div>
 
       {/* Donut Charts */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -983,6 +972,17 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       <div>
         <h2 className="text-lg font-bold text-gray-900">Conversions</h2>
         <p className="text-gray-500 text-sm mt-1">Link clicks &amp; new subscribers from tracking links</p>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="grid grid-cols-3 lg:grid-cols-6 divide-x divide-gray-200">
+          <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
+          <StatCard label="New Subscribers" value={formatNumber(stats.totalNewSubs)} sub />
+          <StatCard label="Profiles Tracked" value={String(stats.profileCount)} sub />
+          <StatCard label="Click Rate" value={stats.deltaViews > 0 ? `${((stats.totalLinkClicks / stats.deltaViews) * 100).toFixed(2)}%` : "—"} sub />
+          <StatCard label="Conversion Rate" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
+          <StatCard label="Subs / 100K Views" value={stats.deltaViews > 0 ? `${(stats.totalNewSubs / (stats.deltaViews / 100000)).toFixed(1)}` : "—"} sub />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
