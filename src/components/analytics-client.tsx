@@ -9,23 +9,23 @@ import {
   PieChart, Pie, Cell
 } from "recharts";
 
-// 15 pastel premium colors
+// 15 mid-saturation pastel colors — soft but punchy
 const COLORS = [
-  "#E8D5A3", // champagne gold
-  "#A8C4E8", // powder blue
-  "#C9A8E8", // soft lavender
-  "#F0B8A0", // peach
-  "#A8D8C0", // mint
-  "#F0D080", // butter yellow
-  "#A8C8F0", // sky blue
-  "#F0A8C8", // blush pink
-  "#B8E0B8", // sage green
-  "#D0A8D8", // dusty purple
-  "#F0C8A0", // apricot
-  "#A8D8E8", // baby blue
-  "#E8B8B8", // dusty rose
-  "#C8E8A8", // pistachio
-  "#D8C0A8", // warm taupe
+  "#D4A830", // golden honey
+  "#6FA8D8", // cornflower blue
+  "#A870D0", // medium lavender
+  "#E8805A", // warm coral
+  "#50B890", // jade green
+  "#E8C040", // sunflower
+  "#60A0E8", // clear sky blue
+  "#E8609A", // raspberry pink
+  "#70C070", // fresh sage
+  "#9060C0", // soft violet
+  "#E89040", // warm amber
+  "#40B0C8", // ocean teal
+  "#D06070", // rose red
+  "#90C840", // lime green
+  "#C09060", // warm bronze
 ];
 
 const SHOW_OPTIONS = [15, 30, 50, 0] as const;
