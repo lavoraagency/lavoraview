@@ -17,7 +17,7 @@ const COLORS = [
   "#1A2E57",
 ];
 
-const SHOW_OPTIONS = [15, 30, 50, 0] as const;
+const SHOW_OPTIONS = [5, 15, 30, 50, 0] as const;
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -646,7 +646,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
   const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [showCount, setShowCount] = useState(15);
+  const [showCount, setShowCount] = useState(5);
 
   // Build profile color map
   const profileColorMap = useMemo(() => {
