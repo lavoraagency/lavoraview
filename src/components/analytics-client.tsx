@@ -21,6 +21,8 @@ const COLORS = [
   "#f5d0fe", "#a7f3d0", "#fecdd3", "#bfdbfe", "#ecfccb",
 ];
 
+const SHOW_OPTIONS = [15, 30, 50, 0] as const; // 0 = all
+
 interface AnalyticsClientProps {
   profiles: any[];
   snapshots: any[];
@@ -182,36 +184,27 @@ function DonutCard({
 function MetricBarChart({
   title,
   data,
-  profileKeys,
   colorMap,
+  showCount,
 }: {
   title: string;
-  data: any[];
-  profileKeys: string[];
+  data: { name: string; value: number; fill: string }[];
   colorMap: Record<string, string>;
+  showCount: number;
 }) {
-  // Build horizontal data: one row per profile with the sum across all dates
-  const horizontalData = useMemo(() => {
-    return profileKeys
-      .map(key => {
-        const total = data.reduce((sum, row) => sum + (row[key] || 0), 0);
-        return { name: key, value: total, fill: colorMap[key] || "#6366f1" };
-      })
-      .filter(d => d.value > 0)
-      .sort((a, b) => b.value - a.value);
-  }, [data, profileKeys, colorMap]);
+  const visibleData = showCount === 0 ? data : data.slice(0, showCount);
 
   const barHeight = 32;
-  const chartHeight = Math.max(150, horizontalData.length * (barHeight + 8) + 40);
+  const chartHeight = Math.max(150, visibleData.length * (barHeight + 8) + 40);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
       <h3 className="font-semibold text-gray-900 mb-4">{title}</h3>
-      {horizontalData.length === 0 ? (
+      {visibleData.length === 0 ? (
         <div className="text-sm text-gray-400 py-8 text-center">No data</div>
       ) : (
         <ResponsiveContainer width="100%" height={chartHeight}>
-          <BarChart data={horizontalData} layout="vertical" margin={{ left: 10, right: 20, top: 0, bottom: 0 }}>
+          <BarChart data={visibleData} layout="vertical" margin={{ left: 10, right: 20, top: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
             <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatNumber(v)} />
             <YAxis
@@ -227,7 +220,7 @@ function MetricBarChart({
               contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
             />
             <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={barHeight}>
-              {horizontalData.map((entry, i) => (
+              {visibleData.map((entry, i) => (
                 <Cell key={i} fill={entry.fill} />
               ))}
             </Bar>
@@ -243,6 +236,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showCount, setShowCount] = useState(15);
   const [selectedDate, setSelectedDate] = useState(() => {
     // Default to yesterday (local time, not UTC)
     const d = new Date();
@@ -330,14 +324,14 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     const todaySnaps = snapshotsByDateProfile[selectedDate] || {};
     const yesterdaySnaps = prevDateStr ? (snapshotsByDateProfile[prevDateStr] || {}) : {};
 
-    let totalFollowers = 0, totalPosts = 0, totalViews = 0, totalLikes = 0, totalComments = 0, totalShares = 0;
-    let deltaFollowers = 0, deltaPosts = 0, deltaViews = 0, deltaLikes = 0, deltaComments = 0, deltaShares = 0;
+    let totalFollowers = 0, totalViews = 0, totalLikes = 0, totalComments = 0;
+    let deltaFollowers = 0, deltaViews = 0, deltaLikes = 0, deltaComments = 0;
     let profileCount = 0;
 
     // Per-profile deltas for donut charts
     const perProfile: Record<string, {
-      name: string; followers: number; posts: number; views: number;
-      likes: number; comments: number; shares: number; interactions: number;
+      name: string; followers: number; views: number;
+      likes: number; comments: number; interactions: number;
     }> = {};
 
     for (const profileId of Array.from(filteredProfileIds)) {
@@ -349,40 +343,36 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
       profileCount++;
 
       totalFollowers += today.followers || 0;
-      totalPosts += today.media_count || 0;
       totalViews += today.total_reel_views || 0;
       totalLikes += today.total_reel_likes || 0;
       totalComments += today.total_reel_comments || 0;
-      totalShares += today.total_reel_shares || 0;
 
       // If no previous day exists, show absolute values instead of 0
       const dF = yesterday ? Math.max(0, (today.followers || 0) - (yesterday.followers || 0)) : (today.followers || 0);
-      const dP = yesterday ? Math.max(0, (today.media_count || 0) - (yesterday.media_count || 0)) : (today.media_count || 0);
       const dV = yesterday ? Math.max(0, (today.total_reel_views || 0) - (yesterday.total_reel_views || 0)) : (today.total_reel_views || 0);
       const dL = yesterday ? Math.max(0, (today.total_reel_likes || 0) - (yesterday.total_reel_likes || 0)) : (today.total_reel_likes || 0);
       const dC = yesterday ? Math.max(0, (today.total_reel_comments || 0) - (yesterday.total_reel_comments || 0)) : (today.total_reel_comments || 0);
-      const dS = yesterday ? Math.max(0, (today.total_reel_shares || 0) - (yesterday.total_reel_shares || 0)) : (today.total_reel_shares || 0);
 
       deltaFollowers += dF;
-      deltaPosts += dP;
       deltaViews += dV;
       deltaLikes += dL;
       deltaComments += dC;
-      deltaShares += dS;
 
       perProfile[profileId] = {
         name,
         followers: dF,
-        posts: dP,
         views: dV,
         likes: dL,
         comments: dC,
-        shares: dS,
-        interactions: dL + dC + dS,
+        interactions: dL + dC,
       };
     }
 
-    const totalInteractions = deltaLikes + deltaComments + deltaShares;
+    const totalInteractions = deltaLikes + deltaComments;
+    const totalPosts = Array.from(filteredProfileIds).reduce((sum, pid) => {
+      const snap = todaySnaps[pid];
+      return sum + (snap?.media_count || 0);
+    }, 0);
     const avgViews = profileCount > 0 && totalPosts > 0 ? Math.round(totalViews / totalPosts) : 0;
     const engagementPerPost = totalPosts > 0 ? Math.round(totalInteractions / totalPosts) : 0;
     const viralityRatio = totalViews > 0 ? ((totalInteractions / totalViews) * 100).toFixed(2) : "0.00";
@@ -390,8 +380,8 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     const hasPrevDay = !!prevDateStr;
 
     return {
-      totalFollowers, totalPosts, totalViews, totalLikes, totalComments, totalShares,
-      deltaFollowers, deltaPosts, deltaViews, deltaLikes, deltaComments, deltaShares,
+      totalFollowers, totalViews, totalLikes, totalComments,
+      deltaFollowers, deltaViews, deltaLikes, deltaComments,
       totalInteractions, avgViews, engagementPerPost, viralityRatio,
       perProfile, profileCount, hasPrevDay,
     };
@@ -415,67 +405,33 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
 
     return {
       followers: buildDonut("followers"),
-      posts: buildDonut("posts"),
       views: buildDonut("views"),
       interactions: buildDonut("interactions"),
     };
   }, [stats.perProfile, profileColorMap]);
 
-  // Bar chart data (last 30 days)
-  const barChartData = useMemo(() => {
-    // Get last 30 available dates up to selected date
-    const endIdx = availableDates.indexOf(selectedDate);
-    const startIdx = Math.max(0, endIdx - 29);
-    const dates = endIdx >= 0 ? availableDates.slice(startIdx, endIdx + 1) : [];
+  // Horizontal bar chart data (sorted, per profile)
+  const barData = useMemo(() => {
+    const entries = Object.entries(stats.perProfile);
 
-    const activeUsernames = filteredProfiles.map(p => p.instagram_username);
-    const activeIds = Array.from(filteredProfileIds);
-
-    // Build daily data with per-profile breakdown
-    const charts: { views: any[]; likes: any[]; comments: any[]; shares: any[]; followers: any[]; posts: any[] } = {
-      views: [], likes: [], comments: [], shares: [], followers: [], posts: [],
-    };
-
-    for (let i = 0; i < dates.length; i++) {
-      const date = dates[i];
-      const prevDay = i > 0 ? dates[i - 1] : (startIdx > 0 ? availableDates[startIdx - 1] : null);
-      const todaySnaps = snapshotsByDateProfile[date] || {};
-      const prevSnaps = prevDay ? (snapshotsByDateProfile[prevDay] || {}) : {};
-
-      const shortDate = new Date(date + "T00:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
-
-      const viewRow: any = { date: shortDate };
-      const likeRow: any = { date: shortDate };
-      const commentRow: any = { date: shortDate };
-      const shareRow: any = { date: shortDate };
-      const followerRow: any = { date: shortDate };
-      const postRow: any = { date: shortDate };
-
-      for (const pid of activeIds) {
-        const today = todaySnaps[pid];
-        const prev = prevSnaps[pid];
-        const uname = profileNameMap[pid];
-        if (!today || !uname) continue;
-
-        // If no previous day exists, show absolute values instead of 0
-        viewRow[uname] = prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : (today.total_reel_views || 0);
-        likeRow[uname] = prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : (today.total_reel_likes || 0);
-        commentRow[uname] = prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : (today.total_reel_comments || 0);
-        shareRow[uname] = prev ? Math.max(0, (today.total_reel_shares || 0) - (prev.total_reel_shares || 0)) : (today.total_reel_shares || 0);
-        followerRow[uname] = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : (today.followers || 0);
-        postRow[uname] = prev ? Math.max(0, (today.media_count || 0) - (prev.media_count || 0)) : (today.media_count || 0);
-      }
-
-      charts.views.push(viewRow);
-      charts.likes.push(likeRow);
-      charts.comments.push(commentRow);
-      charts.shares.push(shareRow);
-      charts.followers.push(followerRow);
-      charts.posts.push(postRow);
+    function buildBars(field: string) {
+      return entries
+        .map(([id, d]) => ({
+          name: d.name,
+          value: (d as any)[field] as number,
+          fill: profileColorMap[d.name] || "#6366f1",
+        }))
+        .filter(d => d.value > 0)
+        .sort((a, b) => b.value - a.value);
     }
 
-    return { charts, profileKeys: activeUsernames };
-  }, [availableDates, selectedDate, snapshotsByDateProfile, filteredProfiles, filteredProfileIds, profileNameMap]);
+    return {
+      views: buildBars("views"),
+      likes: buildBars("likes"),
+      comments: buildBars("comments"),
+      followers: buildBars("followers"),
+    };
+  }, [stats.perProfile, profileColorMap]);
 
   // Format selected date display
   const dateDisplay = useMemo(() => {
@@ -532,6 +488,24 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
           onChange={setSelectedTags}
         />
 
+        {/* Show count selector */}
+        <div className="flex items-center gap-1 border border-gray-200 rounded-lg bg-white overflow-hidden">
+          {SHOW_OPTIONS.map(opt => (
+            <button
+              key={opt}
+              onClick={() => setShowCount(opt)}
+              className={cn(
+                "px-3 py-2 text-xs font-medium transition-colors",
+                showCount === opt
+                  ? "bg-brand-500 text-white"
+                  : "text-gray-500 hover:bg-gray-50"
+              )}
+            >
+              {opt === 0 ? "All" : `Top ${opt}`}
+            </button>
+          ))}
+        </div>
+
         {/* Date Picker */}
         <div className="flex items-center gap-1 ml-auto">
           <button
@@ -563,39 +537,30 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
 
       {/* Stats Row 1 - Totals */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-3 lg:grid-cols-6 divide-x divide-gray-200">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
           <StatCard label="Followers" value={formatNumber(stats.totalFollowers)} />
-          <StatCard label="Posts" value={formatNumber(stats.totalPosts)} />
           <StatCard label="Views" value={formatNumber(stats.totalViews)} />
           <StatCard label="Likes" value={formatNumber(stats.totalLikes)} />
           <StatCard label="Comments" value={formatNumber(stats.totalComments)} />
-          <StatCard label="Shares" value={formatNumber(stats.totalShares)} />
         </div>
       </div>
 
       {/* Stats Row 2 - Daily / Derived */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-3 lg:grid-cols-6 divide-x divide-gray-200">
-          <StatCard label="Daily Followers" value={formatNumber(stats.deltaFollowers)} sub />
-          <StatCard label="Post Frequency" value={String(stats.deltaPosts)} sub />
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
+          <StatCard label="New Followers" value={formatNumber(stats.deltaFollowers)} sub />
           <StatCard label="Average Views" value={formatNumber(stats.avgViews)} sub />
           <StatCard label="Total Interactions" value={formatNumber(stats.totalInteractions)} sub />
-          <StatCard label="Engagement/Post" value={String(stats.engagementPerPost)} sub />
           <StatCard label="Virality Ratio" value={`${stats.viralityRatio}%`} sub />
         </div>
       </div>
 
       {/* Donut Charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <DonutCard
           title={stats.hasPrevDay ? "New Followers" : "Followers"}
           total={formatNumber(stats.deltaFollowers)}
           data={donutData.followers}
-        />
-        <DonutCard
-          title={stats.hasPrevDay ? "New Posts" : "Posts"}
-          total={String(stats.deltaPosts)}
-          data={donutData.posts}
         />
         <DonutCard
           title={stats.hasPrevDay ? "New Views" : "Views"}
@@ -613,39 +578,27 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MetricBarChart
           title="Views"
-          data={barChartData.charts.views}
-          profileKeys={barChartData.profileKeys}
+          data={barData.views}
           colorMap={profileColorMap}
+          showCount={showCount}
         />
         <MetricBarChart
           title="Likes"
-          data={barChartData.charts.likes}
-          profileKeys={barChartData.profileKeys}
+          data={barData.likes}
           colorMap={profileColorMap}
+          showCount={showCount}
         />
         <MetricBarChart
           title="Comments"
-          data={barChartData.charts.comments}
-          profileKeys={barChartData.profileKeys}
+          data={barData.comments}
           colorMap={profileColorMap}
+          showCount={showCount}
         />
         <MetricBarChart
-          title="Shares"
-          data={barChartData.charts.shares}
-          profileKeys={barChartData.profileKeys}
+          title="New Followers"
+          data={barData.followers}
           colorMap={profileColorMap}
-        />
-        <MetricBarChart
-          title="Followers"
-          data={barChartData.charts.followers}
-          profileKeys={barChartData.profileKeys}
-          colorMap={profileColorMap}
-        />
-        <MetricBarChart
-          title="Posts"
-          data={barChartData.charts.posts}
-          profileKeys={barChartData.profileKeys}
-          colorMap={profileColorMap}
+          showCount={showCount}
         />
       </div>
     </div>
