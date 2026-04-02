@@ -820,7 +820,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
               className={cn(
                 "px-3 py-2 text-xs font-medium transition-colors",
                 showCount === opt
-                  ? "bg-gold-gradient text-white"
+                  ? "bg-gray-900 text-white"
                   : "text-gray-500 hover:bg-gray-50"
               )}
             >
