@@ -918,9 +918,9 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
       {/* Bar Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <MetricBarChart title="Views" data={barData.views} showCount={showCount} />
+        <MetricBarChart title="New Followers" data={barData.followers} showCount={showCount} />
         <MetricBarChart title="Likes" data={barData.likes} showCount={showCount} />
         <MetricBarChart title="Comments" data={barData.comments} showCount={showCount} />
-        <MetricBarChart title="New Followers" data={barData.followers} showCount={showCount} />
       </div>
     </div>
   );
