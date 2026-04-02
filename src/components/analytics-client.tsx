@@ -223,10 +223,13 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState(() => {
-    // Default to yesterday
+    // Default to yesterday (local time, not UTC)
     const d = new Date();
     d.setDate(d.getDate() - 1);
-    return d.toISOString().split("T")[0];
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   });
 
   // Build profile color map
@@ -276,6 +279,13 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
   const availableDates = useMemo(() => {
     return Object.keys(snapshotsByDateProfile).sort();
   }, [snapshotsByDateProfile]);
+
+  // Auto-fallback: if selectedDate has no data, jump to latest available date
+  useEffect(() => {
+    if (availableDates.length > 0 && !availableDates.includes(selectedDate)) {
+      setSelectedDate(availableDates[availableDates.length - 1]);
+    }
+  }, [availableDates, selectedDate]);
 
   // Navigate date
   function prevDate() {
