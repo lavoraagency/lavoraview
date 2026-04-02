@@ -9,18 +9,18 @@ import {
   PieChart, Pie, Cell
 } from "recharts";
 
-// Brand-aligned color palette — gold, amber, bronze, copper tones
+// Brand-aligned color palette — gold, blue & purple luxury tones
 const COLORS = [
   "#C9A227", // rich gold
+  "#2C5282", // deep sapphire blue
+  "#7B3FA0", // royal purple
   "#E8C547", // bright gold
-  "#8B6914", // dark gold
+  "#1B3A6B", // navy blue
+  "#5B2C8D", // deep violet
   "#D4820A", // amber
+  "#2E75B6", // steel blue
+  "#9B59B6", // amethyst
   "#B87333", // copper
-  "#F0D060", // pale gold
-  "#A07010", // deep amber
-  "#7D5A1E", // warm brown
-  "#E8B86D", // soft gold
-  "#5C3D11", // dark brown
 ];
 
 const SHOW_OPTIONS = [15, 30, 50, 0] as const;
