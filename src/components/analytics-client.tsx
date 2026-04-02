@@ -1027,24 +1027,54 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
           ))}
         </div>
 
-        {/* CSV Export */}
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-          title="Export as CSV"
-        >
-          <Download className="w-3.5 h-3.5" />
-          CSV
-        </button>
+        {/* CSV Export + Date Navigation */}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-2.5 py-2 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            title="Export as CSV"
+          >
+            <Download className="w-4 h-4" />
+          </button>
 
-        {/* Date Range Picker */}
-        <div className="ml-auto">
+          <button
+            onClick={() => {
+              const from = new Date(dateRange.from + "T00:00:00");
+              const to = new Date(dateRange.to + "T00:00:00");
+              const days = Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+              const newTo = addDays(dateRange.from, -1);
+              const newFrom = addDays(dateRange.from, -days);
+              if (newFrom >= minDate) {
+                setDateRange({ from: newFrom, to: newTo });
+              }
+            }}
+            className="flex items-center px-2 py-2 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
           <DateRangePicker
             range={dateRange}
             onChange={setDateRange}
             minDate={minDate}
             maxDate={maxDate}
           />
+
+          <button
+            onClick={() => {
+              const from = new Date(dateRange.from + "T00:00:00");
+              const to = new Date(dateRange.to + "T00:00:00");
+              const days = Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+              const newFrom = addDays(dateRange.to, 1);
+              const newTo = addDays(dateRange.to, days);
+              if (newTo <= maxDate) {
+                setDateRange({ from: newFrom, to: newTo });
+              }
+            }}
+            className="flex items-center px-2 py-2 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
