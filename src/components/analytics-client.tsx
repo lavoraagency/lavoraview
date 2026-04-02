@@ -501,6 +501,19 @@ function DonutCard({
 }) {
   const top5 = data.slice(0, 5);
 
+  // Group small slices into "Rest"
+  const maxSlices = 10;
+  const chartData = useMemo(() => {
+    if (data.length <= maxSlices) return data;
+    const visible = data.slice(0, maxSlices);
+    const rest = data.slice(maxSlices);
+    const restValue = rest.reduce((sum, d) => sum + d.value, 0);
+    if (restValue > 0) {
+      visible.push({ name: "Rest", value: restValue, color: "#94a3b8" });
+    }
+    return visible;
+  }, [data]);
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
       <h3 className="text-sm font-semibold text-gray-900 mb-3">{title}</h3>
@@ -509,7 +522,7 @@ function DonutCard({
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={data.length > 0 ? data : [{ name: "empty", value: 1, color: "#e5e7eb" }]}
+                data={chartData.length > 0 ? chartData : [{ name: "empty", value: 1, color: "#e5e7eb" }]}
                 cx="50%"
                 cy="50%"
                 innerRadius={40}
@@ -518,10 +531,14 @@ function DonutCard({
                 strokeWidth={2}
                 stroke="#fff"
               >
-                {(data.length > 0 ? data : [{ color: "#e5e7eb" }]).map((entry, i) => (
+                {(chartData.length > 0 ? chartData : [{ color: "#e5e7eb" }]).map((entry, i) => (
                   <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
+              <Tooltip
+                formatter={(value: number, _name: string, props: any) => [formatNumber(value), props.payload.name]}
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+              />
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
