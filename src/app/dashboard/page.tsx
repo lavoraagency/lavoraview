@@ -4,8 +4,16 @@ import { createServiceClient as createClient } from "@/lib/supabase/server";
 import { formatNumber } from "@/lib/utils";
 import { OverviewCharts } from "@/components/overview-charts";
 
+function getLocalDateStr(offsetDays = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export default async function DashboardPage() {
   const supabase = createClient();
+
+  const yesterday = getLocalDateStr(-1);
 
   // Total active profiles
   const { count: totalProfiles } = await supabase
@@ -13,22 +21,7 @@ export default async function DashboardPage() {
     .select("*", { count: "exact", head: true })
     .eq("is_active", true);
 
-  // Latest snapshots aggregated
-  const { data: latestSnapshots } = await supabase
-    .from("profile_snapshots")
-    .select("followers, total_reel_views, scraped_at")
-    .order("scraped_at", { ascending: false })
-    .limit(1000);
-
-  // Get today's total views and followers
-  const today = new Date().toISOString().split("T")[0];
-  const todaysSnaps = latestSnapshots?.filter(s =>
-    s.scraped_at.startsWith(today)
-  ) || [];
-  const totalFollowers = todaysSnaps.reduce((sum, s) => sum + (s.followers || 0), 0);
-  const totalViewsToday = todaysSnaps.reduce((sum, s) => sum + (s.total_reel_views || 0), 0);
-
-  // Historical data for charts (last 30 days)
+  // Snapshots for last 30 days
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -38,30 +31,10 @@ export default async function DashboardPage() {
     .gte("scraped_at", thirtyDaysAgo.toISOString())
     .order("scraped_at", { ascending: true });
 
-  // Top accounts by follower growth
-  const { data: topProfiles } = await supabase
-    .from("profiles")
-    .select(`
-      id, instagram_username, status, is_active,
-      models(name),
-      account_groups(name),
-      profile_snapshots(followers, total_reel_views, scraped_at)
-    `)
-    .eq("is_active", true)
-    .limit(50);
-
-  // Build top 10 by growth
-  const profilesWithGrowth = (topProfiles || []).map(p => {
-    const snaps = (p.profile_snapshots || []).sort((a: any, b: any) =>
-      new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime()
-    );
-    const latest = snaps[0];
-    const prev = snaps[1];
-    const growth = latest && prev
-      ? (latest.followers || 0) - (prev.followers || 0)
-      : 0;
-    return { ...p, latestFollowers: latest?.followers || 0, growth, latestViews: latest?.total_reel_views || 0 };
-  }).sort((a, b) => b.growth - a.growth).slice(0, 10);
+  // Yesterday's snapshots for KPIs
+  const yesterdaySnaps = (snapshotHistory || []).filter(s => s.scraped_at.startsWith(yesterday));
+  const totalFollowers = yesterdaySnaps.reduce((sum, s) => sum + (s.followers || 0), 0);
+  const totalViewsYesterday = yesterdaySnaps.reduce((sum, s) => sum + (s.total_reel_views || 0), 0);
 
   // Aggregate daily data for charts
   const dailyData: Record<string, { date: string; followers: number; views: number; count: number }> = {};
@@ -74,28 +47,77 @@ export default async function DashboardPage() {
   }
   const chartData = Object.values(dailyData).sort((a, b) => a.date.localeCompare(b.date));
 
+  // Top 10 accounts by views in last 5 available days
+  const availableDates = Object.keys(dailyData).sort();
+  const last5Dates = availableDates.slice(-5);
+  const dateBeforeLast5 = availableDates.length > 5 ? availableDates[availableDates.length - 6] : null;
+
+  // Group snapshots by date+profile
+  const snapByDateProfile: Record<string, Record<string, any>> = {};
+  for (const snap of snapshotHistory || []) {
+    const date = snap.scraped_at.split("T")[0];
+    if (!snapByDateProfile[date]) snapByDateProfile[date] = {};
+    snapByDateProfile[date][snap.profile_id] = snap;
+  }
+
+  // Fetch profiles for display info
+  const { data: allProfiles } = await supabase
+    .from("profiles")
+    .select("id, instagram_username, models(name), account_groups(name)")
+    .eq("is_active", true);
+
+  // Calculate total view delta for each profile over last 5 days
+  const profileViewMap: Record<string, number> = {};
+  const profileFollowerMap: Record<string, number> = {};
+
+  for (const profile of allProfiles || []) {
+    const lastSnap = snapByDateProfile[last5Dates[last5Dates.length - 1]]?.[profile.id];
+    const firstSnap = dateBeforeLast5
+      ? snapByDateProfile[dateBeforeLast5]?.[profile.id]
+      : snapByDateProfile[last5Dates[0]]?.[profile.id];
+
+    if (lastSnap && firstSnap) {
+      profileViewMap[profile.id] = Math.max(0, (lastSnap.total_reel_views || 0) - (firstSnap.total_reel_views || 0));
+    } else if (lastSnap) {
+      profileViewMap[profile.id] = lastSnap.total_reel_views || 0;
+    }
+    profileFollowerMap[profile.id] = lastSnap?.followers || 0;
+  }
+
+  const top10ByViews = (allProfiles || [])
+    .map(p => ({
+      ...p,
+      viewsLast5: profileViewMap[p.id] || 0,
+      followers: profileFollowerMap[p.id] || 0,
+    }))
+    .sort((a, b) => b.viewsLast5 - a.viewsLast5)
+    .slice(0, 10);
+
+  const dayCount = last5Dates.length;
+
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Overview</h1>
-        <p className="text-gray-500 text-sm mt-1">Creator Analytics Dashboard</p>
+        <p className="text-gray-500 text-sm mt-1">Data from yesterday · {yesterday}</p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="Aktive Profile" value={totalProfiles ?? 0} icon="👤" color="blue" />
+        <KpiCard title="Active Profiles" value={totalProfiles ?? 0} icon="👤" color="blue" />
         <KpiCard title="Total Followers" value={totalFollowers} icon="❤️" color="pink" />
-        <KpiCard title="Views Heute" value={totalViewsToday} icon="👁️" color="purple" />
-        <KpiCard title="Tracking Tage" value={30} suffix="Tage" icon="📅" color="green" />
+        <KpiCard title="Views Yesterday" value={totalViewsYesterday} icon="👁️" color="purple" />
+        <KpiCard title="Tracking Days" value={availableDates.length} suffix="days" icon="📅" color="green" />
       </div>
 
       {/* Charts */}
       <OverviewCharts chartData={chartData} />
 
-      {/* Top Accounts */}
+      {/* Top 10 by Views */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-900">Top 10 Accounts nach Wachstum</h2>
+          <h2 className="font-semibold text-gray-900">Top 10 Accounts by Views</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Ranked by total reel views gained in the last {dayCount} days</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -103,35 +125,29 @@ export default async function DashboardPage() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Model</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Creator</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Followers</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Wachstum</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Views</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Views (last {dayCount}d)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {profilesWithGrowth.map((p, i) => (
+              {top10ByViews.map((p, i) => (
                 <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-3 text-gray-400">{i + 1}</td>
+                  <td className="px-6 py-3 text-gray-400 font-medium">{i + 1}</td>
                   <td className="px-6 py-3">
-                    <a href={`/dashboard/profiles/${p.id}`} className="font-medium text-brand-600 hover:underline">
+                    <a href={`/dashboard/profiles/${p.id}`} className="font-medium text-gray-900 hover:text-brand-600">
                       @{p.instagram_username}
                     </a>
                   </td>
                   <td className="px-6 py-3 text-gray-500">{(p.models as any)?.name || "-"}</td>
-                  <td className="px-6 py-3 text-right font-medium">{formatNumber(p.latestFollowers)}</td>
-                  <td className="px-6 py-3 text-right">
-                    <span className={p.growth >= 0 ? "text-green-600" : "text-red-600"}>
-                      {p.growth >= 0 ? "+" : ""}{formatNumber(p.growth)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3 text-right text-gray-500">{formatNumber(p.latestViews)}</td>
+                  <td className="px-6 py-3 text-right text-gray-600">{formatNumber(p.followers)}</td>
+                  <td className="px-6 py-3 text-right font-semibold text-gray-900">{formatNumber(p.viewsLast5)}</td>
                 </tr>
               ))}
-              {profilesWithGrowth.length === 0 && (
+              {top10ByViews.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
-                    Noch keine Daten vorhanden. Führe den Instagram-Scraping-Workflow aus.
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                    No data available yet.
                   </td>
                 </tr>
               )}
@@ -159,9 +175,7 @@ function KpiCard({ title, value, icon, color, suffix }: {
         <span className={`text-xl p-2 rounded-lg ${colors[color]}`}>{icon}</span>
       </div>
       <div className="text-2xl font-bold text-gray-900">
-        {typeof value === "number" ? (
-          suffix ? `${value} ${suffix}` : value >= 1000 ? formatNumber(value) : value.toLocaleString("de-DE")
-        ) : value}
+        {suffix ? `${value} ${suffix}` : value >= 1000 ? formatNumber(value) : value.toLocaleString("en-US")}
       </div>
     </div>
   );
