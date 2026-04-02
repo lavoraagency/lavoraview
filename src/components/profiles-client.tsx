@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Search, ExternalLink, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { Search, ExternalLink, ChevronLeft, ChevronRight, Sparkles, Plus, X, Check } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { TagBadge } from "@/components/tag-badge";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 interface ProfilesClientProps {
   initialProfiles: any[];
@@ -37,14 +38,153 @@ function formatUpdatedAt(date: string | null): string {
   return `${day}. ${month}, ${hours}:${mins}`;
 }
 
+// Tag editor dropdown for a single profile
+function TagEditor({
+  profileId,
+  currentTags,
+  allTags,
+  tagColorMap,
+  onUpdate,
+}: {
+  profileId: string;
+  currentTags: string[];
+  allTags: { id: string; name: string; color: string | null }[];
+  tagColorMap: Record<string, string>;
+  onUpdate: (profileId: string, newTags: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  async function toggleTag(tagName: string) {
+    setSaving(true);
+    const newTags = currentTags.includes(tagName)
+      ? currentTags.filter(t => t !== tagName)
+      : [...currentTags, tagName];
+
+    const supabase = createClient();
+    await supabase.from("profiles").update({ tags: newTags }).eq("id", profileId);
+    onUpdate(profileId, newTags);
+    setSaving(false);
+  }
+
+  async function addNewTag() {
+    const name = newTagName.trim();
+    if (!name) return;
+    setSaving(true);
+
+    const supabase = createClient();
+    // Create the tag in the tags table if it doesn't exist
+    const existing = allTags.find(t => t.name.toLowerCase() === name.toLowerCase());
+    if (!existing) {
+      // Generate a random color
+      const colors = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#06b6d4", "#84cc16"];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      await supabase.from("tags").insert({ name, color });
+    }
+
+    // Add to profile
+    const newTags = [...currentTags, existing?.name || name];
+    await supabase.from("profiles").update({ tags: newTags }).eq("id", profileId);
+    onUpdate(profileId, newTags);
+    setNewTagName("");
+    setSaving(false);
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <div className="flex flex-wrap gap-1 items-center">
+        {currentTags.map(tag => (
+          <TagBadge
+            key={tag}
+            tag={tag}
+            color={tagColorMap[tag]}
+            onRemove={() => toggleTag(tag)}
+          />
+        ))}
+        <button
+          onClick={() => setOpen(!open)}
+          className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors"
+          title="Tags bearbeiten"
+        >
+          <Plus className="w-3 h-3" />
+        </button>
+      </div>
+
+      {open && (
+        <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px] py-1">
+          {/* Existing tags to toggle */}
+          <div className="max-h-48 overflow-y-auto">
+            {allTags.map(t => {
+              const isActive = currentTags.includes(t.name);
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => toggleTag(t.name)}
+                  disabled={saving}
+                  className="flex items-center gap-2 w-full px-3 py-1.5 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <span
+                    className="w-3 h-3 rounded-full flex-shrink-0 border-2"
+                    style={{
+                      backgroundColor: isActive ? (t.color || "#6366f1") : "transparent",
+                      borderColor: t.color || "#6366f1",
+                    }}
+                  />
+                  <span className="text-sm text-gray-700 flex-1">{t.name}</span>
+                  {isActive && <Check className="w-3.5 h-3.5 text-brand-500" />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Create new tag */}
+          <div className="border-t border-gray-100 px-3 py-2">
+            <form
+              onSubmit={e => { e.preventDefault(); addNewTag(); }}
+              className="flex items-center gap-2"
+            >
+              <input
+                type="text"
+                placeholder="New tag..."
+                value={newTagName}
+                onChange={e => setNewTagName(e.target.value)}
+                className="flex-1 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
+              <button
+                type="submit"
+                disabled={!newTagName.trim() || saving}
+                className="text-xs font-medium text-brand-500 hover:text-brand-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Add
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GroupTable({
   groupName,
   profiles,
   tags,
+  onTagUpdate,
 }: {
   groupName: string;
   profiles: any[];
   tags: any[];
+  onTagUpdate: (profileId: string, newTags: string[]) => void;
 }) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -129,14 +269,13 @@ function GroupTable({
                   {p.latestPosts != null ? p.latestPosts : <span className="text-gray-300">-</span>}
                 </td>
                 <td className="px-5 py-3.5">
-                  <div className="flex flex-wrap gap-1">
-                    {(p.tags || []).slice(0, 3).map((tag: string) => (
-                      <TagBadge key={tag} tag={tag} color={tagColorMap[tag]} />
-                    ))}
-                    {(p.tags || []).length > 3 && (
-                      <span className="text-xs text-gray-400">+{p.tags.length - 3}</span>
-                    )}
-                  </div>
+                  <TagEditor
+                    profileId={p.id}
+                    currentTags={p.tags || []}
+                    allTags={tags}
+                    tagColorMap={tagColorMap}
+                    onUpdate={onTagUpdate}
+                  />
                 </td>
                 <td className="px-5 py-3.5 text-gray-500 text-xs">
                   {formatUpdatedAt(p.latestScrapedAt)}
@@ -201,16 +340,31 @@ function GroupTable({
 export function ProfilesClient({ initialProfiles, models, groups, tags }: ProfilesClientProps) {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const profiles = initialProfiles;
+  const [profilesState, setProfilesState] = useState(initialProfiles);
+  const [tagsState, setTagsState] = useState(tags);
+
+  // Handle tag updates from TagEditor
+  function handleTagUpdate(profileId: string, newTags: string[]) {
+    setProfilesState(prev =>
+      prev.map(p => p.id === profileId ? { ...p, tags: newTags } : p)
+    );
+    // Add any new tag names to tagsState if not already there
+    for (const tagName of newTags) {
+      if (!tagsState.find(t => t.name === tagName)) {
+        const colors = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#06b6d4", "#84cc16"];
+        setTagsState(prev => [...prev, { id: tagName, name: tagName, color: colors[Math.floor(Math.random() * colors.length)] }]);
+      }
+    }
+  }
 
   // Apply global filters
   const filtered = useMemo(() => {
-    return profiles.filter(p => {
+    return profilesState.filter(p => {
       if (search && !p.instagram_username.toLowerCase().includes(search.toLowerCase())) return false;
       if (filterStatus && p.status !== filterStatus) return false;
       return true;
     });
-  }, [profiles, search, filterStatus]);
+  }, [profilesState, search, filterStatus]);
 
   // Group by account_groups
   const grouped = useMemo(() => {
@@ -253,7 +407,7 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Profiles</h1>
-        <p className="text-gray-500 text-sm mt-1">{profiles.length} profiles across {groups.length} groups</p>
+        <p className="text-gray-500 text-sm mt-1">{profilesState.length} profiles across {groups.length} groups</p>
       </div>
 
       {/* Search & Filters */}
@@ -288,7 +442,8 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
             key={g.group.id}
             groupName={g.group.name}
             profiles={g.profiles}
-            tags={tags}
+            tags={tagsState}
+            onTagUpdate={handleTagUpdate}
           />
         ))}
         {grouped.length === 0 && (

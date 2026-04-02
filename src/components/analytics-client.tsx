@@ -731,6 +731,15 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
     };
   }, [stats.perProfile, profileColorMap]);
 
+  // Group options filtered by selected creators
+  const groupOptions = useMemo(() => {
+    let opts = groups.map(g => ({ id: g.id, name: g.name, model_id: g.model_id }));
+    if (selectedModels.length > 0) {
+      opts = opts.filter(g => selectedModels.includes(g.model_id));
+    }
+    return opts.map(g => ({ id: g.id, name: g.name }));
+  }, [groups, selectedModels]);
+
   // Profile options for multi-select
   const profileOptions = useMemo(() => {
     let opts = profiles.map(p => ({ id: p.id, name: `@${p.instagram_username}` }));
@@ -765,7 +774,7 @@ export function AnalyticsClient({ profiles, snapshots, models, groups, tags }: A
         />
         <MultiSelect
           label="Groups"
-          options={groups.map(g => ({ id: g.id, name: g.name }))}
+          options={groupOptions}
           selected={selectedGroups}
           onChange={setSelectedGroups}
         />
