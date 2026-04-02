@@ -9,16 +9,18 @@ import {
   PieChart, Pie, Cell
 } from "recharts";
 
-// Color palette for profiles
+// Brand-aligned color palette — gold, amber, bronze, copper tones
 const COLORS = [
-  "#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6",
-  "#ec4899", "#14b8a6", "#f97316", "#06b6d4", "#84cc16",
-  "#a855f7", "#eab308", "#22c55e", "#e11d48", "#0ea5e9",
-  "#d946ef", "#64748b", "#fb923c", "#2dd4bf", "#facc15",
-  "#c084fc", "#4ade80", "#f43f5e", "#38bdf8", "#a3e635",
-  "#e879f9", "#34d399", "#fb7185", "#7dd3fc", "#bef264",
-  "#f0abfc", "#6ee7b7", "#fda4af", "#93c5fd", "#d9f99d",
-  "#f5d0fe", "#a7f3d0", "#fecdd3", "#bfdbfe", "#ecfccb",
+  "#C9A227", // rich gold
+  "#E8C547", // bright gold
+  "#8B6914", // dark gold
+  "#D4820A", // amber
+  "#B87333", // copper
+  "#F0D060", // pale gold
+  "#A07010", // deep amber
+  "#7D5A1E", // warm brown
+  "#E8B86D", // soft gold
+  "#5C3D11", // dark brown
 ];
 
 const SHOW_OPTIONS = [15, 30, 50, 0] as const;
