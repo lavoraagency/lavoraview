@@ -43,6 +43,7 @@ interface AnalyticsClientProps {
   profiles: any[];
   snapshots: any[];
   conversions: any[];
+  ofStats: any[];
   models: any[];
   groups: any[];
   tags: any[];
@@ -641,7 +642,7 @@ function MetricBarChart({
 }
 
 // ── Main Component ─────────────────────────────────────────────────
-export function AnalyticsClient({ profiles, snapshots, conversions, models, groups, tags }: AnalyticsClientProps) {
+export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, models, groups, tags }: AnalyticsClientProps) {
   const [selectedModels, setSelectedModels] = useState<string[] | null>(null);
   const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
@@ -840,6 +841,30 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       perProfile, profileCount,
     };
   }, [snapshotsByDateProfile, conversionsByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap]);
+
+  // Total New Subs (from OF daily stats, per model)
+  const ofTotalNewSubs = useMemo(() => {
+    // Build set of selected model IDs from filtered profiles
+    const selectedModelIds = new Set<string>();
+    for (const pid of Array.from(filteredProfileIds)) {
+      const p = profiles.find((pr: any) => pr.id === pid);
+      if (p?.model_id) selectedModelIds.add(p.model_id);
+    }
+
+    let total = 0;
+    const perModel: Record<string, { name: string; value: number }> = {};
+    for (const s of ofStats) {
+      if (!selectedModelIds.has(s.model_id)) continue;
+      if (s.date < dateRange.from || s.date > dateRange.to) continue;
+      total += s.total_new_subs || 0;
+      if (!perModel[s.model_id]) {
+        const m = models.find((mm: any) => mm.id === s.model_id);
+        perModel[s.model_id] = { name: m?.nickname || m?.name || "unknown", value: 0 };
+      }
+      perModel[s.model_id].value += s.total_new_subs || 0;
+    }
+    return { total, perModel: Object.values(perModel).sort((a, b) => b.value - a.value) };
+  }, [ofStats, filteredProfileIds, profiles, models, dateRange]);
 
   // Donut data
   const donutData = useMemo(() => {
@@ -1100,7 +1125,8 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
 
       {/* Stats Row 3 - Conversions */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-3 lg:grid-cols-6 divide-x divide-gray-200">
+        <div className="grid grid-cols-3 lg:grid-cols-7 divide-x divide-gray-200">
+          <StatCard label="Total New Subs" value={formatNumber(ofTotalNewSubs.total)} sub />
           <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
           <StatCard label="Tracked New Subs" value={formatNumber(stats.totalNewSubs)} sub />
           <StatCard label="Profiles Tracked" value={String(stats.profileCount)} sub />
@@ -1138,6 +1164,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <MetricRankList title="Total New Subs" data={ofTotalNewSubs.perModel} showCount={showCount} />
         <MetricRankList title="Link Clicks" data={barData.linkClicks.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
         <MetricRankList title="Tracked New Subs" data={barData.newSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
         <MetricRankList title="Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" />

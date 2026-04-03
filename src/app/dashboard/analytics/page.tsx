@@ -66,11 +66,19 @@ export default async function AnalyticsPage() {
   }
   const conversions = allConversions;
 
+  // Fetch OF daily stats (total new subs per model)
+  const { data: ofStats } = await supabase
+    .from("of_daily_stats")
+    .select("model_id, date, total_new_subs")
+    .gte("date", sixtyDaysAgo.toISOString().split("T")[0])
+    .order("date", { ascending: true });
+
   return (
     <AnalyticsClient
       profiles={profiles || []}
       snapshots={snapshots || []}
       conversions={conversions || []}
+      ofStats={ofStats || []}
       models={models || []}
       groups={groups || []}
       tags={tags || []}
