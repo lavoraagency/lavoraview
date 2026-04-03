@@ -15,24 +15,16 @@ interface ChartData {
 }
 
 export function OverviewCharts({ chartData, lastDataDate }: { chartData: ChartData[]; lastDataDate: string | null }) {
-  // Build last 5 calendar days (yesterday backward)
-  const last5Days: { date: string; dateLabel: string; followerDelta: number; viewDelta: number }[] = [];
-  const dataMap = new Map(chartData.map(d => [d.date, d]));
+  // Last 5 days that have actual data
+  const last5Days = chartData
+    .slice(-5)
+    .map(d => ({
+      ...d,
+      dateLabel: formatDateShort(d.date),
+    }));
 
-  for (let i = 1; i <= 5; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const existing = dataMap.get(ds);
-    last5Days.unshift({
-      date: ds,
-      dateLabel: formatDateShort(ds),
-      followerDelta: existing?.followerDelta || 0,
-      viewDelta: existing?.viewDelta || 0,
-    });
-  }
-
-  const label = lastDataDate ? `last data: ${formatDateShort(lastDataDate)}` : "last 5 days";
+  const dayCount = last5Days.length;
+  const label = dayCount > 0 ? `last ${dayCount} days` : "no data";
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
