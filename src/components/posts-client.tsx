@@ -1,12 +1,95 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ExternalLink, Eye, Heart, MessageCircle, Share2, ChevronDown, Filter, Flame } from "lucide-react";
+import { ExternalLink, Eye, Heart, MessageCircle, Share2, ChevronDown, ChevronLeft, ChevronRight, Filter, Flame, X, Calendar } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 const REELS_PER_PAGE = 12;
+const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+type SortOption = "most_viewed" | "least_viewed" | "most_liked" | "least_liked" | "newest" | "oldest";
+type DatePreset = "today" | "yesterday" | "week" | "7days" | "14days" | "month" | "30days" | "90days" | "custom";
+
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "newest", label: "Newest First" },
+  { value: "oldest", label: "Oldest First" },
+  { value: "most_viewed", label: "Most Viewed" },
+  { value: "least_viewed", label: "Least Viewed" },
+  { value: "most_liked", label: "Most Liked" },
+  { value: "least_liked", label: "Least Liked" },
+];
+
+const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "week", label: "Current Week" },
+  { value: "7days", label: "Last 7 Days" },
+  { value: "14days", label: "Last 14 Days" },
+  { value: "month", label: "Current Month" },
+  { value: "30days", label: "Last 30 Days" },
+  { value: "90days", label: "Last 90 Days" },
+];
+
+function toLocalDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getPresetRange(preset: DatePreset): { from: string; to: string } {
+  const now = new Date();
+  const today = toLocalDateStr(now);
+  switch (preset) {
+    case "today":
+      return { from: today, to: today };
+    case "yesterday": {
+      const y = new Date(now); y.setDate(y.getDate() - 1);
+      const ys = toLocalDateStr(y);
+      return { from: ys, to: ys };
+    }
+    case "week": {
+      const day = now.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      const mon = new Date(now); mon.setDate(mon.getDate() - diff);
+      return { from: toLocalDateStr(mon), to: today };
+    }
+    case "7days": {
+      const d = new Date(now); d.setDate(d.getDate() - 6);
+      return { from: toLocalDateStr(d), to: today };
+    }
+    case "14days": {
+      const d = new Date(now); d.setDate(d.getDate() - 13);
+      return { from: toLocalDateStr(d), to: today };
+    }
+    case "month":
+      return { from: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`, to: today };
+    case "30days": {
+      const d = new Date(now); d.setDate(d.getDate() - 29);
+      return { from: toLocalDateStr(d), to: today };
+    }
+    case "90days": {
+      const d = new Date(now); d.setDate(d.getDate() - 89);
+      return { from: toLocalDateStr(d), to: today };
+    }
+    default:
+      return { from: today, to: today };
+  }
+}
+
+function niceMaxValue(maxViews: number): number {
+  if (maxViews <= 0) return 1000;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(maxViews)));
+  const normalized = maxViews / magnitude;
+  const steps = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+  for (const step of steps) {
+    if (normalized <= step) return step * magnitude;
+  }
+  return 10 * magnitude;
+}
 
 function formatPostDate(dateStr: string | null) {
   if (!dateStr) return "—";
@@ -15,6 +98,172 @@ function formatPostDate(dateStr: string | null) {
     d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatDateShort(dateStr: string) {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "short" });
+}
+
+// ── Mini Calendar for Filter Panel ──────────────────────────────
+function FilterCalendar({
+  from,
+  to,
+  onChange,
+}: {
+  from: string;
+  to: string;
+  onChange: (from: string, to: string) => void;
+}) {
+  const [viewDate, setViewDate] = useState(() => {
+    const d = new Date(to + "T00:00:00");
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const [selectingEnd, setSelectingEnd] = useState(false);
+
+  const daysInMonth = new Date(viewDate.year, viewDate.month + 1, 0).getDate();
+  const firstDow = (new Date(viewDate.year, viewDate.month, 1).getDay() + 6) % 7;
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  function dayStr(day: number) {
+    return `${viewDate.year}-${String(viewDate.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+
+  function handleClick(day: number) {
+    const ds = dayStr(day);
+    if (!selectingEnd) {
+      onChange(ds, ds);
+      setSelectingEnd(true);
+    } else {
+      if (ds < from) {
+        onChange(ds, from);
+      } else {
+        onChange(from, ds);
+      }
+      setSelectingEnd(false);
+    }
+  }
+
+  function prevMonth() {
+    setViewDate(v => v.month === 0 ? { year: v.year - 1, month: 11 } : { ...v, month: v.month - 1 });
+  }
+  function nextMonth() {
+    setViewDate(v => v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 });
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <span className="text-sm font-medium">{MONTH_NAMES[viewDate.month]} {viewDate.year}</span>
+        <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded">
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 text-center text-xs">
+        {WEEKDAYS.map(d => <div key={d} className="text-gray-400 font-medium py-1">{d}</div>)}
+        {cells.map((day, i) => {
+          if (day === null) return <div key={`e${i}`} />;
+          const ds = dayStr(day);
+          const isFrom = ds === from;
+          const isTo = ds === to;
+          const inRange = ds >= from && ds <= to;
+          return (
+            <button
+              key={day}
+              onClick={() => handleClick(day)}
+              className={cn(
+                "py-1 rounded text-sm transition-colors",
+                isFrom || isTo ? "bg-gray-900 text-white font-bold" :
+                inRange ? "bg-gray-200 text-gray-800" :
+                "hover:bg-gray-100 text-gray-700"
+              )}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+      <div className="text-xs text-gray-500 text-center mt-2">
+        {formatDateShort(from)} – {formatDateShort(to)}
+      </div>
+    </div>
+  );
+}
+
+// ── Dual Range Slider ───────────────────────────────────────────
+function DualRangeSlider({
+  min,
+  max,
+  valueMin,
+  valueMax,
+  onChange,
+}: {
+  min: number;
+  max: number;
+  valueMin: number;
+  valueMax: number;
+  onChange: (min: number, max: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const left = max > min ? ((valueMin - min) / (max - min)) * 100 : 0;
+  const right = max > min ? ((valueMax - min) / (max - min)) * 100 : 100;
+
+  return (
+    <div className="pt-2 pb-1">
+      <div ref={trackRef} className="relative h-1 bg-gray-200 rounded-full">
+        <div
+          className="absolute h-full bg-gray-900 rounded-full"
+          style={{ left: `${left}%`, width: `${right - left}%` }}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={valueMin}
+          onChange={e => {
+            const v = Number(e.target.value);
+            onChange(Math.min(v, valueMax), valueMax);
+          }}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+          style={{ pointerEvents: "auto" }}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={valueMax}
+          onChange={e => {
+            const v = Number(e.target.value);
+            onChange(valueMin, Math.max(v, valueMin));
+          }}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+          style={{ pointerEvents: "auto" }}
+        />
+        {/* Thumb indicators */}
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-gray-900 rounded-full -ml-2 z-10"
+          style={{ left: `${left}%` }}
+        />
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-gray-900 rounded-full -ml-2 z-10"
+          style={{ left: `${right}%` }}
+        />
+      </div>
+      <div className="flex justify-between text-xs text-gray-500 mt-2">
+        <span>{formatNumber(valueMin)}</span>
+        <span>{formatNumber(valueMin)} – {formatNumber(valueMax)}</span>
+        <span>{formatNumber(max)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── MultiSelect ─────────────────────────────────────────────────
 function MultiSelect({
   label,
   options,
@@ -147,6 +396,7 @@ function MultiSelect({
   );
 }
 
+// ── Main Component ──────────────────────────────────────────────
 interface PostsClientProps {
   reels: any[];
   models: any[];
@@ -161,6 +411,17 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [page, setPage] = useState(0);
+
+  // Filter panel state
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>("most_viewed");
+  const [datePreset, setDatePreset] = useState<DatePreset>("7days");
+  const [dateFrom, setDateFrom] = useState(() => getPresetRange("7days").from);
+  const [dateTo, setDateTo] = useState(() => getPresetRange("7days").to);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [viewsRangeEnabled, setViewsRangeEnabled] = useState(false);
+  const [viewsMin, setViewsMin] = useState(0);
+  const [viewsMax, setViewsMax] = useState(100000);
 
   // Group options filtered by selected models
   const groupOptions = useMemo(() => {
@@ -185,7 +446,8 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
     return opts;
   }, [profiles, selectedModels, selectedGroups]);
 
-  const filtered = useMemo(() => {
+  // Pre-filter by profile selections (without date/views/sort)
+  const profileFiltered = useMemo(() => {
     return reels.filter(r => {
       const profile = r.profiles as any;
       if (!profile) return false;
@@ -201,11 +463,57 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
     });
   }, [reels, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags]);
 
+  // Compute max views for the slider (based on profile-filtered, before date/views filter)
+  const computedMaxViews = useMemo(() => {
+    const max = profileFiltered.reduce((m, r) => Math.max(m, r.current_views || 0), 0);
+    return niceMaxValue(max);
+  }, [profileFiltered]);
+
+  // Reset views range when max changes
+  useEffect(() => {
+    setViewsMax(computedMaxViews);
+    setViewsMin(0);
+  }, [computedMaxViews]);
+
+  // Full filter + sort
+  const filtered = useMemo(() => {
+    let result = profileFiltered.filter(r => {
+      // Date filter
+      if (r.posted_at) {
+        const postDate = r.posted_at.split("T")[0];
+        if (postDate < dateFrom || postDate > dateTo) return false;
+      } else {
+        return false;
+      }
+      // Views range filter
+      if (viewsRangeEnabled) {
+        const views = r.current_views || 0;
+        if (views < viewsMin || views > viewsMax) return false;
+      }
+      return true;
+    });
+
+    // Sort
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case "most_viewed": return (b.current_views || 0) - (a.current_views || 0);
+        case "least_viewed": return (a.current_views || 0) - (b.current_views || 0);
+        case "most_liked": return (b.current_likes || 0) - (a.current_likes || 0);
+        case "least_liked": return (a.current_likes || 0) - (b.current_likes || 0);
+        case "newest": return new Date(b.posted_at || 0).getTime() - new Date(a.posted_at || 0).getTime();
+        case "oldest": return new Date(a.posted_at || 0).getTime() - new Date(b.posted_at || 0).getTime();
+        default: return 0;
+      }
+    });
+
+    return result;
+  }, [profileFiltered, dateFrom, dateTo, viewsRangeEnabled, viewsMin, viewsMax, sortBy]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / REELS_PER_PAGE));
   const paged = filtered.slice(page * REELS_PER_PAGE, (page + 1) * REELS_PER_PAGE);
 
   // Reset page when filters change
-  useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags]);
+  useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags, dateFrom, dateTo, viewsRangeEnabled, viewsMin, viewsMax, sortBy]);
 
   // Pagination page numbers
   const pageNumbers = useMemo(() => {
@@ -221,6 +529,16 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
     }
     return pages;
   }, [page, totalPages]);
+
+  function handlePreset(preset: DatePreset) {
+    setDatePreset(preset);
+    const range = getPresetRange(preset);
+    setDateFrom(range.from);
+    setDateTo(range.to);
+    setShowCalendar(false);
+  }
+
+  const activePresetLabel = DATE_PRESETS.find(p => p.value === datePreset)?.label || "Custom";
 
   return (
     <div className="px-[15%] py-6 space-y-4">
@@ -254,7 +572,10 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
         />
 
         <div className="ml-auto">
-          <button className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:border-gray-300 transition-colors text-gray-600">
+          <button
+            onClick={() => setFilterOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:border-gray-300 transition-colors text-gray-600"
+          >
             <Filter className="w-4 h-4" />
             Filter
           </button>
@@ -388,6 +709,136 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
       {filtered.length > 0 && (
         <div className="text-center text-xs text-gray-400">
           Page {page + 1}/{totalPages} · {filtered.length} reels total
+        </div>
+      )}
+
+      {/* ── Filter Sidebar ──────────────────────────────────────── */}
+      {filterOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setFilterOpen(false)} />
+          <div className="relative w-[340px] bg-white h-full shadow-xl overflow-y-auto">
+            <div className="p-5 space-y-6">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">Post Options</h2>
+                  <p className="text-xs text-gray-500">Filter posts by criteria.</p>
+                </div>
+                <button onClick={() => setFilterOpen(false)} className="p-1 hover:bg-gray-100 rounded">
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <hr className="border-gray-200" />
+
+              {/* Sort By */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Sort By</label>
+                <div className="relative">
+                  <select
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value as SortOption)}
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  >
+                    {SORT_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+
+              <hr className="border-gray-200" />
+
+              {/* Upload Date */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">Upload Date</label>
+                  <button
+                    onClick={() => setShowCalendar(!showCalendar)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs hover:bg-gray-50 transition-colors"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                    {activePresetLabel}
+                  </button>
+                </div>
+
+                {/* Preset Buttons */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  {DATE_PRESETS.map(p => (
+                    <button
+                      key={p.value}
+                      onClick={() => handlePreset(p.value)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
+                        datePreset === p.value
+                          ? "bg-gray-900 text-white border-gray-900"
+                          : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                      )}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Calendar */}
+                {showCalendar && (
+                  <div className="border border-gray-200 rounded-lg p-3">
+                    <FilterCalendar
+                      from={dateFrom}
+                      to={dateTo}
+                      onChange={(f, t) => {
+                        setDateFrom(f);
+                        setDateTo(t);
+                        setDatePreset("custom");
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <hr className="border-gray-200" />
+
+              {/* Views Range */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">Views Range</label>
+                  <button
+                    onClick={() => setViewsRangeEnabled(!viewsRangeEnabled)}
+                    className={cn(
+                      "relative w-10 h-5 rounded-full transition-colors",
+                      viewsRangeEnabled ? "bg-gray-900" : "bg-gray-300"
+                    )}
+                  >
+                    <div className={cn(
+                      "absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                      viewsRangeEnabled ? "translate-x-5" : "translate-x-0.5"
+                    )} />
+                  </button>
+                </div>
+
+                {viewsRangeEnabled && (
+                  <DualRangeSlider
+                    min={0}
+                    max={computedMaxViews}
+                    valueMin={viewsMin}
+                    valueMax={viewsMax}
+                    onChange={(min, max) => { setViewsMin(min); setViewsMax(max); }}
+                  />
+                )}
+              </div>
+
+              <hr className="border-gray-200" />
+
+              {/* Apply Button */}
+              <button
+                onClick={() => setFilterOpen(false)}
+                className="w-full py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
