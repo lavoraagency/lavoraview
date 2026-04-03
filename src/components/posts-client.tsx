@@ -621,7 +621,7 @@ export function PostsClient({ reels, models, groups, profiles, tags, reelDailyGr
           return (
             <div key={r.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden w-full">
               {/* Thumbnail */}
-              <div className="relative aspect-[3/4] bg-gray-100">
+              <div className="relative aspect-[5/6] bg-gray-100">
                 {r.thumbnail_url ? (
                   <img
                     src={r.thumbnail_url}
