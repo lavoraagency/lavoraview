@@ -838,27 +838,27 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       }
 
       // Proportionally distribute OF total subs to profiles per model for this day
-      // Group tracked subs by model for this day
-      const modelTracked: Record<string, { total: number; profiles: { id: string; subs: number }[] }> = {};
+      // Use ALL profiles (not just filtered) as denominator for correct proportions
+      const modelTrackedAll: Record<string, number> = {};
+      for (const p of profiles) {
+        if (!p.model_id) continue;
+        const conv = convSnaps[p.id];
+        const ns = conv?.new_subs || 0;
+        modelTrackedAll[p.model_id] = (modelTrackedAll[p.model_id] || 0) + ns;
+      }
+
+      // Distribute OF total subs proportionally to filtered profiles
+      const dayOfStats = ofStatsByDateModel[date] || {};
       for (const profileId of Array.from(filteredProfileIds)) {
         const modelId = profileModelMap[profileId];
         if (!modelId) continue;
+        const ofTotal = dayOfStats[modelId];
+        const modelTotal = modelTrackedAll[modelId];
+        if (!ofTotal || !modelTotal) continue;
         const conv = convSnaps[profileId];
         const ns = conv?.new_subs || 0;
-        if (!modelTracked[modelId]) modelTracked[modelId] = { total: 0, profiles: [] };
-        modelTracked[modelId].total += ns;
-        modelTracked[modelId].profiles.push({ id: profileId, subs: ns });
-      }
-
-      // Distribute OF total subs proportionally
-      const dayOfStats = ofStatsByDateModel[date] || {};
-      for (const [modelId, tracked] of Object.entries(modelTracked)) {
-        const ofTotal = dayOfStats[modelId];
-        if (!ofTotal || tracked.total === 0) continue;
-        for (const p of tracked.profiles) {
-          if (perProfile[p.id]) {
-            perProfile[p.id].estimatedTotalSubs += Math.round((p.subs / tracked.total) * ofTotal);
-          }
+        if (ns > 0 && perProfile[profileId]) {
+          perProfile[profileId].estimatedTotalSubs += Math.round((ns / modelTotal) * ofTotal);
         }
       }
     }
@@ -871,38 +871,32 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     const avgViews = profileCount > 0 && totalPosts > 0 ? Math.round(totalViews / totalPosts) : 0;
     const viralityRatio = totalViews > 0 ? ((totalInteractions / totalViews) * 100).toFixed(2) : "0.00";
 
+    // Sum of proportionally distributed total subs across filtered profiles
+    const totalEstimatedSubs = Object.values(perProfile).reduce((sum, p) => sum + p.estimatedTotalSubs, 0);
+
     return {
       totalFollowers, totalViews, totalLikes, totalComments,
       deltaFollowers, deltaViews, deltaLikes, deltaComments,
       totalLinkClicks, totalNewSubs,
       totalInteractions, avgViews, viralityRatio,
-      perProfile, profileCount,
+      perProfile, profileCount, totalEstimatedSubs,
     };
   }, [snapshotsByDateProfile, conversionsByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap, ofStats, profiles]);
 
-  // Total New Subs (from OF daily stats, per model)
-  const ofTotalNewSubs = useMemo(() => {
-    // Build set of selected model IDs from filtered profiles
-    const selectedModelIds = new Set<string>();
-    for (const pid of Array.from(filteredProfileIds)) {
-      const p = profiles.find((pr: any) => pr.id === pid);
-      if (p?.model_id) selectedModelIds.add(p.model_id);
-    }
-
-    let total = 0;
+  // Total New Subs per model (aggregated from proportional per-profile data)
+  const ofTotalNewSubsPerModel = useMemo(() => {
     const perModel: Record<string, { name: string; value: number }> = {};
-    for (const s of ofStats) {
-      if (!selectedModelIds.has(s.model_id)) continue;
-      if (s.date < dateRange.from || s.date > dateRange.to) continue;
-      total += s.total_new_subs || 0;
-      if (!perModel[s.model_id]) {
-        const m = models.find((mm: any) => mm.id === s.model_id);
-        perModel[s.model_id] = { name: m?.nickname || m?.name || "unknown", value: 0 };
+    for (const [pid, pData] of Object.entries(stats.perProfile)) {
+      const p = profiles.find((pr: any) => pr.id === pid);
+      if (!p?.model_id || pData.estimatedTotalSubs <= 0) continue;
+      if (!perModel[p.model_id]) {
+        const m = models.find((mm: any) => mm.id === p.model_id);
+        perModel[p.model_id] = { name: m?.nickname || m?.name || "unknown", value: 0 };
       }
-      perModel[s.model_id].value += s.total_new_subs || 0;
+      perModel[p.model_id].value += pData.estimatedTotalSubs;
     }
-    return { total, perModel: Object.values(perModel).sort((a, b) => b.value - a.value) };
-  }, [ofStats, filteredProfileIds, profiles, models, dateRange]);
+    return Object.values(perModel).sort((a, b) => b.value - a.value);
+  }, [stats.perProfile, profiles, models]);
 
   // Donut data
   const donutData = useMemo(() => {
@@ -1014,7 +1008,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     const headers = [
       "Profile", "New Followers", "New Views", "New Likes", "New Comments",
       "Interactions", "Link Clicks", "Tracked New Subs", "Est. Total Subs",
-      "Click Rate (%)", "Conversion Rate (%)",
+      "Views to Click Rate (%)", "Conversion Rate (%)",
       "Total Subs / 100K Views", "Tracked Subs / 100K Views", "Followers / 100K Views",
     ];
 
@@ -1080,7 +1074,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
           noneLabel="No Tags"
         />
 
-        {/* Show count selector + CSV */}
+        {/* Show count selector */}
         <div className="flex items-center gap-1 border border-gray-200 rounded-lg bg-white overflow-hidden">
           {SHOW_OPTIONS.map(opt => (
             <button
@@ -1096,14 +1090,17 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
               {opt === 0 ? "All" : `Top ${opt}`}
             </button>
           ))}
-          <button
-            onClick={handleExportCSV}
-            className="px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors border-l border-gray-200"
-            title="Export as CSV"
-          >
-            <Download className="w-4 h-4" />
-          </button>
         </div>
+
+        {/* CSV Export */}
+        <button
+          onClick={handleExportCSV}
+          className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg bg-white text-gray-500 hover:bg-gray-50 transition-colors text-xs font-medium"
+          title="Export as CSV"
+        >
+          <Download className="w-4 h-4" />
+          CSV
+        </button>
 
         {/* Date Navigation */}
         <div className="ml-auto flex items-center gap-2">
@@ -1172,16 +1169,16 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       {/* Stats Row 3 - Conversions */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="grid grid-cols-4 divide-x divide-gray-200">
-          <StatCard label="Total New Subs" value={formatNumber(ofTotalNewSubs.total)} sub />
+          <StatCard label="Total New Subs" value={formatNumber(stats.totalEstimatedSubs)} sub />
           <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
-          <StatCard label="Conversion Rate (Total)" value={stats.totalLinkClicks > 0 && ofTotalNewSubs.total > 0 ? `${((ofTotalNewSubs.total / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
-          <StatCard label="Total Subs / 100K" value={stats.deltaViews > 0 && ofTotalNewSubs.total > 0 ? `${Math.round(ofTotalNewSubs.total / (stats.deltaViews / 100000))}` : "—"} sub />
+          <StatCard label="Conversion Rate (Total)" value={stats.totalLinkClicks > 0 && stats.totalEstimatedSubs > 0 ? `${((stats.totalEstimatedSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
+          <StatCard label="Total Subs / 100K Views" value={stats.deltaViews > 0 && stats.totalEstimatedSubs > 0 ? `${Math.round(stats.totalEstimatedSubs / (stats.deltaViews / 100000))}` : "—"} sub />
         </div>
         <div className="grid grid-cols-4 divide-x divide-gray-200 border-t border-gray-200">
           <StatCard label="Tracked New Subs" value={formatNumber(stats.totalNewSubs)} sub />
-          <StatCard label="Click Rate" value={stats.deltaViews > 0 ? `${((stats.totalLinkClicks / stats.deltaViews) * 100).toFixed(2)}%` : "—"} sub />
+          <StatCard label="Views to Click Rate" value={stats.deltaViews > 0 ? `${((stats.totalLinkClicks / stats.deltaViews) * 100).toFixed(2)}%` : "—"} sub />
           <StatCard label="Conversion Rate (Tracked)" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
-          <StatCard label="Tracked Subs / 100K" value={stats.deltaViews > 0 && stats.totalNewSubs > 0 ? `${Math.round(stats.totalNewSubs / (stats.deltaViews / 100000))}` : "—"} sub />
+          <StatCard label="Tracked Subs / 100K Views" value={stats.deltaViews > 0 && stats.totalNewSubs > 0 ? `${Math.round(stats.totalNewSubs / (stats.deltaViews / 100000))}` : "—"} sub />
         </div>
       </div>
 
@@ -1213,11 +1210,11 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <MetricRankList title="Total New Subs (per Model)" data={ofTotalNewSubs.perModel} showCount={showCount} />
+        <MetricRankList title="Total New Subs (per Model)" data={ofTotalNewSubsPerModel} showCount={showCount} />
         <MetricRankList title="Est. Total Subs (per Account)" data={barData.estimatedTotalSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
         <MetricRankList title="Tracked New Subs" data={barData.newSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
         <MetricRankList title="Link Clicks" data={barData.linkClicks.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
-        <MetricRankList title="Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" />
+        <MetricRankList title="Views to Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" />
         <MetricRankList title="Conversion Rate" data={barData.conversionRate} showCount={showCount} suffix="%" />
         <MetricRankList title="Total Subs / 100K Views" data={barData.totalSubsPer100k} showCount={showCount} />
         <MetricRankList title="Tracked Subs / 100K Views" data={barData.trackedSubsPer100k} showCount={showCount} />
