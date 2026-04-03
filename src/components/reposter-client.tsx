@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, AlertCircle, CheckCircle2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Calendar } from "lucide-react";
 
 interface Report {
   id: number;
@@ -59,7 +59,7 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold text-gray-900">Reposter Overview</h1>
-        <p className="text-gray-500 text-sm mt-1">Daily reports from the account checker</p>
+        <p className="text-gray-500 text-sm mt-1">Daily Reports from Lavora Reposter Controller Bot</p>
         <div className="mt-8 text-center text-gray-400 py-12">
           No reports available yet. Reports will appear after the next daily workflow run.
         </div>
@@ -82,9 +82,48 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reposter Overview</h1>
-          <p className="text-gray-500 text-sm mt-1">Daily reports from the account checker</p>
+          <p className="text-gray-500 text-sm mt-1">Daily Reports from Lavora Reposter Controller Bot</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Today / Yesterday quick buttons */}
+          {(() => {
+            const todayStr = new Date().toISOString().split("T")[0];
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toISOString().split("T")[0];
+            const todayIdx = reports.findIndex(r => r.report_date === todayStr);
+            const yesterdayIdx = reports.findIndex(r => r.report_date === yesterdayStr);
+            return (
+              <>
+                {yesterdayIdx >= 0 && (
+                  <button
+                    onClick={() => setSelectedIdx(yesterdayIdx)}
+                    className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                      selectedIdx === yesterdayIdx
+                        ? "bg-gray-900 text-white border-gray-900"
+                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    Yesterday
+                  </button>
+                )}
+                {todayIdx >= 0 && (
+                  <button
+                    onClick={() => setSelectedIdx(todayIdx)}
+                    className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
+                      selectedIdx === todayIdx
+                        ? "bg-gray-900 text-white border-gray-900"
+                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    Today
+                  </button>
+                )}
+              </>
+            );
+          })()}
+          <div className="w-px h-5 bg-gray-200 mx-1" />
+          {/* Arrow navigation */}
           <button
             onClick={() => setSelectedIdx(Math.min(selectedIdx + 1, reports.length - 1))}
             disabled={selectedIdx >= reports.length - 1}
@@ -92,9 +131,31 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-sm font-medium text-gray-700 min-w-[140px] text-center">
-            {report.report_date}
-          </span>
+          {/* Date picker */}
+          <div className="relative">
+            <input
+              type="date"
+              value={report.report_date}
+              min={reports[reports.length - 1]?.report_date}
+              max={reports[0]?.report_date}
+              onChange={(e) => {
+                const val = e.target.value;
+                const idx = reports.findIndex(r => r.report_date === val);
+                if (idx >= 0) {
+                  setSelectedIdx(idx);
+                } else {
+                  // Find closest available date
+                  const closest = reports.reduce((best, r, i) =>
+                    Math.abs(new Date(r.report_date).getTime() - new Date(val).getTime()) <
+                    Math.abs(new Date(reports[best].report_date).getTime() - new Date(val).getTime())
+                      ? i : best
+                  , 0);
+                  setSelectedIdx(closest);
+                }
+              }}
+              className="text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
+            />
+          </div>
           <button
             onClick={() => setSelectedIdx(Math.max(selectedIdx - 1, 0))}
             disabled={selectedIdx <= 0}
