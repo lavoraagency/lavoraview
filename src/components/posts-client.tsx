@@ -614,13 +614,13 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 justify-items-center">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 max-w-[1400px] mx-auto">
         {paged.map(r => {
           const profile = r.profiles as any;
           return (
-            <div key={r.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden w-full max-w-[200px]">
+            <div key={r.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden w-full">
               {/* Thumbnail */}
-              <div className="relative aspect-[3/4] bg-gray-100 max-h-[240px]">
+              <div className="relative aspect-[3/4] bg-gray-100">
                 {r.thumbnail_url ? (
                   <img
                     src={r.thumbnail_url}
