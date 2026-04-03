@@ -1080,7 +1080,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
           noneLabel="No Tags"
         />
 
-        {/* Show count selector */}
+        {/* Show count selector + CSV */}
         <div className="flex items-center gap-1 border border-gray-200 rounded-lg bg-white overflow-hidden">
           {SHOW_OPTIONS.map(opt => (
             <button
@@ -1096,17 +1096,17 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
               {opt === 0 ? "All" : `Top ${opt}`}
             </button>
           ))}
-        </div>
-
-        {/* CSV Export + Date Navigation */}
-        <div className="ml-auto flex items-center gap-2">
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-2.5 py-2 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors border-l border-gray-200"
             title="Export as CSV"
           >
             <Download className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Date Navigation */}
+        <div className="ml-auto flex items-center gap-2">
 
           <button
             onClick={() => {
