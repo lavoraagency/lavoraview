@@ -14,7 +14,7 @@ const MONTH_NAMES = [
 ];
 
 type SortOption = "most_viewed" | "least_viewed" | "most_liked" | "least_liked" | "newest" | "oldest";
-type DatePreset = "today" | "yesterday" | "week" | "7days" | "14days" | "month" | "30days" | "90days" | "custom";
+type DatePreset = "yesterday" | "week" | "7days" | "14days" | "month" | "30days" | "90days" | "all" | "custom";
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "newest", label: "Newest First" },
@@ -26,7 +26,6 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 ];
 
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
-  { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
   { value: "week", label: "Current Week" },
   { value: "7days", label: "Last 7 Days" },
@@ -34,6 +33,7 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: "month", label: "Current Month" },
   { value: "30days", label: "Last 30 Days" },
   { value: "90days", label: "Last 90 Days" },
+  { value: "all", label: "All" },
 ];
 
 function toLocalDateStr(d: Date) {
@@ -44,8 +44,8 @@ function getPresetRange(preset: DatePreset): { from: string; to: string } {
   const now = new Date();
   const today = toLocalDateStr(now);
   switch (preset) {
-    case "today":
-      return { from: today, to: today };
+    case "all":
+      return { from: "2020-01-01", to: today };
     case "yesterday": {
       const y = new Date(now); y.setDate(y.getDate() - 1);
       const ys = toLocalDateStr(y);
@@ -220,30 +220,37 @@ function DualRangeSlider({
           className="absolute h-full bg-gray-900 rounded-full"
           style={{ left: `${left}%`, width: `${right - left}%` }}
         />
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={valueMin}
-          onChange={e => {
-            const v = Number(e.target.value);
-            onChange(Math.min(v, valueMax), valueMax);
-          }}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-          style={{ pointerEvents: "auto" }}
-        />
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={valueMax}
-          onChange={e => {
-            const v = Number(e.target.value);
-            onChange(valueMin, Math.max(v, valueMin));
-          }}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-          style={{ pointerEvents: "auto" }}
-        />
+        {(() => {
+          const mid = (left + right) / 2;
+          return (
+            <>
+              <input
+                type="range"
+                min={min}
+                max={max}
+                value={valueMin}
+                onChange={e => {
+                  const v = Number(e.target.value);
+                  onChange(Math.min(v, valueMax), valueMax);
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                style={{ zIndex: 20, clipPath: `inset(0 ${100 - mid}% 0 0)` }}
+              />
+              <input
+                type="range"
+                min={min}
+                max={max}
+                value={valueMax}
+                onChange={e => {
+                  const v = Number(e.target.value);
+                  onChange(valueMin, Math.max(v, valueMin));
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                style={{ zIndex: 20, clipPath: `inset(0 0 0 ${mid}%)` }}
+              />
+            </>
+          );
+        })()}
         {/* Thumb indicators */}
         <div
           className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-gray-900 rounded-full -ml-2 z-10"
@@ -478,12 +485,14 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
   // Full filter + sort
   const filtered = useMemo(() => {
     let result = profileFiltered.filter(r => {
-      // Date filter
-      if (r.posted_at) {
-        const postDate = r.posted_at.split("T")[0];
-        if (postDate < dateFrom || postDate > dateTo) return false;
-      } else {
-        return false;
+      // Date filter (skip when "all")
+      if (datePreset !== "all") {
+        if (r.posted_at) {
+          const postDate = r.posted_at.split("T")[0];
+          if (postDate < dateFrom || postDate > dateTo) return false;
+        } else {
+          return false;
+        }
       }
       // Views range filter
       if (viewsRangeEnabled) {
@@ -507,7 +516,7 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
     });
 
     return result;
-  }, [profileFiltered, dateFrom, dateTo, viewsRangeEnabled, viewsMin, viewsMax, sortBy]);
+  }, [profileFiltered, datePreset, dateFrom, dateTo, viewsRangeEnabled, viewsMin, viewsMax, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / REELS_PER_PAGE));
   const paged = filtered.slice(page * REELS_PER_PAGE, (page + 1) * REELS_PER_PAGE);
