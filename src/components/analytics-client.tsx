@@ -969,6 +969,11 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       .map(([_id, d]) => ({ name: d.name, value: parseFloat(((d.newSubs / d.linkClicks) * 100).toFixed(1)) }))
       .sort((a, b) => b.value - a.value);
 
+    const conversionRateTotal = entries
+      .filter(([_, d]) => d.linkClicks > 0 && d.estimatedTotalSubs > 0)
+      .map(([_id, d]) => ({ name: d.name, value: parseFloat(((d.estimatedTotalSubs / d.linkClicks) * 100).toFixed(1)) }))
+      .sort((a, b) => b.value - a.value);
+
     const trackedSubsPer100k = entries
       .filter(([_, d]) => d.views > 0 && d.newSubs > 0)
       .map(([_id, d]) => ({ name: d.name, value: Math.round(d.newSubs / (d.views / 100000)) }))
@@ -994,6 +999,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       estimatedTotalSubs: buildBars("estimatedTotalSubs"),
       clickRate,
       conversionRate,
+      conversionRateTotal,
       trackedSubsPer100k,
       totalSubsPer100k,
       followersPer100k,
@@ -1224,21 +1230,15 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
         <DonutCard title="Tracked New Subs" total={formatNumber(stats.totalNewSubs)} data={donutData.newSubs} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <DonutCard title="Total New Subs (per Model)" total={formatNumber(stats.totalEstimatedSubs)} data={donutTotalSubsPerModel} />
-        <DonutCard title="Total New Subs (per Group)" total={formatNumber(stats.totalEstimatedSubs)} data={donutTotalSubsPerGroup} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <MetricRankList title="Total New Subs (per Model)" data={ofTotalNewSubsPerModel} showCount={showCount} />
-        <MetricRankList title="Est. Total Subs (per Account)" data={barData.estimatedTotalSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
-        <MetricRankList title="Tracked New Subs" data={barData.newSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <MetricRankList title="Total New Subs" data={barData.estimatedTotalSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
         <MetricRankList title="Link Clicks" data={barData.linkClicks.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
-        <MetricRankList title="Views to Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" />
-        <MetricRankList title="Conversion Rate" data={barData.conversionRate} showCount={showCount} suffix="%" />
+        <MetricRankList title="Conversion Rate (Total)" data={barData.conversionRateTotal} showCount={showCount} suffix="%" />
         <MetricRankList title="Total Subs / 100K Views" data={barData.totalSubsPer100k} showCount={showCount} />
+        <MetricRankList title="Tracked New Subs" data={barData.newSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
+        <MetricRankList title="Views to Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" />
+        <MetricRankList title="Conversion Rate (Tracked)" data={barData.conversionRate} showCount={showCount} suffix="%" />
         <MetricRankList title="Tracked Subs / 100K Views" data={barData.trackedSubsPer100k} showCount={showCount} />
-        <MetricRankList title="Followers / 100K Views" data={barData.followersPer100k} showCount={showCount} />
       </div>
     </div>
   );
