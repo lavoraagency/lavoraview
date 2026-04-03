@@ -1146,23 +1146,12 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
         </div>
       </div>
 
-      {/* Stats Row 1 - Totals */}
+      {/* Stats Row 1 - Derived */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
-          <StatCard label="Followers" value={formatNumber(stats.totalFollowers)} />
-          <StatCard label="Views" value={formatNumber(stats.totalViews)} />
-          <StatCard label="Likes" value={formatNumber(stats.totalLikes)} />
-          <StatCard label="Comments" value={formatNumber(stats.totalComments)} />
-        </div>
-      </div>
-
-      {/* Stats Row 2 - Deltas / Derived */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
-          <StatCard label="New Followers" value={formatNumber(stats.deltaFollowers)} sub />
+        <div className="grid grid-cols-2 lg:grid-cols-3 divide-x divide-gray-200">
           <StatCard label="Average Views" value={formatNumber(stats.avgViews)} sub />
-          <StatCard label="Total Interactions" value={formatNumber(stats.totalInteractions)} sub />
-          <StatCard label="Virality Ratio" value={`${stats.viralityRatio}%`} sub />
+          <StatCard label="Total Interactions (Likes + Comments)" value={formatNumber(stats.totalInteractions)} sub />
+          <StatCard label="Engagement Rate" value={`${stats.viralityRatio}%`} sub />
         </div>
       </div>
 
