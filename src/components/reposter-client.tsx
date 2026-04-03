@@ -338,7 +338,14 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
                   <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900">{instagram}</span>
+                      <a
+                        href={`https://www.instagram.com/${instagram}/`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-gray-900 hover:text-brand-600 transition-colors"
+                      >
+                        {instagram}
+                      </a>
                       <span className="text-xs text-gray-400">{telegram}</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-1">
