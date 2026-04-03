@@ -57,12 +57,7 @@ function SingleDatePicker({
   yesterdayD.setDate(yesterdayD.getDate() - 1);
   const yesterday = toLocalDateStr(yesterdayD);
 
-  const presets = useMemo(() => {
-    const items: { label: string; date: string }[] = [];
-    if (availableDates.has(today)) items.push({ label: "Today", date: today });
-    if (availableDates.has(yesterday)) items.push({ label: "Yesterday", date: yesterday });
-    return items;
-  }, [availableDates, today, yesterday]);
+  const presets: { label: string; date: string }[] = [];
 
   const displayText = useMemo(() => {
     if (value === today) return "Today";
