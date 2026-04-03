@@ -615,11 +615,11 @@ export function PostsClient({ reels, models, groups, profiles, tags, reelDailyGr
       </div>
 
       {/* Grid */}
-      <div className="flex flex-wrap justify-center gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {paged.map(r => {
           const profile = r.profiles as any;
           return (
-            <div key={r.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden w-[180px] flex-shrink-0">
+            <div key={r.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden w-full">
               {/* Thumbnail */}
               <div className="relative aspect-[9/16] bg-gray-100">
                 {r.thumbnail_url ? (
