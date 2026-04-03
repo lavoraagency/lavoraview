@@ -29,7 +29,8 @@ export default async function DashboardPage() {
     .from("profile_snapshots")
     .select("profile_id, followers, total_reel_views, scraped_at")
     .gte("scraped_at", thirtyDaysAgo.toISOString())
-    .order("scraped_at", { ascending: true });
+    .order("scraped_at", { ascending: true })
+    .limit(5000);
 
   // Yesterday's snapshots for KPIs (computed after dailyDeltaData below)
 

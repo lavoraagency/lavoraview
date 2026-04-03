@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: TrendingUp },
   { href: "/dashboard/analytics", label: "Analytics", icon: PieChart },
-  { href: "/dashboard/profiles", label: "Profiles", icon: Users },
   { href: "/dashboard/posts", label: "Posts", icon: LayoutGrid },
+  { href: "/dashboard/profiles", label: "Profiles", icon: Users },
   { href: "/dashboard/reposter", label: "Reposter Overview", icon: ClipboardList },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
