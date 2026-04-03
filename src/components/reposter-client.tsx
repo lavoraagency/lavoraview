@@ -1,13 +1,196 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Calendar } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Calendar, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Report {
   id: number;
   report_date: string;
   report_text: string;
   created_at: string;
+}
+
+const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function toLocalDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function SingleDatePicker({
+  value,
+  onChange,
+  availableDates,
+}: {
+  value: string;
+  onChange: (date: string) => void;
+  availableDates: Set<string>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() => {
+    const d = new Date(value + "T00:00:00");
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      const d = new Date(value + "T00:00:00");
+      setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
+    }
+  }, [open]);
+
+  const today = toLocalDateStr(new Date());
+  const yesterdayD = new Date();
+  yesterdayD.setDate(yesterdayD.getDate() - 1);
+  const yesterday = toLocalDateStr(yesterdayD);
+
+  const presets = useMemo(() => {
+    const items: { label: string; date: string }[] = [];
+    if (availableDates.has(today)) items.push({ label: "Today", date: today });
+    if (availableDates.has(yesterday)) items.push({ label: "Yesterday", date: yesterday });
+    return items;
+  }, [availableDates, today, yesterday]);
+
+  const displayText = useMemo(() => {
+    if (value === today) return "Today";
+    if (value === yesterday) return "Yesterday";
+    const d = new Date(value + "T00:00:00");
+    return d.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
+  }, [value, today, yesterday]);
+
+  const calendarDays = useMemo(() => {
+    const { year, month } = viewMonth;
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    let startWeekday = firstDay.getDay() - 1;
+    if (startWeekday < 0) startWeekday = 6;
+
+    const days: { dateStr: string; day: number; inMonth: boolean }[] = [];
+    for (let i = startWeekday - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i);
+      days.push({ dateStr: toLocalDateStr(d), day: d.getDate(), inMonth: false });
+    }
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const date = new Date(year, month, d);
+      days.push({ dateStr: toLocalDateStr(date), day: d, inMonth: true });
+    }
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(year, month + 1, i);
+      days.push({ dateStr: toLocalDateStr(d), day: d.getDate(), inMonth: false });
+    }
+    return days;
+  }, [viewMonth]);
+
+  function prevMonth() {
+    setViewMonth(prev => prev.month === 0 ? { year: prev.year - 1, month: 11 } : { year: prev.year, month: prev.month - 1 });
+  }
+  function nextMonth() {
+    setViewMonth(prev => prev.month === 11 ? { year: prev.year + 1, month: 0 } : { year: prev.year, month: prev.month + 1 });
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium cursor-pointer hover:border-gray-300 transition-colors"
+      >
+        <Calendar className="w-4 h-4 text-gray-400" />
+        {displayText}
+        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 flex">
+          {/* Presets */}
+          {presets.length > 0 && (
+            <div className="border-r border-gray-100 py-2 w-32">
+              {presets.map(p => (
+                <button
+                  key={p.label}
+                  onClick={() => { onChange(p.date); setOpen(false); }}
+                  className={cn(
+                    "block w-full text-left px-4 py-2 text-sm transition-colors",
+                    value === p.date
+                      ? "bg-brand-50 text-brand-600 font-medium"
+                      : "text-gray-600 hover:bg-gray-50"
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Calendar */}
+          <div className="p-4 w-[280px]">
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+              <span className="text-sm font-semibold text-gray-900">
+                {MONTH_NAMES[viewMonth.month]} {viewMonth.year}
+              </span>
+              <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 mb-1">
+              {WEEKDAYS.map(d => (
+                <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7">
+              {calendarDays.map(({ dateStr, day, inMonth }, i) => {
+                const hasReport = availableDates.has(dateStr);
+                const isSelected = dateStr === value;
+
+                return (
+                  <button
+                    key={i}
+                    disabled={!hasReport}
+                    onClick={() => { onChange(dateStr); setOpen(false); }}
+                    className={cn(
+                      "h-8 text-xs rounded transition-colors relative",
+                      !inMonth && !hasReport && "text-gray-300",
+                      !inMonth && hasReport && !isSelected && "text-gray-400 hover:bg-gray-100",
+                      inMonth && !hasReport && "text-gray-200 cursor-not-allowed",
+                      inMonth && hasReport && !isSelected && "text-gray-700 hover:bg-gray-100",
+                      isSelected && "bg-gray-900 text-white font-semibold rounded-lg",
+                    )}
+                  >
+                    {day}
+                    {hasReport && !isSelected && (
+                      <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-brand-500" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 text-xs text-gray-400 text-center">
+              Select a date with a report
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function parseReport(text: string) {
@@ -85,45 +268,6 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
           <p className="text-gray-500 text-sm mt-1">Daily Reports from Lavora Reposter Controller Bot</p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Today / Yesterday quick buttons */}
-          {(() => {
-            const todayStr = new Date().toISOString().split("T")[0];
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = yesterday.toISOString().split("T")[0];
-            const todayIdx = reports.findIndex(r => r.report_date === todayStr);
-            const yesterdayIdx = reports.findIndex(r => r.report_date === yesterdayStr);
-            return (
-              <>
-                {yesterdayIdx >= 0 && (
-                  <button
-                    onClick={() => setSelectedIdx(yesterdayIdx)}
-                    className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
-                      selectedIdx === yesterdayIdx
-                        ? "bg-gray-900 text-white border-gray-900"
-                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
-                    Yesterday
-                  </button>
-                )}
-                {todayIdx >= 0 && (
-                  <button
-                    onClick={() => setSelectedIdx(todayIdx)}
-                    className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${
-                      selectedIdx === todayIdx
-                        ? "bg-gray-900 text-white border-gray-900"
-                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
-                    Today
-                  </button>
-                )}
-              </>
-            );
-          })()}
-          <div className="w-px h-5 bg-gray-200 mx-1" />
-          {/* Arrow navigation */}
           <button
             onClick={() => setSelectedIdx(Math.min(selectedIdx + 1, reports.length - 1))}
             disabled={selectedIdx >= reports.length - 1}
@@ -131,31 +275,14 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          {/* Date picker */}
-          <div className="relative">
-            <input
-              type="date"
-              value={report.report_date}
-              min={reports[reports.length - 1]?.report_date}
-              max={reports[0]?.report_date}
-              onChange={(e) => {
-                const val = e.target.value;
-                const idx = reports.findIndex(r => r.report_date === val);
-                if (idx >= 0) {
-                  setSelectedIdx(idx);
-                } else {
-                  // Find closest available date
-                  const closest = reports.reduce((best, r, i) =>
-                    Math.abs(new Date(r.report_date).getTime() - new Date(val).getTime()) <
-                    Math.abs(new Date(reports[best].report_date).getTime() - new Date(val).getTime())
-                      ? i : best
-                  , 0);
-                  setSelectedIdx(closest);
-                }
-              }}
-              className="text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
-            />
-          </div>
+          <SingleDatePicker
+            value={report.report_date}
+            availableDates={new Set(reports.map(r => r.report_date))}
+            onChange={(date) => {
+              const idx = reports.findIndex(r => r.report_date === date);
+              if (idx >= 0) setSelectedIdx(idx);
+            }}
+          />
           <button
             onClick={() => setSelectedIdx(Math.max(selectedIdx - 1, 0))}
             disabled={selectedIdx <= 0}
