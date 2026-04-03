@@ -621,7 +621,7 @@ export function PostsClient({ reels, models, groups, profiles, tags, reelDailyGr
           return (
             <div key={r.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden w-full">
               {/* Thumbnail */}
-              <div className="relative aspect-[5/6] bg-gray-100">
+              <div className="relative aspect-[10/9] bg-gray-100">
                 {r.thumbnail_url ? (
                   <img
                     src={r.thumbnail_url}
@@ -644,11 +644,14 @@ export function PostsClient({ reels, models, groups, profiles, tags, reelDailyGr
                 <div className="flex items-center justify-between text-xs text-gray-700">
                   <div className="flex items-center gap-1">
                     <Eye className="w-3 h-3 text-gray-400" />
-                    {reelDailyGrowth[r.id] > 0 && (
-                      <span className="bg-green-500 text-white text-[10px] font-semibold px-1 py-0.5 rounded">
-                        +{formatNumber(reelDailyGrowth[r.id])}
-                      </span>
-                    )}
+                    {(() => {
+                      const growth = reelDailyGrowth[r.id] || r.last_daily_views || 0;
+                      return growth > 0 ? (
+                        <span className="bg-green-500 text-white text-[10px] font-semibold px-1 py-0.5 rounded">
+                          +{formatNumber(growth)}
+                        </span>
+                      ) : null;
+                    })()}
                     <span className="font-medium">{formatNumber(r.current_views)}</span>
                   </div>
                   <div className="flex items-center gap-1">
