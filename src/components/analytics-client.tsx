@@ -747,7 +747,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     const perProfile: Record<string, {
       name: string; followers: number; views: number;
       likes: number; comments: number; interactions: number;
-      linkClicks: number; newSubs: number;
+      linkClicks: number; newSubs: number; estimatedTotalSubs: number;
     }> = {};
 
     let totalFollowers = 0, totalViews = 0, totalLikes = 0, totalComments = 0;
@@ -768,6 +768,19 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       totalLikes += snap.total_reel_likes || 0;
       totalComments += snap.total_reel_comments || 0;
       profileCount++;
+    }
+
+    // Build ofStats lookup: date -> model_id -> total_new_subs
+    const ofStatsByDateModel: Record<string, Record<string, number>> = {};
+    for (const s of ofStats) {
+      if (!ofStatsByDateModel[s.date]) ofStatsByDateModel[s.date] = {};
+      ofStatsByDateModel[s.date][s.model_id] = s.total_new_subs || 0;
+    }
+
+    // Build profile -> model_id lookup
+    const profileModelMap: Record<string, string> = {};
+    for (const p of profiles) {
+      if (p.model_id) profileModelMap[p.id] = p.model_id;
     }
 
     // Calculate deltas: sum daily changes across the range
@@ -813,7 +826,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
         totalNewSubs += ns;
 
         if (!perProfile[profileId]) {
-          perProfile[profileId] = { name, followers: 0, views: 0, likes: 0, comments: 0, interactions: 0, linkClicks: 0, newSubs: 0 };
+          perProfile[profileId] = { name, followers: 0, views: 0, likes: 0, comments: 0, interactions: 0, linkClicks: 0, newSubs: 0, estimatedTotalSubs: 0 };
         }
         perProfile[profileId].followers += dF;
         perProfile[profileId].views += dV;
@@ -822,6 +835,31 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
         perProfile[profileId].interactions += dL + dC;
         perProfile[profileId].linkClicks += lc;
         perProfile[profileId].newSubs += ns;
+      }
+
+      // Proportionally distribute OF total subs to profiles per model for this day
+      // Group tracked subs by model for this day
+      const modelTracked: Record<string, { total: number; profiles: { id: string; subs: number }[] }> = {};
+      for (const profileId of Array.from(filteredProfileIds)) {
+        const modelId = profileModelMap[profileId];
+        if (!modelId) continue;
+        const conv = convSnaps[profileId];
+        const ns = conv?.new_subs || 0;
+        if (!modelTracked[modelId]) modelTracked[modelId] = { total: 0, profiles: [] };
+        modelTracked[modelId].total += ns;
+        modelTracked[modelId].profiles.push({ id: profileId, subs: ns });
+      }
+
+      // Distribute OF total subs proportionally
+      const dayOfStats = ofStatsByDateModel[date] || {};
+      for (const [modelId, tracked] of Object.entries(modelTracked)) {
+        const ofTotal = dayOfStats[modelId];
+        if (!ofTotal || tracked.total === 0) continue;
+        for (const p of tracked.profiles) {
+          if (perProfile[p.id]) {
+            perProfile[p.id].estimatedTotalSubs += Math.round((p.subs / tracked.total) * ofTotal);
+          }
+        }
       }
     }
 
@@ -840,7 +878,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       totalInteractions, avgViews, viralityRatio,
       perProfile, profileCount,
     };
-  }, [snapshotsByDateProfile, conversionsByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap]);
+  }, [snapshotsByDateProfile, conversionsByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap, ofStats, profiles]);
 
   // Total New Subs (from OF daily stats, per model)
   const ofTotalNewSubs = useMemo(() => {
@@ -912,9 +950,14 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       .map(([_id, d]) => ({ name: d.name, value: parseFloat(((d.newSubs / d.linkClicks) * 100).toFixed(1)) }))
       .sort((a, b) => b.value - a.value);
 
-    const subsPer100k = entries
+    const trackedSubsPer100k = entries
       .filter(([_, d]) => d.views > 0 && d.newSubs > 0)
       .map(([_id, d]) => ({ name: d.name, value: Math.round(d.newSubs / (d.views / 100000)) }))
+      .sort((a, b) => b.value - a.value);
+
+    const totalSubsPer100k = entries
+      .filter(([_, d]) => d.views > 0 && d.estimatedTotalSubs > 0)
+      .map(([_id, d]) => ({ name: d.name, value: Math.round(d.estimatedTotalSubs / (d.views / 100000)) }))
       .sort((a, b) => b.value - a.value);
 
     const followersPer100k = entries
@@ -929,9 +972,11 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       followers: buildBars("followers"),
       linkClicks: buildBars("linkClicks"),
       newSubs: buildBars("newSubs"),
+      estimatedTotalSubs: buildBars("estimatedTotalSubs"),
       clickRate,
       conversionRate,
-      subsPer100k,
+      trackedSubsPer100k,
+      totalSubsPer100k,
       followersPer100k,
     };
   }, [stats.perProfile, profileColorMap]);
@@ -968,9 +1013,9 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
     const headers = [
       "Profile", "New Followers", "New Views", "New Likes", "New Comments",
-      "Interactions", "Link Clicks", "Tracked New Subs",
+      "Interactions", "Link Clicks", "Tracked New Subs", "Est. Total Subs",
       "Click Rate (%)", "Conversion Rate (%)",
-      "Subs / 100K Views", "Followers / 100K Views",
+      "Total Subs / 100K Views", "Tracked Subs / 100K Views", "Followers / 100K Views",
     ];
 
     const rows = entries
@@ -978,12 +1023,13 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       .map(([_, d]: [string, any]) => {
         const clickRate = d.views > 0 && d.linkClicks > 0 ? ((d.linkClicks / d.views) * 100).toFixed(2) : "";
         const convRate = d.linkClicks > 0 ? ((d.newSubs / d.linkClicks) * 100).toFixed(1) : "";
-        const subs100k = d.views > 0 && d.newSubs > 0 ? Math.round(d.newSubs / (d.views / 100000)) : "";
+        const totalSubs100k = d.views > 0 && d.estimatedTotalSubs > 0 ? Math.round(d.estimatedTotalSubs / (d.views / 100000)) : "";
+        const trackedSubs100k = d.views > 0 && d.newSubs > 0 ? Math.round(d.newSubs / (d.views / 100000)) : "";
         const followers100k = d.views > 0 && d.followers > 0 ? Math.round(d.followers / (d.views / 100000)) : "";
         return [
           d.name, d.followers, d.views, d.likes, d.comments,
-          d.interactions, d.linkClicks, d.newSubs,
-          clickRate, convRate, subs100k, followers100k,
+          d.interactions, d.linkClicks, d.newSubs, d.estimatedTotalSubs,
+          clickRate, convRate, totalSubs100k, trackedSubs100k, followers100k,
         ].join(",");
       });
 
@@ -1127,11 +1173,11 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="grid grid-cols-3 lg:grid-cols-7 divide-x divide-gray-200">
           <StatCard label="Total New Subs" value={formatNumber(ofTotalNewSubs.total)} sub />
-          <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
           <StatCard label="Tracked New Subs" value={formatNumber(stats.totalNewSubs)} sub />
+          <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
           <StatCard label="Click Rate" value={stats.deltaViews > 0 ? `${((stats.totalLinkClicks / stats.deltaViews) * 100).toFixed(2)}%` : "—"} sub />
           <StatCard label="Conversion Rate" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
-          <StatCard label="Subs / 100K Views" value={stats.deltaViews > 0 ? `${(stats.totalNewSubs / (stats.deltaViews / 100000)).toFixed(1)}` : "—"} sub />
+          <StatCard label="Total Subs / 100K" value={stats.deltaViews > 0 && ofTotalNewSubs.total > 0 ? `${Math.round(ofTotalNewSubs.total / (stats.deltaViews / 100000))}` : "—"} sub />
         </div>
       </div>
 
@@ -1163,12 +1209,14 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <MetricRankList title="Total New Subs" data={ofTotalNewSubs.perModel} showCount={showCount} />
-        <MetricRankList title="Link Clicks" data={barData.linkClicks.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
+        <MetricRankList title="Total New Subs (per Model)" data={ofTotalNewSubs.perModel} showCount={showCount} />
+        <MetricRankList title="Est. Total Subs (per Account)" data={barData.estimatedTotalSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
         <MetricRankList title="Tracked New Subs" data={barData.newSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
+        <MetricRankList title="Link Clicks" data={barData.linkClicks.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
         <MetricRankList title="Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" />
         <MetricRankList title="Conversion Rate" data={barData.conversionRate} showCount={showCount} suffix="%" />
-        <MetricRankList title="Subs / 100K Views" data={barData.subsPer100k} showCount={showCount} />
+        <MetricRankList title="Total Subs / 100K Views" data={barData.totalSubsPer100k} showCount={showCount} />
+        <MetricRankList title="Tracked Subs / 100K Views" data={barData.trackedSubsPer100k} showCount={showCount} />
         <MetricRankList title="Followers / 100K Views" data={barData.followersPer100k} showCount={showCount} />
       </div>
     </div>
