@@ -643,8 +643,12 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
                 <div className="flex items-center justify-between text-xs text-gray-700">
                   <div className="flex items-center gap-1">
                     <Eye className="w-3 h-3 text-gray-400" />
-                    {/* +X daily growth badge — needs reel_snapshots.reel_id to be populated by tracking bot */}
                     <span className="font-medium">{formatNumber(r.current_views)}</span>
+                    {r.last_daily_views > 0 && (
+                      <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-1 rounded">
+                        +{formatNumber(r.last_daily_views)}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <Heart className="w-3 h-3 text-gray-400" />
