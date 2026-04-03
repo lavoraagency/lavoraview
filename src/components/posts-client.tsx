@@ -209,60 +209,82 @@ function DualRangeSlider({
   onChange: (min: number, max: number) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const dragging = useRef<"min" | "max" | null>(null);
 
   const left = max > min ? ((valueMin - min) / (max - min)) * 100 : 0;
   const right = max > min ? ((valueMax - min) / (max - min)) * 100 : 100;
 
+  const getValueFromEvent = useCallback((e: MouseEvent | React.MouseEvent) => {
+    const track = trackRef.current;
+    if (!track) return min;
+    const rect = track.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    // Snap to steps for smoother UX
+    const step = max > 10000 ? 1000 : max > 1000 ? 100 : 10;
+    return Math.round((min + pct * (max - min)) / step) * step;
+  }, [min, max]);
+
+  const handleMouseDown = useCallback((thumb: "min" | "max") => (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = thumb;
+
+    const onMove = (ev: MouseEvent) => {
+      const v = getValueFromEvent(ev);
+      if (dragging.current === "min") {
+        onChange(Math.min(v, valueMax), valueMax);
+      } else {
+        onChange(valueMin, Math.max(v, valueMin));
+      }
+    };
+
+    const onUp = () => {
+      dragging.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [getValueFromEvent, onChange, valueMin, valueMax]);
+
+  const handleTrackClick = useCallback((e: React.MouseEvent) => {
+    const v = getValueFromEvent(e);
+    // Move whichever thumb is closer
+    const distMin = Math.abs(v - valueMin);
+    const distMax = Math.abs(v - valueMax);
+    if (distMin <= distMax) {
+      onChange(Math.min(v, valueMax), valueMax);
+    } else {
+      onChange(valueMin, Math.max(v, valueMin));
+    }
+  }, [getValueFromEvent, onChange, valueMin, valueMax]);
+
   return (
-    <div className="pt-2 pb-1">
-      <div ref={trackRef} className="relative h-1 bg-gray-200 rounded-full">
+    <div className="pt-4 pb-1">
+      <div
+        ref={trackRef}
+        className="relative h-1.5 bg-gray-200 rounded-full cursor-pointer"
+        onClick={handleTrackClick}
+      >
         <div
-          className="absolute h-full bg-gray-900 rounded-full"
+          className="absolute h-full bg-gray-900 rounded-full pointer-events-none"
           style={{ left: `${left}%`, width: `${right - left}%` }}
         />
-        {(() => {
-          const mid = (left + right) / 2;
-          return (
-            <>
-              <input
-                type="range"
-                min={min}
-                max={max}
-                value={valueMin}
-                onChange={e => {
-                  const v = Number(e.target.value);
-                  onChange(Math.min(v, valueMax), valueMax);
-                }}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                style={{ zIndex: 20, clipPath: `inset(0 ${100 - mid}% 0 0)` }}
-              />
-              <input
-                type="range"
-                min={min}
-                max={max}
-                value={valueMax}
-                onChange={e => {
-                  const v = Number(e.target.value);
-                  onChange(valueMin, Math.max(v, valueMin));
-                }}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                style={{ zIndex: 20, clipPath: `inset(0 0 0 ${mid}%)` }}
-              />
-            </>
-          );
-        })()}
-        {/* Thumb indicators */}
+        {/* Min thumb */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-gray-900 rounded-full -ml-2 z-10"
-          style={{ left: `${left}%` }}
+          className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white border-2 border-gray-900 rounded-full cursor-grab active:cursor-grabbing"
+          style={{ left: `${left}%`, marginLeft: "-10px", zIndex: 30 }}
+          onMouseDown={handleMouseDown("min")}
         />
+        {/* Max thumb */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-gray-900 rounded-full -ml-2 z-10"
-          style={{ left: `${right}%` }}
+          className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white border-2 border-gray-900 rounded-full cursor-grab active:cursor-grabbing"
+          style={{ left: `${right}%`, marginLeft: "-10px", zIndex: 30 }}
+          onMouseDown={handleMouseDown("max")}
         />
       </div>
-      <div className="flex justify-between text-xs text-gray-500 mt-2">
-        <span>{formatNumber(valueMin)}</span>
+      <div className="flex justify-between text-xs text-gray-500 mt-3">
+        <span>{formatNumber(min)}</span>
         <span>{formatNumber(valueMin)} – {formatNumber(valueMax)}</span>
         <span>{formatNumber(max)}</span>
       </div>
@@ -550,7 +572,7 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
   const activePresetLabel = DATE_PRESETS.find(p => p.value === datePreset)?.label || "Custom";
 
   return (
-    <div className="px-[15%] py-6 space-y-4">
+    <div className="p-6 space-y-4">
       {/* Header + Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <MultiSelect
@@ -592,13 +614,13 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 justify-items-center">
         {paged.map(r => {
           const profile = r.profiles as any;
           return (
-            <div key={r.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div key={r.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden w-full max-w-[200px]">
               {/* Thumbnail */}
-              <div className="relative aspect-[3/4] bg-gray-100">
+              <div className="relative aspect-[3/4] bg-gray-100 max-h-[240px]">
                 {r.thumbnail_url ? (
                   <img
                     src={r.thumbnail_url}
