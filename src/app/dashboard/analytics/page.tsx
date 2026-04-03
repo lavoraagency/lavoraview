@@ -30,6 +30,10 @@ export default async function AnalyticsPage() {
     supabase.from("tags").select("id, name, color").order("name"),
   ]);
 
+  // Filter models to only those with at least one profile
+  const usedModelIds = new Set((profiles || []).map((p: any) => p.model_id).filter(Boolean));
+  const filteredModels = (models || []).filter((m: any) => usedModelIds.has(m.id));
+
   // Fetch snapshots with pagination to bypass 1000 row limit
   const snapshotFields = "profile_id, followers, media_count, total_reel_views, total_reel_likes, total_reel_comments, total_reel_shares, reels_tracked, scraped_at";
   let allSnapshots: any[] = [];
@@ -79,7 +83,7 @@ export default async function AnalyticsPage() {
       snapshots={snapshots || []}
       conversions={conversions || []}
       ofStats={ofStats || []}
-      models={models || []}
+      models={filteredModels}
       groups={groups || []}
       tags={tags || []}
     />
