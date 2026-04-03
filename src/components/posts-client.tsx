@@ -432,10 +432,9 @@ interface PostsClientProps {
   groups: any[];
   profiles: any[];
   tags: any[];
-  reelDailyGrowth: Record<string, number>;
 }
 
-export function PostsClient({ reels, models, groups, profiles, tags, reelDailyGrowth }: PostsClientProps) {
+export function PostsClient({ reels, models, groups, profiles, tags }: PostsClientProps) {
   const [selectedModels, setSelectedModels] = useState<string[] | null>(null);
   const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
@@ -615,7 +614,7 @@ export function PostsClient({ reels, models, groups, profiles, tags, reelDailyGr
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 max-w-[90%] mx-auto">
         {paged.map(r => {
           const profile = r.profiles as any;
           return (
@@ -644,14 +643,7 @@ export function PostsClient({ reels, models, groups, profiles, tags, reelDailyGr
                 <div className="flex items-center justify-between text-xs text-gray-700">
                   <div className="flex items-center gap-1">
                     <Eye className="w-3 h-3 text-gray-400" />
-                    {(() => {
-                      const growth = reelDailyGrowth[r.id] || r.last_daily_views || 0;
-                      return growth > 0 ? (
-                        <span className="bg-green-500 text-white text-[10px] font-semibold px-1 py-0.5 rounded">
-                          +{formatNumber(growth)}
-                        </span>
-                      ) : null;
-                    })()}
+                    {/* +X daily growth badge — needs reel_snapshots.reel_id to be populated by tracking bot */}
                     <span className="font-medium">{formatNumber(r.current_views)}</span>
                   </div>
                   <div className="flex items-center gap-1">
