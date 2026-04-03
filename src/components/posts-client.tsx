@@ -223,7 +223,7 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
   }, [page, totalPages]);
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="px-[15%] py-6 space-y-4">
       {/* Header + Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <MultiSelect
