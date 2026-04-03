@@ -869,7 +869,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       return sum + (snap?.media_count || 0);
     }, 0);
     const avgViews = profileCount > 0 && totalPosts > 0 ? Math.round(totalViews / totalPosts) : 0;
-    const viralityRatio = totalViews > 0 ? ((totalInteractions / totalViews) * 100).toFixed(2) : "0.00";
+    const viralityRatio = deltaViews > 0 ? ((totalInteractions / deltaViews) * 100).toFixed(2) : "0.00";
 
     // Sum of proportionally distributed total subs across filtered profiles
     const totalEstimatedSubs = Object.values(perProfile).reduce((sum, p) => sum + p.estimatedTotalSubs, 0);
