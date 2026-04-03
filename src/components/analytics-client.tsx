@@ -1178,6 +1178,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
           <StatCard label="Click Rate" value={stats.deltaViews > 0 ? `${((stats.totalLinkClicks / stats.deltaViews) * 100).toFixed(2)}%` : "—"} sub />
           <StatCard label="Conversion Rate" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
           <StatCard label="Total Subs / 100K" value={stats.deltaViews > 0 && ofTotalNewSubs.total > 0 ? `${Math.round(ofTotalNewSubs.total / (stats.deltaViews / 100000))}` : "—"} sub />
+          <StatCard label="Tracked Subs / 100K" value={stats.deltaViews > 0 && stats.totalNewSubs > 0 ? `${Math.round(stats.totalNewSubs / (stats.deltaViews / 100000))}` : "—"} sub />
         </div>
       </div>
 
