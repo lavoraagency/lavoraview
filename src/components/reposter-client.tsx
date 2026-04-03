@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Calendar, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Calendar, ChevronDown, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Report {
@@ -338,13 +338,15 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
                   <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">{instagram}</span>
                       <a
                         href={`https://www.instagram.com/${instagram}/`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm font-medium text-gray-900 hover:text-brand-600 transition-colors"
+                        className="text-gray-300 hover:text-brand-500 transition-colors"
+                        title="Open on Instagram"
                       >
-                        {instagram}
+                        <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                       <span className="text-xs text-gray-400">{telegram}</span>
                     </div>
