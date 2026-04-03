@@ -2,11 +2,11 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Calendar, ChevronDown, ExternalLink, Download } from "lucide-react";
-import { formatNumber } from "@/lib/utils";
+import { formatNumber, formatDateShort } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell
+  PieChart, Pie, Cell, LineChart, Line, Legend
 } from "recharts";
 
 const COLORS = [
@@ -15,6 +15,13 @@ const COLORS = [
   "#162748",
   "#17294D",
   "#1A2E57",
+];
+
+const LINE_COLORS = [
+  "#2563eb", "#dc2626", "#16a34a", "#f59e0b", "#8b5cf6",
+  "#ec4899", "#06b6d4", "#f97316", "#6366f1", "#14b8a6",
+  "#e11d48", "#84cc16", "#0ea5e9", "#a855f7", "#f43f5e",
+  "#22c55e", "#3b82f6", "#eab308", "#ef4444", "#10b981",
 ];
 
 const SHOW_OPTIONS = [5, 15, 30, 50, 0] as const;
@@ -1006,6 +1013,56 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     };
   }, [stats.perProfile, profileColorMap]);
 
+  // Trend data: per-profile daily deltas for line charts (only when multi-day range)
+  const isMultiDay = datesInRange.length > 1;
+  const trendData = useMemo(() => {
+    if (!isMultiDay) return { views: [], followers: [], likes: [], comments: [], profileNames: [] as string[] };
+
+    // Get profile names sorted by total views descending (top profiles first)
+    const sortedProfiles = Object.entries(stats.perProfile)
+      .sort(([, a], [, b]) => b.views - a.views)
+      .map(([id, d]) => ({ id, name: d.name }));
+    const profileNames = sortedProfiles.map(p => p.name);
+
+    function buildTrend(field: "total_reel_views" | "followers" | "total_reel_likes" | "total_reel_comments") {
+      const rows: Record<string, any>[] = [];
+      for (let i = 0; i < datesInRange.length; i++) {
+        const date = datesInRange[i];
+        const prevDate = i === 0 ? dateBeforeRange : datesInRange[i - 1];
+        const todaySnaps = snapshotsByDateProfile[date] || {};
+        const prevSnaps = prevDate ? (snapshotsByDateProfile[prevDate] || {}) : {};
+        const row: Record<string, any> = { date: formatDateShort(date) };
+
+        for (const p of sortedProfiles) {
+          const today = todaySnaps[p.id];
+          let prev = prevSnaps[p.id];
+          if (!prev && i > 0) {
+            // Look back further
+            for (let j = i - 2; j >= 0; j--) {
+              const candidate = snapshotsByDateProfile[datesInRange[j]]?.[p.id];
+              if (candidate) { prev = candidate; break; }
+            }
+          }
+          if (today && prev) {
+            row[p.name] = Math.max(0, (today[field] || 0) - (prev[field] || 0));
+          } else {
+            row[p.name] = 0;
+          }
+        }
+        rows.push(row);
+      }
+      return rows;
+    }
+
+    return {
+      views: buildTrend("total_reel_views"),
+      followers: buildTrend("followers"),
+      likes: buildTrend("total_reel_likes"),
+      comments: buildTrend("total_reel_comments"),
+      profileNames,
+    };
+  }, [isMultiDay, datesInRange, dateBeforeRange, snapshotsByDateProfile, stats.perProfile]);
+
   // Group options filtered by selected creators
   const groupOptions = useMemo(() => {
     let opts = groups.map(g => ({ id: g.id, name: g.name, model_id: g.model_id }));
@@ -1218,6 +1275,53 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
         <MetricBarChart title="Likes" data={barData.likes} showCount={showCount} />
         <MetricBarChart title="Comments" data={barData.comments} showCount={showCount} />
       </div>
+
+      {/* Trend Line Charts — only when multiple days selected */}
+      {isMultiDay && trendData.profileNames.length > 0 && (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {([
+              { title: "Views", data: trendData.views },
+              { title: "New Followers", data: trendData.followers },
+              { title: "Likes", data: trendData.likes },
+              { title: "Comments", data: trendData.comments },
+            ] as { title: string; data: Record<string, any>[] }[]).map(chart => (
+              <div key={chart.title} className="bg-white rounded-xl border border-gray-200 p-5">
+                <h3 className="font-semibold text-gray-900 mb-4">{chart.title} <span className="text-gray-400 font-normal text-xs">(daily trend)</span></h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={chart.data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis tickFormatter={v => formatNumber(v)} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [formatNumber(value), name]}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                      itemSorter={(item: any) => -(item.value || 0)}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: 11 }}
+                      iconType="circle"
+                      iconSize={8}
+                    />
+                    {trendData.profileNames.slice(0, showCount || trendData.profileNames.length).map((name, i) => (
+                      <Line
+                        key={name}
+                        type="monotone"
+                        dataKey={name}
+                        stroke={LINE_COLORS[i % LINE_COLORS.length]}
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                        activeDot={{ r: 5 }}
+                        connectNulls
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Conversion Section */}
       <div>
