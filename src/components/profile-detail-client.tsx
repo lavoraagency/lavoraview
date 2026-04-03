@@ -64,7 +64,7 @@ async function addTag(tagName: string) {
             </a>
           </div>
           <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 flex-wrap">
-            {profile.models?.name && <span>Model: <strong>{profile.models.name}</strong></span>}
+            {(profile.models?.nickname || profile.models?.name) && <span>Model: <strong>{profile.models?.nickname || profile.models?.name}</strong></span>}
             {profile.account_groups?.name && <span>Gruppe: <strong>{profile.account_groups.name}</strong></span>}
             {profile.va_name && <span>VA: <strong>{profile.va_name}</strong></span>}
             {profile.editor_name && <span>Editor: <strong>{profile.editor_name}</strong></span>}

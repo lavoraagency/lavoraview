@@ -53,7 +53,7 @@ export function PostsClient({ reels, models }: { reels: any[]; models: any[] }) 
           className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">All Models</option>
-          {models.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          {models.map((m: any) => <option key={m.id} value={m.id}>{m.nickname || m.name}</option>)}
         </select>
         <select
           value={sortBy}

@@ -2,11 +2,11 @@
 
 import { createServiceClient } from "@/lib/supabase/server";
 
-export async function updateModel(modelId: string, data: { max_recent_reels: number; viral_view_threshold: number }) {
+export async function updateModel(modelId: string, data: { nickname?: string | null; max_recent_reels: number; viral_view_threshold: number }) {
   const supabase = createServiceClient();
   const { error } = await supabase
     .from("models")
-    .update({ max_recent_reels: data.max_recent_reels, viral_view_threshold: data.viral_view_threshold })
+    .update({ nickname: data.nickname || null, max_recent_reels: data.max_recent_reels, viral_view_threshold: data.viral_view_threshold })
     .eq("id", modelId);
 
   if (error) return { success: false, error: error.message };

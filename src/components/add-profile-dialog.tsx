@@ -41,7 +41,7 @@ export function AddProfileDialog({ models, groups, onClose, onAdded }: AddProfil
         status: "working",
         is_active: true,
       })
-      .select(`id, instagram_username, status, is_active, tags, models(id, name), account_groups(id, name)`)
+      .select(`id, instagram_username, status, is_active, tags, models(id, name, nickname), account_groups(id, name)`)
       .single();
 
     if (error) {
@@ -81,7 +81,7 @@ export function AddProfileDialog({ models, groups, onClose, onAdded }: AddProfil
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
             >
               <option value="">Kein Model</option>
-              {models.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              {models.map((m: any) => <option key={m.id} value={m.id}>{m.nickname || m.name}</option>)}
             </select>
           </div>
           <div>

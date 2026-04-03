@@ -11,11 +11,11 @@ export default async function PostsPage() {
         id, instagram_reel_id, shortcode, caption, thumbnail_url, reel_url,
         posted_at, current_views, current_likes, current_comments, current_shares,
         is_viral_tracked, last_daily_views,
-        profiles(id, instagram_username, model_id, models(id, name), account_groups(id, name))
+        profiles(id, instagram_username, model_id, models(id, name, nickname), account_groups(id, name))
       `)
       .order("current_views", { ascending: false })
       .limit(500),
-    supabase.from("models").select("id, name"),
+    supabase.from("models").select("id, name, nickname"),
   ]);
 
   return <PostsClient reels={reels || []} models={models || []} />;

@@ -8,7 +8,7 @@ export default async function ProfileDetailPage({ params }: { params: { id: stri
   const [{ data: profile }, { data: reels }, { data: snapshots }, { data: tags }] = await Promise.all([
     supabase
       .from("profiles")
-      .select(`*, models(id, name, viral_view_threshold), account_groups(id, name)`)
+      .select(`*, models(id, name, nickname, viral_view_threshold), account_groups(id, name)`)
       .eq("id", params.id)
       .single(),
     supabase

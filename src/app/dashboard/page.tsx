@@ -96,7 +96,7 @@ export default async function DashboardPage() {
   // Fetch profiles for display info
   const { data: allProfiles } = await supabase
     .from("profiles")
-    .select("id, instagram_username, models(name), account_groups(name)")
+    .select("id, instagram_username, models(name, nickname), account_groups(name)")
     .eq("is_active", true);
 
   // Calculate total view delta for each profile over last 5 days
@@ -173,7 +173,7 @@ export default async function DashboardPage() {
                       @{p.instagram_username}
                     </a>
                   </td>
-                  <td className="px-6 py-3 text-gray-500">{(p.models as any)?.name || "-"}</td>
+                  <td className="px-6 py-3 text-gray-500">{(p.models as any)?.nickname || (p.models as any)?.name || "-"}</td>
                   <td className="px-6 py-3 text-right text-gray-600">{formatNumber(p.followers)}</td>
                   <td className="px-6 py-3 text-right font-semibold text-gray-900">{formatNumber(p.viewsLast5)}</td>
                 </tr>

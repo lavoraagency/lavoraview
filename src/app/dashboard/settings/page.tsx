@@ -5,7 +5,7 @@ export default async function SettingsPage() {
   const supabase = createClient();
 
   const [{ data: models }, { data: tags }] = await Promise.all([
-    supabase.from("models").select("id, name, max_recent_reels, viral_view_threshold").order("name"),
+    supabase.from("models").select("id, name, nickname, max_recent_reels, viral_view_threshold").order("name"),
     supabase.from("tags").select("id, name, color").order("name"),
   ]);
 

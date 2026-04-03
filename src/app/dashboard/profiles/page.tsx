@@ -11,12 +11,12 @@ export default async function ProfilesPage() {
       .from("profiles")
       .select(`
         id, instagram_username, status, is_active, tags, va_name, editor_name, account_slot,
-        models(id, name),
+        models(id, name, nickname),
         account_groups(id, name, group_type),
         profile_snapshots(followers, total_reel_views, media_count, scraped_at)
       `)
       .order("instagram_username"),
-    supabase.from("models").select("id, name").order("name"),
+    supabase.from("models").select("id, name, nickname").order("name"),
     supabase.from("account_groups").select("id, name, model_id, group_type").order("name"),
     supabase.from("tags").select("id, name, color").order("name"),
   ]);

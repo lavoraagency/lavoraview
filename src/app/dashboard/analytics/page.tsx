@@ -20,12 +20,12 @@ export default async function AnalyticsPage() {
       .from("profiles")
       .select(`
         id, instagram_username, model_id, status, is_active, tags,
-        models(id, name),
+        models(id, name, nickname),
         account_groups(id, name)
       `)
       .eq("is_active", true)
       .order("instagram_username"),
-    supabase.from("models").select("id, name").order("name"),
+    supabase.from("models").select("id, name, nickname").order("name"),
     supabase.from("account_groups").select("id, name, model_id").order("name"),
     supabase.from("tags").select("id, name, color").order("name"),
   ]);

@@ -984,7 +984,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       <div className="flex flex-wrap items-center gap-3">
         <MultiSelect
           label="Creators"
-          options={models.map(m => ({ id: m.id, name: m.name }))}
+          options={models.map(m => ({ id: m.id, name: m.nickname || m.name }))}
           selected={selectedModels}
           onChange={setSelectedModels}
         />

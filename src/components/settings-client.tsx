@@ -22,16 +22,17 @@ export function SettingsClient({ initialModels, initialTags }: {
   async function saveModel(model: any) {
     setSaving(model.id);
     const result = await updateModelAction(model.id, {
+      nickname: model.nickname || null,
       max_recent_reels: model.max_recent_reels,
       viral_view_threshold: model.viral_view_threshold
     });
 
     if (!result.success) showMessage("error", result.error || "Fehler beim Speichern");
-    else showMessage("success", `${model.name} gespeichert`);
+    else showMessage("success", `${model.nickname || model.name} gespeichert`);
     setSaving(null);
   }
 
-  function updateModel(id: string, field: string, value: number) {
+  function updateModel(id: string, field: string, value: any) {
     setModels(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
   }
 
@@ -79,7 +80,10 @@ export function SettingsClient({ initialModels, initialTags }: {
           {models.map(model => (
             <div key={model.id} className="bg-white rounded-xl border border-gray-200 p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">{model.name}</h3>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{model.nickname || model.name}</h3>
+                  {model.nickname && <p className="text-xs text-gray-400">{model.name}</p>}
+                </div>
                 <button
                   onClick={() => saveModel(model)}
                   disabled={saving === model.id}
@@ -89,7 +93,20 @@ export function SettingsClient({ initialModels, initialTags }: {
                   {saving === model.id ? "Speichern..." : "Speichern"}
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nickname
+                    <span className="text-gray-400 font-normal ml-1">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={model.name}
+                    value={model.nickname || ""}
+                    onChange={e => updateModel(model.id, "nickname", e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Max. Reels pro Scrape
