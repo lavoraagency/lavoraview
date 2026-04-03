@@ -898,6 +898,31 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     return Object.values(perModel).sort((a, b) => b.value - a.value);
   }, [stats.perProfile, profiles, models]);
 
+  // Donut data for Total New Subs per Model and per Group
+  const donutTotalSubsPerModel = useMemo(() => {
+    return ofTotalNewSubsPerModel.map((d, i) => ({
+      name: d.name,
+      value: d.value,
+      color: COLORS[i % COLORS.length],
+    }));
+  }, [ofTotalNewSubsPerModel]);
+
+  const donutTotalSubsPerGroup = useMemo(() => {
+    const perGroup: Record<string, { name: string; value: number }> = {};
+    for (const [pid, pData] of Object.entries(stats.perProfile)) {
+      if (pData.estimatedTotalSubs <= 0) continue;
+      const p = profiles.find((pr: any) => pr.id === pid);
+      const groupId = p?.account_groups?.id;
+      const groupName = p?.account_groups?.name || "No Group";
+      const key = groupId || "no-group";
+      if (!perGroup[key]) perGroup[key] = { name: groupName, value: 0 };
+      perGroup[key].value += pData.estimatedTotalSubs;
+    }
+    return Object.values(perGroup)
+      .sort((a, b) => b.value - a.value)
+      .map((d, i) => ({ ...d, color: COLORS[i % COLORS.length] }));
+  }, [stats.perProfile, profiles]);
+
   // Donut data
   const donutData = useMemo(() => {
     const entries = Object.entries(stats.perProfile);
@@ -1197,6 +1222,11 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DonutCard title="Link Clicks" total={formatNumber(stats.totalLinkClicks)} data={donutData.linkClicks} />
         <DonutCard title="Tracked New Subs" total={formatNumber(stats.totalNewSubs)} data={donutData.newSubs} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <DonutCard title="Total New Subs (per Model)" total={formatNumber(stats.totalEstimatedSubs)} data={donutTotalSubsPerModel} />
+        <DonutCard title="Total New Subs (per Group)" total={formatNumber(stats.totalEstimatedSubs)} data={donutTotalSubsPerGroup} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
