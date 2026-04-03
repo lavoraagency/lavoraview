@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart2, Users, Settings, LogOut, TrendingUp, LayoutGrid, PieChart, ClipboardList } from "lucide-react";
+import { Users, Settings, LogOut, LayoutGrid, PieChart, ClipboardList } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/dashboard", label: "Overview", icon: TrendingUp },
   { href: "/dashboard/analytics", label: "Analytics", icon: PieChart },
   { href: "/dashboard/posts", label: "Posts", icon: LayoutGrid },
   { href: "/dashboard/profiles", label: "Profiles", icon: Users },
