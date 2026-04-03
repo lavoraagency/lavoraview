@@ -33,17 +33,19 @@ export default async function PostsPage() {
   let snapOffset = 0;
   const snapPageSize = 1000;
   while (true) {
-    const { data: batch } = await supabase
+    const { data: batch, error: snapError } = await supabase
       .from("reel_snapshots")
       .select("reel_id, views, scraped_at")
       .gte("scraped_at", threeDaysAgo.toISOString())
       .order("scraped_at", { ascending: true })
       .range(snapOffset, snapOffset + snapPageSize - 1);
+    if (snapError) { console.error("reel_snapshots error:", snapError.message); break; }
     if (!batch || batch.length === 0) break;
     allSnapshots = allSnapshots.concat(batch);
     if (batch.length < snapPageSize) break;
     snapOffset += snapPageSize;
   }
+  console.log(`Loaded ${allSnapshots.length} reel snapshots from last 3 days`);
 
   // Group snapshots by reel_id, get last two distinct dates, compute delta
   const reelDailyGrowth: Record<string, number> = {};
