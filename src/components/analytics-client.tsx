@@ -943,7 +943,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
 
     const headers = [
       "Profile", "New Followers", "New Views", "New Likes", "New Comments",
-      "Interactions", "Link Clicks", "New Subs",
+      "Interactions", "Link Clicks", "Tracked New Subs",
       "Click Rate (%)", "Conversion Rate (%)",
       "Subs / 100K Views", "Followers / 100K Views",
     ];
@@ -1102,7 +1102,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="grid grid-cols-3 lg:grid-cols-6 divide-x divide-gray-200">
           <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
-          <StatCard label="New Subscribers" value={formatNumber(stats.totalNewSubs)} sub />
+          <StatCard label="Tracked New Subs" value={formatNumber(stats.totalNewSubs)} sub />
           <StatCard label="Profiles Tracked" value={String(stats.profileCount)} sub />
           <StatCard label="Click Rate" value={stats.deltaViews > 0 ? `${((stats.totalLinkClicks / stats.deltaViews) * 100).toFixed(2)}%` : "—"} sub />
           <StatCard label="Conversion Rate" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
@@ -1129,17 +1129,17 @@ export function AnalyticsClient({ profiles, snapshots, conversions, models, grou
       {/* Conversion Section */}
       <div>
         <h2 className="text-lg font-bold text-gray-900">Conversions</h2>
-        <p className="text-gray-500 text-sm mt-1">Link clicks &amp; new subscribers from tracking links</p>
+        <p className="text-gray-500 text-sm mt-1">Link clicks &amp; subscriber tracking</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DonutCard title="Link Clicks" total={formatNumber(stats.totalLinkClicks)} data={donutData.linkClicks} />
-        <DonutCard title="New Subscribers" total={formatNumber(stats.totalNewSubs)} data={donutData.newSubs} />
+        <DonutCard title="Tracked New Subs" total={formatNumber(stats.totalNewSubs)} data={donutData.newSubs} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <MetricRankList title="Link Clicks" data={barData.linkClicks.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
-        <MetricRankList title="New Subscribers" data={barData.newSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
+        <MetricRankList title="Tracked New Subs" data={barData.newSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
         <MetricRankList title="Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" />
         <MetricRankList title="Conversion Rate" data={barData.conversionRate} showCount={showCount} suffix="%" />
         <MetricRankList title="Subs / 100K Views" data={barData.subsPer100k} showCount={showCount} />
