@@ -23,7 +23,6 @@ export default async function AnalyticsPage() {
         models(id, name, nickname),
         account_groups(id, name)
       `)
-      .eq("is_active", true)
       .order("instagram_username"),
     supabase.from("models").select("id, name, nickname").order("name"),
     supabase.from("account_groups").select("id, name, model_id").order("name"),

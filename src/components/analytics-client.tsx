@@ -656,11 +656,14 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showCount, setShowCount] = useState(5);
 
-  // Build profile color map
+  // Build profile color map (keyed by display name from profileNameMap)
   const profileColorMap = useMemo(() => {
     const map: Record<string, string> = {};
     profiles.forEach((p, i) => {
-      map[p.instagram_username] = COLORS[i % COLORS.length];
+      let name = p.instagram_username;
+      if (p.status === "suspended") name = `(S) ${name}`;
+      else if (!p.is_active) name = `(I) ${name}`;
+      map[name] = COLORS[i % COLORS.length];
     });
     return map;
   }, [profiles]);
@@ -684,7 +687,12 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
   const profileNameMap = useMemo(() => {
     const map: Record<string, string> = {};
-    profiles.forEach(p => { map[p.id] = p.instagram_username; });
+    profiles.forEach(p => {
+      let name = p.instagram_username;
+      if (p.status === "suspended") name = `(S) ${name}`;
+      else if (!p.is_active) name = `(I) ${name}`;
+      map[p.id] = name;
+    });
     return map;
   }, [profiles]);
 
@@ -1074,7 +1082,12 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
   // Profile options for multi-select
   const profileOptions = useMemo(() => {
-    let opts = profiles.map(p => ({ id: p.id, name: `@${p.instagram_username}` }));
+    let opts = profiles.map(p => {
+      let name = `@${p.instagram_username}`;
+      if (p.status === "suspended") name = `(S) ${name}`;
+      else if (!p.is_active) name = `(I) ${name}`;
+      return { id: p.id, name };
+    });
     if (selectedModels !== null && selectedModels.length > 0) {
       const modelFilteredIds = new Set(profiles.filter(p => selectedModels.includes(p.models?.id)).map(p => p.id));
       opts = opts.filter(o => modelFilteredIds.has(o.id));

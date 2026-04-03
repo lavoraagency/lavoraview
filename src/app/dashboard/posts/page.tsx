@@ -19,7 +19,7 @@ export default async function PostsPage() {
       .limit(2000),
     supabase.from("models").select("id, name, nickname").order("name"),
     supabase.from("account_groups").select("id, name, model_id").order("name"),
-    supabase.from("profiles").select("id, instagram_username, model_id, tags").eq("is_active", true).order("instagram_username"),
+    supabase.from("profiles").select("id, instagram_username, model_id, tags, is_active, status").order("instagram_username"),
     supabase.from("tags").select("id, name, color").order("name"),
   ]);
 
