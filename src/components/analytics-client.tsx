@@ -1306,7 +1306,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
                         key={name}
                         type="monotone"
                         dataKey={name}
-                        stroke={LINE_COLORS[i % LINE_COLORS.length]}
+                        stroke={profileColorMap[name] || COLORS[i % COLORS.length]}
                         strokeWidth={2}
                         dot={{ r: 3 }}
                         activeDot={{ r: 5 }}
