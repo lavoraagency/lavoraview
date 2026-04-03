@@ -84,22 +84,10 @@ export default async function DashboardPage() {
     dailyDeltaData[date] = { followerDelta, viewDelta };
   }
 
-  // KPIs: use most recent available day with data (fallback from yesterday backward)
-  let kpiDate = yesterday;
-  let kpiDeltas = dailyDeltaData[yesterday];
-  if (!kpiDeltas || (kpiDeltas.followerDelta === 0 && kpiDeltas.viewDelta === 0)) {
-    // Walk backward through available dates to find the most recent day with actual data
-    for (let i = availableDates.length - 1; i >= 0; i--) {
-      const d = dailyDeltaData[availableDates[i]];
-      if (d && (d.followerDelta > 0 || d.viewDelta > 0)) {
-        kpiDate = availableDates[i];
-        kpiDeltas = d;
-        break;
-      }
-    }
-  }
-  const newFollowers = kpiDeltas?.followerDelta || 0;
-  const totalViewsYesterday = kpiDeltas?.viewDelta || 0;
+  // KPIs: always use yesterday
+  const yesterdayDeltas = dailyDeltaData[yesterday] || { followerDelta: 0, viewDelta: 0 };
+  const newFollowers = yesterdayDeltas.followerDelta;
+  const totalViewsYesterday = yesterdayDeltas.viewDelta;
   const lastDataDate = availableDates.length > 0 ? availableDates[availableDates.length - 1] : null;
 
   const chartData = Object.values(dailyData)
@@ -146,17 +134,15 @@ export default async function DashboardPage() {
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Overview</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          {kpiDate === yesterday ? `Data from yesterday · ${yesterday}` : `Latest data from ${kpiDate}`}
-        </p>
+        <p className="text-gray-500 text-sm mt-1">Data from yesterday · {yesterday}</p>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard title="Active Profiles" value={totalProfiles ?? 0} icon="👤" color="blue" />
         <KpiCard title="New Followers" value={newFollowers} icon="❤️" color="pink" />
-        <KpiCard title={kpiDate === yesterday ? "Views Yesterday" : `Views (${kpiDate})`} value={totalViewsYesterday} icon="👁️" color="purple" />
-        <KpiCard title="Data from" value={0} valueOverride={lastDataDate ? `${lastDataDate}` : "No data"} icon="📅" color="green" />
+        <KpiCard title="Views Yesterday" value={totalViewsYesterday} icon="👁️" color="purple" />
+        <KpiCard title="Data from" value={0} valueOverride={lastDataDate ? `Last data: ${lastDataDate}` : "No data"} icon="📅" color="green" />
       </div>
 
       {/* Charts */}
