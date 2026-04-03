@@ -1148,9 +1148,10 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
       {/* Stats Row 1 - Derived */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-2 lg:grid-cols-3 divide-x divide-gray-200">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
           <StatCard label="Average Views" value={formatNumber(stats.avgViews)} sub />
-          <StatCard label="Total Interactions (Likes + Comments)" value={formatNumber(stats.totalInteractions)} sub />
+          <StatCard label="New Likes" value={formatNumber(stats.deltaLikes)} sub />
+          <StatCard label="New Comments" value={formatNumber(stats.deltaComments)} sub />
           <StatCard label="Engagement Rate" value={`${stats.viralityRatio}%`} sub />
         </div>
       </div>
