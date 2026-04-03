@@ -1086,8 +1086,6 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     return opts;
   }, [profiles, selectedModels, selectedGroups]);
 
-  const isMultiDay = dateRange.from !== dateRange.to;
-
   // CSV Export
   const handleExportCSV = useCallback(() => {
     const entries = Object.entries(stats.perProfile);
