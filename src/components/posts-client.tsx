@@ -268,7 +268,7 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
           return (
             <div key={r.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               {/* Thumbnail */}
-              <div className="relative aspect-[9/16] bg-gray-100">
+              <div className="relative aspect-[3/4] bg-gray-100">
                 {r.thumbnail_url ? (
                   <img
                     src={r.thumbnail_url}
