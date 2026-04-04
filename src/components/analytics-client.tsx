@@ -46,6 +46,15 @@ function addDays(dateStr: string, n: number) {
   return toLocalDateStr(d);
 }
 
+interface ReelDailyDelta {
+  profile_id: string;
+  date: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+}
+
 interface AnalyticsClientProps {
   profiles: any[];
   snapshots: any[];
@@ -54,6 +63,7 @@ interface AnalyticsClientProps {
   models: any[];
   groups: any[];
   tags: any[];
+  reelDailyDeltas: ReelDailyDelta[];
 }
 
 // ── Date Range Picker ──────────────────────────────────────────────
@@ -649,7 +659,7 @@ function MetricBarChart({
 }
 
 // ── Main Component ─────────────────────────────────────────────────
-export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, models, groups, tags }: AnalyticsClientProps) {
+export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, models, groups, tags, reelDailyDeltas }: AnalyticsClientProps) {
   const [selectedModels, setSelectedModels] = useState<string[] | null>(null);
   const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
@@ -717,6 +727,16 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     }
     return map;
   }, [conversions]);
+
+  // Group reel daily deltas by date and profile
+  const reelDeltasByDateProfile = useMemo(() => {
+    const map: Record<string, Record<string, ReelDailyDelta>> = {};
+    for (const d of reelDailyDeltas) {
+      if (!map[d.date]) map[d.date] = {};
+      map[d.date][d.profile_id] = d;
+    }
+    return map;
+  }, [reelDailyDeltas]);
 
   // Sorted available dates
   const availableDates = useMemo(() => {
@@ -808,6 +828,8 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
       const convSnaps = conversionsByDateProfile[date] || {};
 
+      const reelDeltas = reelDeltasByDateProfile[date] || {};
+
       for (const profileId of Array.from(filteredProfileIds)) {
         const today = todaySnaps[profileId];
         if (!today) continue;
@@ -825,9 +847,11 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
         const name = profileNameMap[profileId] || "unknown";
 
         const dF = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : 0;
-        const dV = prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : 0;
-        const dL = prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : 0;
-        const dC = prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : 0;
+        // Use reel-level deltas if available (accurate), fall back to profile snapshot diff
+        const rd = reelDeltas[profileId];
+        const dV = rd ? rd.views : (prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : 0);
+        const dL = rd ? rd.likes : (prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : 0);
+        const dC = rd ? rd.comments : (prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : 0);
 
         const conv = convSnaps[profileId];
         const lc = conv?.link_clicks || 0;
@@ -896,7 +920,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       totalInteractions, avgViews, viralityRatio,
       perProfile, profileCount, totalEstimatedSubs,
     };
-  }, [snapshotsByDateProfile, conversionsByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap, ofStats, profiles]);
+  }, [snapshotsByDateProfile, conversionsByDateProfile, reelDeltasByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap, ofStats, profiles]);
 
   // Total New Subs per model (aggregated from proportional per-profile data)
   const ofTotalNewSubsPerModel = useMemo(() => {
@@ -1033,26 +1057,36 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     const profileNames = sortedProfiles.map(p => p.name);
 
     function buildTrend(field: "total_reel_views" | "followers" | "total_reel_likes" | "total_reel_comments") {
+      const reelDeltaField = field === "total_reel_views" ? "views" : field === "total_reel_likes" ? "likes" : field === "total_reel_comments" ? "comments" : null;
       const rows: Record<string, any>[] = [];
       for (let i = 0; i < datesInRange.length; i++) {
         const date = datesInRange[i];
         const prevDate = i === 0 ? dateBeforeRange : datesInRange[i - 1];
         const todaySnaps = snapshotsByDateProfile[date] || {};
         const prevSnaps = prevDate ? (snapshotsByDateProfile[prevDate] || {}) : {};
+        const reelDeltas = reelDeltasByDateProfile[date] || {};
         const row: Record<string, any> = { date: formatDateShort(date) };
 
         for (const p of sortedProfiles) {
           const today = todaySnaps[p.id];
-          let prev = prevSnaps[p.id];
-          if (!prev && i > 0) {
-            // Look back further
-            for (let j = i - 2; j >= 0; j--) {
-              const candidate = snapshotsByDateProfile[datesInRange[j]]?.[p.id];
-              if (candidate) { prev = candidate; break; }
+          const rd = reelDeltas[p.id];
+
+          // For reel metrics (views, likes, comments): use reel-level deltas if available
+          if (reelDeltaField && rd) {
+            row[p.name] = (rd as any)[reelDeltaField] || 0;
+          } else if (today) {
+            let prev = prevSnaps[p.id];
+            if (!prev && i > 0) {
+              for (let j = i - 2; j >= 0; j--) {
+                const candidate = snapshotsByDateProfile[datesInRange[j]]?.[p.id];
+                if (candidate) { prev = candidate; break; }
+              }
             }
-          }
-          if (today && prev) {
-            row[p.name] = Math.max(0, (today[field] || 0) - (prev[field] || 0));
+            if (prev) {
+              row[p.name] = Math.max(0, (today[field] || 0) - (prev[field] || 0));
+            } else {
+              row[p.name] = 0;
+            }
           } else {
             row[p.name] = 0;
           }
@@ -1069,7 +1103,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       comments: buildTrend("total_reel_comments"),
       profileNames,
     };
-  }, [isMultiDay, datesInRange, dateBeforeRange, snapshotsByDateProfile, stats.perProfile]);
+  }, [isMultiDay, datesInRange, dateBeforeRange, snapshotsByDateProfile, reelDeltasByDateProfile, stats.perProfile]);
 
   // Group options filtered by selected creators
   const groupOptions = useMemo(() => {

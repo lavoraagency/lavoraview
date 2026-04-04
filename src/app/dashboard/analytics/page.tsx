@@ -52,6 +52,40 @@ export default async function AnalyticsPage() {
   }
   const snapshots = allSnapshots;
 
+  // Fetch reel snapshots with profile_id for accurate daily delta calculation
+  const reelSnapshotFields = "views_delta,likes_delta,comments_delta,shares_delta,scraped_at,reels(profile_id)";
+  let allReelSnapshots: any[] = [];
+  let rsOffset = 0;
+  while (true) {
+    const { data: batch } = await supabase
+      .from("reel_snapshots")
+      .select(reelSnapshotFields)
+      .gte("scraped_at", sixtyDaysAgo.toISOString())
+      .order("scraped_at", { ascending: true })
+      .range(rsOffset, rsOffset + pageSize - 1);
+    if (!batch || batch.length === 0) break;
+    allReelSnapshots = allReelSnapshots.concat(batch);
+    if (batch.length < pageSize) break;
+    rsOffset += pageSize;
+  }
+
+  // Aggregate reel snapshots: sum deltas per profile per date
+  const reelDeltaMap: Record<string, { profile_id: string; date: string; views: number; likes: number; comments: number; shares: number }> = {};
+  for (const rs of allReelSnapshots) {
+    const profileId = rs.reels?.profile_id;
+    if (!profileId) continue;
+    const date = rs.scraped_at.split("T")[0];
+    const key = `${date}|${profileId}`;
+    if (!reelDeltaMap[key]) {
+      reelDeltaMap[key] = { profile_id: profileId, date, views: 0, likes: 0, comments: 0, shares: 0 };
+    }
+    reelDeltaMap[key].views += rs.views_delta || 0;
+    reelDeltaMap[key].likes += rs.likes_delta || 0;
+    reelDeltaMap[key].comments += rs.comments_delta || 0;
+    reelDeltaMap[key].shares += rs.shares_delta || 0;
+  }
+  const reelDailyDeltas = Object.values(reelDeltaMap);
+
   // Fetch conversion snapshots (link clicks + new subs)
   let allConversions: any[] = [];
   let convOffset = 0;
@@ -85,6 +119,7 @@ export default async function AnalyticsPage() {
       models={filteredModels}
       groups={groups || []}
       tags={tags || []}
+      reelDailyDeltas={reelDailyDeltas}
     />
   );
 }
