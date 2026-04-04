@@ -15,7 +15,7 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-type SortOption = "most_viewed" | "least_viewed" | "most_liked" | "least_liked" | "newest" | "oldest";
+type SortOption = "most_viewed" | "least_viewed" | "most_liked" | "least_liked" | "most_comments" | "least_comments" | "newest" | "oldest";
 type DatePreset = "yesterday" | "week" | "7days" | "14days" | "month" | "30days" | "90days" | "all" | "custom";
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
@@ -25,6 +25,8 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "least_viewed", label: "Least Viewed" },
   { value: "most_liked", label: "Most Liked" },
   { value: "least_liked", label: "Least Liked" },
+  { value: "most_comments", label: "Most Comments" },
+  { value: "least_comments", label: "Least Comments" },
 ];
 
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
@@ -718,6 +720,8 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
         case "least_viewed": return (a.current_views || 0) - (b.current_views || 0);
         case "most_liked": return (b.current_likes || 0) - (a.current_likes || 0);
         case "least_liked": return (a.current_likes || 0) - (b.current_likes || 0);
+        case "most_comments": return (b.current_comments || 0) - (a.current_comments || 0);
+        case "least_comments": return (a.current_comments || 0) - (b.current_comments || 0);
         case "newest": return new Date(b.posted_at || 0).getTime() - new Date(a.posted_at || 0).getTime();
         case "oldest": return new Date(a.posted_at || 0).getTime() - new Date(b.posted_at || 0).getTime();
         default: return 0;
