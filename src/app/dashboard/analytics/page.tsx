@@ -53,7 +53,8 @@ export default async function AnalyticsPage() {
   const snapshots = allSnapshots;
 
   // Fetch reel snapshots with profile_id for accurate daily delta calculation
-  const reelSnapshotFields = "views_delta,likes_delta,comments_delta,shares_delta,scraped_at,reels(profile_id)";
+  // Use direct profile_id column (preferred) with fallback to reels join
+  const reelSnapshotFields = "views_delta,likes_delta,comments_delta,shares_delta,scraped_at,profile_id,reels(profile_id)";
   let allReelSnapshots: any[] = [];
   let rsOffset = 0;
   while (true) {
@@ -72,7 +73,7 @@ export default async function AnalyticsPage() {
   // Aggregate reel snapshots: sum deltas per profile per date
   const reelDeltaMap: Record<string, { profile_id: string; date: string; views: number; likes: number; comments: number; shares: number }> = {};
   for (const rs of allReelSnapshots) {
-    const profileId = rs.reels?.profile_id;
+    const profileId = rs.profile_id || rs.reels?.profile_id;
     if (!profileId) continue;
     const date = rs.scraped_at.split("T")[0];
     const key = `${date}|${profileId}`;
