@@ -847,11 +847,19 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
         const name = profileNameMap[profileId] || "unknown";
 
         const dF = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : 0;
-        // Use reel-level deltas if available (accurate), fall back to profile snapshot diff
+        // Priority: 1) daily_views from profile_snapshot (calculated at scrape time)
+        //           2) reel-level deltas from reel_snapshots
+        //           3) fall back to profile snapshot total diff (legacy)
         const rd = reelDeltas[profileId];
-        const dV = rd ? rd.views : (prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : 0);
-        const dL = rd ? rd.likes : (prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : 0);
-        const dC = rd ? rd.comments : (prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : 0);
+        const dV = (today.daily_views != null && today.daily_views > 0) ? today.daily_views
+                 : rd ? rd.views
+                 : (prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : 0);
+        const dL = (today.daily_likes != null && today.daily_likes > 0) ? today.daily_likes
+                 : rd ? rd.likes
+                 : (prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : 0);
+        const dC = (today.daily_comments != null && today.daily_comments > 0) ? today.daily_comments
+                 : rd ? rd.comments
+                 : (prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : 0);
 
         const conv = convSnaps[profileId];
         const lc = conv?.link_clicks || 0;
@@ -1058,6 +1066,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
     function buildTrend(field: "total_reel_views" | "followers" | "total_reel_likes" | "total_reel_comments") {
       const reelDeltaField = field === "total_reel_views" ? "views" : field === "total_reel_likes" ? "likes" : field === "total_reel_comments" ? "comments" : null;
+      const dailyField = field === "total_reel_views" ? "daily_views" : field === "total_reel_likes" ? "daily_likes" : field === "total_reel_comments" ? "daily_comments" : null;
       const rows: Record<string, any>[] = [];
       for (let i = 0; i < datesInRange.length; i++) {
         const date = datesInRange[i];
@@ -1071,8 +1080,12 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
           const today = todaySnaps[p.id];
           const rd = reelDeltas[p.id];
 
-          // For reel metrics (views, likes, comments): use reel-level deltas if available
-          if (reelDeltaField && rd) {
+          // Priority: 1) daily_views/likes/comments from profile_snapshot
+          //           2) reel-level deltas from reel_snapshots
+          //           3) fall back to total diff (legacy)
+          if (dailyField && today && today[dailyField] != null && today[dailyField] > 0) {
+            row[p.name] = today[dailyField];
+          } else if (reelDeltaField && rd) {
             row[p.name] = (rd as any)[reelDeltaField] || 0;
           } else if (today) {
             let prev = prevSnaps[p.id];

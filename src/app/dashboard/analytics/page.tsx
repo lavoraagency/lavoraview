@@ -34,7 +34,7 @@ export default async function AnalyticsPage() {
   const filteredModels = (models || []).filter((m: any) => usedModelIds.has(m.id));
 
   // Fetch snapshots with pagination to bypass 1000 row limit
-  const snapshotFields = "profile_id, followers, media_count, total_reel_views, total_reel_likes, total_reel_comments, total_reel_shares, reels_tracked, scraped_at";
+  const snapshotFields = "profile_id, followers, media_count, total_reel_views, total_reel_likes, total_reel_comments, total_reel_shares, reels_tracked, daily_views, daily_likes, daily_comments, daily_shares, scraped_at";
   let allSnapshots: any[] = [];
   let offset = 0;
   const pageSize = 1000;
