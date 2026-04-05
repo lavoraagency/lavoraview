@@ -847,18 +847,18 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
         const name = profileNameMap[profileId] || "unknown";
 
         const dF = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : 0;
-        // Priority: 1) daily_views from profile_snapshot (calculated at scrape time)
-        //           2) reel-level deltas from reel_snapshots
+        // Priority: 1) reel-level deltas from reel_snapshots (most accurate)
+        //           2) daily_views from profile_snapshot (fallback for profiles without reel_snapshots)
         //           3) fall back to profile snapshot total diff (legacy)
         const rd = reelDeltas[profileId];
-        const dV = (today.daily_views != null && today.daily_views > 0) ? today.daily_views
-                 : rd ? rd.views
+        const dV = rd ? rd.views
+                 : (today.daily_views != null && today.daily_views > 0) ? today.daily_views
                  : (prev ? Math.max(0, (today.total_reel_views || 0) - (prev.total_reel_views || 0)) : 0);
-        const dL = (today.daily_likes != null && today.daily_likes > 0) ? today.daily_likes
-                 : rd ? rd.likes
+        const dL = rd ? rd.likes
+                 : (today.daily_likes != null && today.daily_likes > 0) ? today.daily_likes
                  : (prev ? Math.max(0, (today.total_reel_likes || 0) - (prev.total_reel_likes || 0)) : 0);
-        const dC = (today.daily_comments != null && today.daily_comments > 0) ? today.daily_comments
-                 : rd ? rd.comments
+        const dC = rd ? rd.comments
+                 : (today.daily_comments != null && today.daily_comments > 0) ? today.daily_comments
                  : (prev ? Math.max(0, (today.total_reel_comments || 0) - (prev.total_reel_comments || 0)) : 0);
 
         const conv = convSnaps[profileId];
@@ -1080,13 +1080,13 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
           const today = todaySnaps[p.id];
           const rd = reelDeltas[p.id];
 
-          // Priority: 1) daily_views/likes/comments from profile_snapshot
-          //           2) reel-level deltas from reel_snapshots
+          // Priority: 1) reel-level deltas (most accurate)
+          //           2) daily_views/likes/comments from profile_snapshot (fallback)
           //           3) fall back to total diff (legacy)
-          if (dailyField && today && today[dailyField] != null && today[dailyField] > 0) {
-            row[p.name] = today[dailyField];
-          } else if (reelDeltaField && rd) {
+          if (reelDeltaField && rd) {
             row[p.name] = (rd as any)[reelDeltaField] || 0;
+          } else if (dailyField && today && today[dailyField] != null && today[dailyField] > 0) {
+            row[p.name] = today[dailyField];
           } else if (today) {
             let prev = prevSnaps[p.id];
             if (!prev && i > 0) {
