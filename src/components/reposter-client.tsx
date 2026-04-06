@@ -328,10 +328,11 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
           }
 
           if (section.type === "issue") {
-            // Parse: @telegramUser (instaUser): issue1, issue2
-            const match = section.content.match(/^(@\S+)\s*\(([^)]+)\):\s*(.+)$/);
+            // Parse: @telegramUser (instaUser) [optional streak].: issue1, issue2
+            const match = section.content.match(/^(@\S+)\s*\(([^)]+)\)\s*(?:(\d+)\.\s*)?:\s*(.+)$/);
             if (match) {
-              const [, telegram, instagram, issuesStr] = match;
+              const [, telegram, instagram, streakStr, issuesStr] = match;
+              const streak = streakStr ? parseInt(streakStr) : 0;
               const issues = issuesStr.split(", ");
               return (
                 <div key={i} className="px-5 py-2.5 flex items-start gap-3">
@@ -349,6 +350,16 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                       <span className="text-xs text-gray-400">{telegram}</span>
+                      {streak >= 2 && (
+                        <span className={cn(
+                          "text-xs font-bold px-1.5 py-0.5 rounded",
+                          streak >= 5 ? "bg-red-100 text-red-700 border border-red-200" :
+                          streak >= 3 ? "bg-orange-100 text-orange-700 border border-orange-200" :
+                          "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                        )}>
+                          🔥 {streak} days
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-1">
                       {issues.map((issue, j) => {
