@@ -357,7 +357,7 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
                           streak >= 3 ? "bg-orange-100 text-orange-700 border border-orange-200" :
                           "bg-yellow-100 text-yellow-700 border border-yellow-200"
                         )}>
-                          🔥 {streak} days
+                          {streak} days
                         </span>
                       )}
                     </div>
