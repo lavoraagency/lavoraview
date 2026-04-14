@@ -9,9 +9,10 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { getReelSnapshots, getTopReelsForDate } from "@/app/dashboard/top-reels/actions";
 
 const REELS_PER_PAGE = 12;
-type SortOption = "best_performing" | "most_daily_views" | "most_viewed" | "newest" | "oldest";
+type SortOption = "best_performing" | "least_performing" | "most_daily_views" | "most_viewed" | "newest" | "oldest";
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "best_performing", label: "Best Performing (Multiplier)" },
+  { value: "least_performing", label: "Worst Performing (Multiplier)" },
   { value: "most_daily_views", label: "Most Views Yesterday" },
   { value: "most_viewed", label: "Most Viewed (Total)" },
   { value: "newest", label: "Newest First" },
@@ -522,6 +523,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
     result.sort((a: any, b: any) => {
       switch (sortBy) {
         case "best_performing": return (b.multiplier || 0) - (a.multiplier || 0);
+        case "least_performing": return (a.multiplier || 0) - (b.multiplier || 0);
         case "most_daily_views": return (b.dailyViews || 0) - (a.dailyViews || 0);
         case "most_viewed": return (b.current_views || 0) - (a.current_views || 0);
         case "newest": return new Date(b.posted_at || 0).getTime() - new Date(a.posted_at || 0).getTime();
@@ -532,6 +534,14 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
 
     return result;
   }, [activeReels, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags, sortBy, minMultiplier]);
+
+  // Dynamic multiplier slider max (based on actual data)
+  const maxMultiplier = useMemo(() => {
+    const max = activeReels.reduce((m: number, r: any) => Math.max(m, r.multiplier || 0), 0);
+    return Math.max(2, Math.ceil(max));
+  }, [activeReels]);
+
+  const sliderStep = maxMultiplier <= 5 ? 0.1 : maxMultiplier <= 20 ? 0.5 : 1.0;
 
   // Tier counts
   const tierCounts = useMemo(() => {
@@ -596,7 +606,45 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
           noneLabel="No Tags"
         />
 
-        <div className="ml-auto">
+        {/* Date Navigation (right-aligned, same as Analytics) */}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => shiftDate(-1)}
+            className="flex items-center px-2 py-2 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg">
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <input
+              type="date"
+              value={selectedDate}
+              max={toLocalDateStr(new Date())}
+              onChange={e => loadDate(e.target.value)}
+              className="text-sm font-medium text-gray-900 bg-transparent border-none focus:outline-none cursor-pointer"
+            />
+          </div>
+          <button
+            onClick={() => shiftDate(1)}
+            disabled={selectedDate >= toLocalDateStr(new Date())}
+            className="flex items-center px-2 py-2 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => loadDate(getYesterdayStr())}
+            className={cn(
+              "px-3 py-2 text-sm font-medium rounded-lg border transition-colors",
+              selectedDate === getYesterdayStr()
+                ? "bg-gray-900 text-white border-gray-900"
+                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+            )}
+          >
+            Yesterday
+          </button>
+          {dateLoading && (
+            <span className="text-sm text-gray-400 animate-pulse">Loading…</span>
+          )}
           <button
             onClick={() => setFilterOpen(true)}
             className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:border-gray-300 transition-colors text-gray-600"
@@ -605,47 +653,6 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
             Filter
           </button>
         </div>
-      </div>
-
-      {/* Date Navigator */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => shiftDate(-1)}
-          className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4 text-gray-600" />
-        </button>
-        <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg">
-          <Calendar className="w-4 h-4 text-gray-400" />
-          <input
-            type="date"
-            value={selectedDate}
-            max={toLocalDateStr(new Date())}
-            onChange={e => loadDate(e.target.value)}
-            className="text-sm font-medium text-gray-900 bg-transparent border-none focus:outline-none cursor-pointer"
-          />
-        </div>
-        <button
-          onClick={() => shiftDate(1)}
-          disabled={selectedDate >= toLocalDateStr(new Date())}
-          className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          <ChevronRight className="w-4 h-4 text-gray-600" />
-        </button>
-        <button
-          onClick={() => loadDate(getYesterdayStr())}
-          className={cn(
-            "px-3 py-2 text-sm font-medium rounded-lg border transition-colors",
-            selectedDate === getYesterdayStr()
-              ? "bg-gray-900 text-white border-gray-900"
-              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-          )}
-        >
-          Yesterday
-        </button>
-        {dateLoading && (
-          <span className="text-sm text-gray-400 animate-pulse">Loading…</span>
-        )}
       </div>
 
       {/* Summary Bar */}
@@ -898,10 +905,10 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
                 <div className="flex items-center gap-3">
                   <input
                     type="range"
-                    min="1.0"
-                    max="5.0"
-                    step="0.1"
-                    value={minMultiplier}
+                    min={1.0}
+                    max={maxMultiplier}
+                    step={sliderStep}
+                    value={Math.min(minMultiplier, maxMultiplier)}
                     onChange={e => setMinMultiplier(parseFloat(e.target.value))}
                     className="flex-1 h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-gray-900"
                   />
@@ -909,7 +916,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
                 </div>
                 <div className="flex justify-between text-xs text-gray-400">
                   <span>1.0x</span>
-                  <span>5.0x</span>
+                  <span>{maxMultiplier}x</span>
                 </div>
               </div>
 
