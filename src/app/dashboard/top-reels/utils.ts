@@ -29,6 +29,7 @@ export async function fetchAllReels(supabase: SupabaseClient): Promise<any[]> {
         id, shortcode, thumbnail_url, reel_url, caption,
         posted_at, current_views, current_likes, current_comments, current_shares,
         is_viral_tracked, last_daily_views, profile_id,
+        video_cdn_url, video_storage_url,
         profiles(id, instagram_username, model_id, tags, models(id, name, nickname), account_groups(id, name))
       `)
       .order("posted_at", { ascending: false })
