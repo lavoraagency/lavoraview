@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ExternalLink, Eye, Heart, MessageCircle, Share2, ChevronDown, ChevronLeft, ChevronRight, Filter, Flame, X, Calendar, BarChart2, AlignLeft, Clock, TrendingUp } from "lucide-react";
+import { ExternalLink, Eye, Heart, MessageCircle, Share2, ChevronDown, ChevronLeft, ChevronRight, Filter, Flame, X, Calendar, BarChart2, AlignLeft, Clock, TrendingUp, Play } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -610,6 +610,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [page, setPage] = useState(0);
   const [insightsReel, setInsightsReel] = useState<{ reel: any; profile: any } | null>(null);
+  const [playingReelId, setPlayingReelId] = useState<string | null>(null);
 
   // Date selection for which day to show
   const [selectedDate, setSelectedDate] = useState<string>(getYesterdayStr());
@@ -911,22 +912,50 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
                 </a>
               </div>
 
-              {/* Thumbnail */}
+              {/* Thumbnail / Video Player */}
               <div className="relative aspect-[9/16] bg-gray-100">
-                {r.thumbnail_url ? (
-                  <img
-                    src={r.thumbnail_url}
-                    alt=""
+                {playingReelId === r.id && r.video_storage_url ? (
+                  /* Video playing */
+                  <video
+                    src={r.video_storage_url}
+                    autoPlay
+                    loop
+                    playsInline
+                    controls
                     className="absolute inset-0 w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    onError={() => setPlayingReelId(null)}
                   />
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-2xl">▶</div>
+                  /* Thumbnail with play button */
+                  <>
+                    {r.thumbnail_url ? (
+                      <img
+                        src={r.thumbnail_url}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-2xl">▶</div>
+                    )}
+
+                    {/* Play button overlay (only if video available) */}
+                    {r.video_storage_url && (
+                      <button
+                        onClick={() => setPlayingReelId(r.id)}
+                        className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors group"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-white/90 group-hover:bg-white flex items-center justify-center shadow-lg transition-colors">
+                          <Play className="w-5 h-5 text-gray-900 ml-0.5" fill="currentColor" />
+                        </div>
+                      </button>
+                    )}
+                  </>
                 )}
 
                 {/* Multiplier Badge (top-left) */}
                 <div className={cn(
-                  "absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-white text-xs font-bold flex items-center gap-0.5 shadow-sm",
+                  "absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-white text-xs font-bold flex items-center gap-0.5 shadow-sm z-10",
                   tier.bgColor
                 )}>
                   {Array.from({ length: tier.flames }).map((_, i) => (
@@ -937,7 +966,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
 
                 {/* Still Trending Badge (top-right) */}
                 {isStillTrending && (
-                  <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-indigo-500 text-white text-[10px] font-semibold flex items-center gap-0.5 shadow-sm">
+                  <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-indigo-500 text-white text-[10px] font-semibold flex items-center gap-0.5 shadow-sm z-10">
                     <TrendingUp className="w-3 h-3" />
                     Tag {daysSince}
                   </div>
