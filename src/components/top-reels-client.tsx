@@ -1,23 +1,15 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { ExternalLink, Eye, Heart, MessageCircle, Share2, ChevronDown, ChevronLeft, ChevronRight, Filter, Flame, X, Calendar, BarChart2, AlignLeft, Clock, TrendingUp } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { getReelSnapshots } from "@/app/dashboard/top-reels/actions";
+import { getReelSnapshots, getTopReelsForDate } from "@/app/dashboard/top-reels/actions";
 
 const REELS_PER_PAGE = 12;
-const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
 type SortOption = "best_performing" | "most_daily_views" | "most_viewed" | "newest" | "oldest";
-type DatePreset = "yesterday" | "week" | "7days" | "14days" | "month" | "30days" | "90days" | "all" | "custom";
-
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "best_performing", label: "Best Performing (Multiplier)" },
   { value: "most_daily_views", label: "Most Views Yesterday" },
@@ -26,59 +18,9 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "oldest", label: "Oldest First" },
 ];
 
-const DATE_PRESETS: { value: DatePreset; label: string }[] = [
-  { value: "yesterday", label: "Yesterday" },
-  { value: "week", label: "Current Week" },
-  { value: "7days", label: "Last 7 Days" },
-  { value: "14days", label: "Last 14 Days" },
-  { value: "month", label: "Current Month" },
-  { value: "30days", label: "Last 30 Days" },
-  { value: "90days", label: "Last 90 Days" },
-  { value: "all", label: "All" },
-];
 
 function toLocalDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function getPresetRange(preset: DatePreset): { from: string; to: string } {
-  const now = new Date();
-  const today = toLocalDateStr(now);
-  switch (preset) {
-    case "all":
-      return { from: "2020-01-01", to: today };
-    case "yesterday": {
-      const y = new Date(now); y.setDate(y.getDate() - 1);
-      const ys = toLocalDateStr(y);
-      return { from: ys, to: ys };
-    }
-    case "week": {
-      const day = now.getDay();
-      const diff = day === 0 ? 6 : day - 1;
-      const mon = new Date(now); mon.setDate(mon.getDate() - diff);
-      return { from: toLocalDateStr(mon), to: today };
-    }
-    case "7days": {
-      const d = new Date(now); d.setDate(d.getDate() - 6);
-      return { from: toLocalDateStr(d), to: today };
-    }
-    case "14days": {
-      const d = new Date(now); d.setDate(d.getDate() - 13);
-      return { from: toLocalDateStr(d), to: today };
-    }
-    case "month":
-      return { from: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`, to: today };
-    case "30days": {
-      const d = new Date(now); d.setDate(d.getDate() - 29);
-      return { from: toLocalDateStr(d), to: today };
-    }
-    case "90days": {
-      const d = new Date(now); d.setDate(d.getDate() - 89);
-      return { from: toLocalDateStr(d), to: today };
-    }
-    default:
-      return { from: today, to: today };
-  }
 }
 
 function formatPostDate(dateStr: string | null) {
@@ -86,11 +28,6 @@ function formatPostDate(dateStr: string | null) {
   const d = new Date(dateStr);
   return d.toLocaleDateString("de-DE", { day: "2-digit", month: "short" }) + ", " +
     d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatDateShort(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "short" });
 }
 
 // ── Performance Tier Helper ────────────────────────────────────
@@ -106,97 +43,6 @@ function getDaysSincePosted(postedAt: string | null): number {
   const posted = new Date(postedAt);
   const now = new Date();
   return Math.floor((now.getTime() - posted.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-// ── Mini Calendar for Filter Panel ──────────────────────────────
-function FilterCalendar({
-  from,
-  to,
-  onChange,
-}: {
-  from: string;
-  to: string;
-  onChange: (from: string, to: string) => void;
-}) {
-  const [viewDate, setViewDate] = useState(() => {
-    const d = new Date(to + "T00:00:00");
-    return { year: d.getFullYear(), month: d.getMonth() };
-  });
-  const [selectingEnd, setSelectingEnd] = useState(false);
-
-  const daysInMonth = new Date(viewDate.year, viewDate.month + 1, 0).getDate();
-  const firstDow = (new Date(viewDate.year, viewDate.month, 1).getDay() + 6) % 7;
-
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDow; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  function dayStr(day: number) {
-    return `${viewDate.year}-${String(viewDate.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  }
-
-  function handleClick(day: number) {
-    const ds = dayStr(day);
-    if (!selectingEnd) {
-      onChange(ds, ds);
-      setSelectingEnd(true);
-    } else {
-      if (ds < from) {
-        onChange(ds, from);
-      } else {
-        onChange(from, ds);
-      }
-      setSelectingEnd(false);
-    }
-  }
-
-  function prevMonth() {
-    setViewDate(v => v.month === 0 ? { year: v.year - 1, month: 11 } : { ...v, month: v.month - 1 });
-  }
-  function nextMonth() {
-    setViewDate(v => v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 });
-  }
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <span className="text-sm font-medium">{MONTH_NAMES[viewDate.month]} {viewDate.year}</span>
-        <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded">
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-xs">
-        {WEEKDAYS.map(d => <div key={d} className="text-gray-400 font-medium py-1">{d}</div>)}
-        {cells.map((day, i) => {
-          if (day === null) return <div key={`e${i}`} />;
-          const ds = dayStr(day);
-          const isFrom = ds === from;
-          const isTo = ds === to;
-          const inRange = ds >= from && ds <= to;
-          return (
-            <button
-              key={day}
-              onClick={() => handleClick(day)}
-              className={cn(
-                "py-1 rounded text-sm transition-colors",
-                isFrom || isTo ? "bg-gray-900 text-white font-bold" :
-                inRange ? "bg-gray-200 text-gray-800" :
-                "hover:bg-gray-100 text-gray-700"
-              )}
-            >
-              {day}
-            </button>
-          );
-        })}
-      </div>
-      <div className="text-xs text-gray-500 text-center mt-2">
-        {formatDateShort(from)} – {formatDateShort(to)}
-      </div>
-    </div>
-  );
 }
 
 // ── Post Insights Modal ─────────────────────────────────────────
@@ -567,6 +413,12 @@ interface TopReelsClientProps {
   tags: any[];
 }
 
+function getYesterdayStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return toLocalDateStr(d);
+}
+
 export function TopReelsClient({ reels, models, groups, profiles, tags }: TopReelsClientProps) {
   const [selectedModels, setSelectedModels] = useState<string[] | null>(null);
   const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
@@ -575,14 +427,45 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
   const [page, setPage] = useState(0);
   const [insightsReel, setInsightsReel] = useState<{ reel: any; profile: any } | null>(null);
 
+  // Date selection for which day to show
+  const [selectedDate, setSelectedDate] = useState<string>(getYesterdayStr());
+  const [activeReels, setActiveReels] = useState<any[]>(reels);
+  const [dateLoading, setDateLoading] = useState(false);
+
   // Filter panel state
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("best_performing");
-  const [datePreset, setDatePreset] = useState<DatePreset>("all");
-  const [dateFrom, setDateFrom] = useState(() => getPresetRange("all").from);
-  const [dateTo, setDateTo] = useState(() => getPresetRange("all").to);
-  const [showCalendar, setShowCalendar] = useState(false);
   const [minMultiplier, setMinMultiplier] = useState(2.0);
+
+  // Load data for a specific date
+  async function loadDate(dateStr: string) {
+    setSelectedDate(dateStr);
+    setPage(0);
+    if (dateStr === getYesterdayStr()) {
+      // Yesterday = use preloaded data from server
+      setActiveReels(reels);
+      return;
+    }
+    setDateLoading(true);
+    try {
+      const data = await getTopReelsForDate(dateStr);
+      setActiveReels(data);
+    } catch (e) {
+      console.error("Failed to load data for date", dateStr, e);
+    } finally {
+      setDateLoading(false);
+    }
+  }
+
+  function shiftDate(days: number) {
+    const d = new Date(selectedDate + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    const newDate = toLocalDateStr(d);
+    // Don't go into the future
+    const today = toLocalDateStr(new Date());
+    if (newDate > today) return;
+    loadDate(newDate);
+  }
 
   // Group options filtered by selected models
   const groupOptions = useMemo(() => {
@@ -609,9 +492,12 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
 
   // Full filter + sort
   const filtered = useMemo(() => {
-    let result = reels.filter(r => {
+    let result = activeReels.filter(r => {
       const profile = r.profiles as any;
       if (!profile) return false;
+
+      // Must have daily views > 0 for this date
+      if ((r.dailyViews || 0) <= 0) return false;
 
       // Multiplier threshold
       if ((r.multiplier || 0) < minMultiplier) return false;
@@ -629,16 +515,6 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
         if (!tagNames.some((tn: string) => profileTags.includes(tn))) return false;
       }
 
-      // Date filter
-      if (datePreset !== "all") {
-        if (r.posted_at) {
-          const postDate = r.posted_at.split("T")[0];
-          if (postDate < dateFrom || postDate > dateTo) return false;
-        } else {
-          return false;
-        }
-      }
-
       return true;
     });
 
@@ -646,7 +522,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
     result.sort((a: any, b: any) => {
       switch (sortBy) {
         case "best_performing": return (b.multiplier || 0) - (a.multiplier || 0);
-        case "most_daily_views": return (b.last_daily_views || 0) - (a.last_daily_views || 0);
+        case "most_daily_views": return (b.dailyViews || 0) - (a.dailyViews || 0);
         case "most_viewed": return (b.current_views || 0) - (a.current_views || 0);
         case "newest": return new Date(b.posted_at || 0).getTime() - new Date(a.posted_at || 0).getTime();
         case "oldest": return new Date(a.posted_at || 0).getTime() - new Date(b.posted_at || 0).getTime();
@@ -655,7 +531,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
     });
 
     return result;
-  }, [reels, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags, datePreset, dateFrom, dateTo, sortBy, minMultiplier]);
+  }, [activeReels, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags, sortBy, minMultiplier]);
 
   // Tier counts
   const tierCounts = useMemo(() => {
@@ -672,7 +548,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
   const paged = filtered.slice(page * REELS_PER_PAGE, (page + 1) * REELS_PER_PAGE);
 
   // Reset page when filters change
-  useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags, dateFrom, dateTo, sortBy, minMultiplier]);
+  useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags, sortBy, minMultiplier]);
 
   // Pagination page numbers
   const pageNumbers = useMemo(() => {
@@ -688,16 +564,6 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
     }
     return pages;
   }, [page, totalPages]);
-
-  function handlePreset(preset: DatePreset) {
-    setDatePreset(preset);
-    const range = getPresetRange(preset);
-    setDateFrom(range.from);
-    setDateTo(range.to);
-    setShowCalendar(false);
-  }
-
-  const activePresetLabel = DATE_PRESETS.find(p => p.value === datePreset)?.label || "Custom";
 
   return (
     <div className="p-6 space-y-4">
@@ -739,6 +605,47 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
             Filter
           </button>
         </div>
+      </div>
+
+      {/* Date Navigator */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => shiftDate(-1)}
+          className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4 text-gray-600" />
+        </button>
+        <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg">
+          <Calendar className="w-4 h-4 text-gray-400" />
+          <input
+            type="date"
+            value={selectedDate}
+            max={toLocalDateStr(new Date())}
+            onChange={e => loadDate(e.target.value)}
+            className="text-sm font-medium text-gray-900 bg-transparent border-none focus:outline-none cursor-pointer"
+          />
+        </div>
+        <button
+          onClick={() => shiftDate(1)}
+          disabled={selectedDate >= toLocalDateStr(new Date())}
+          className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <ChevronRight className="w-4 h-4 text-gray-600" />
+        </button>
+        <button
+          onClick={() => loadDate(getYesterdayStr())}
+          className={cn(
+            "px-3 py-2 text-sm font-medium rounded-lg border transition-colors",
+            selectedDate === getYesterdayStr()
+              ? "bg-gray-900 text-white border-gray-900"
+              : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+          )}
+        >
+          Yesterday
+        </button>
+        {dateLoading && (
+          <span className="text-sm text-gray-400 animate-pulse">Loading…</span>
+        )}
       </div>
 
       {/* Summary Bar */}
@@ -838,15 +745,16 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
 
               {/* Stats */}
               <div className="px-2 pt-2 pb-1 space-y-1">
+                {/* Daily views = primary metric */}
+                <div className="flex items-center justify-center gap-1 text-xs">
+                  <Eye className="w-3 h-3 text-green-500" />
+                  <span className="font-bold text-green-700">+{formatNumber(r.dailyViews)}</span>
+                  <span className="text-gray-400">today</span>
+                </div>
                 <div className="flex items-center justify-between text-xs text-gray-700">
                   <div className="flex items-center gap-1">
                     <Eye className="w-3 h-3 text-gray-400" />
                     <span className="font-medium">{formatNumber(r.current_views)}</span>
-                    {r.last_daily_views > 0 && (
-                      <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-1 rounded">
-                        +{formatNumber(r.last_daily_views)}
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <Heart className="w-3 h-3 text-gray-400" />
@@ -865,7 +773,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
                 </div>
                 {/* Median Baseline with level indicator */}
                 <div className="text-[10px] text-gray-400 text-center pt-0.5">
-                  Ø {r.medianLevel === "group" ? "Group" : r.medianLevel === "creator" ? "Creator" : "Account"}: {formatNumber(r.medianViews)} Views
+                  Ø {r.medianLevel === "group" ? "Group" : r.medianLevel === "creator" ? "Creator" : "Account"}: +{formatNumber(r.medianViews)}/day
                 </div>
               </div>
 
@@ -1003,55 +911,6 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
                   <span>1.0x</span>
                   <span>5.0x</span>
                 </div>
-              </div>
-
-              <hr className="border-gray-200" />
-
-              {/* Upload Date */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">Upload Date</label>
-                  <button
-                    onClick={() => setShowCalendar(!showCalendar)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs hover:bg-gray-50 transition-colors"
-                  >
-                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                    {activePresetLabel}
-                  </button>
-                </div>
-
-                {/* Preset Buttons */}
-                <div className="grid grid-cols-2 gap-1.5">
-                  {DATE_PRESETS.map(p => (
-                    <button
-                      key={p.value}
-                      onClick={() => handlePreset(p.value)}
-                      className={cn(
-                        "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
-                        datePreset === p.value
-                          ? "bg-gray-900 text-white border-gray-900"
-                          : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                      )}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Calendar */}
-                {showCalendar && (
-                  <div className="border border-gray-200 rounded-lg p-3">
-                    <FilterCalendar
-                      from={dateFrom}
-                      to={dateTo}
-                      onChange={(f, t) => {
-                        setDateFrom(f);
-                        setDateTo(t);
-                        setDatePreset("custom");
-                      }}
-                    />
-                  </div>
-                )}
               </div>
 
               <hr className="border-gray-200" />
