@@ -9,6 +9,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { getReelSnapshots, getTopReelsForDate } from "@/app/dashboard/top-reels/actions";
 
 const REELS_PER_PAGE = 12;
+const MIN_MULTIPLIER = 2.0;
 type SortOption = "best_performing" | "least_performing" | "most_daily_views" | "most_viewed" | "newest" | "oldest";
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "best_performing", label: "Best Performing (Multiplier)" },
@@ -621,7 +622,6 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
   // Filter panel state
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("best_performing");
-  const [minMultiplier, setMinMultiplier] = useState(2.0);
 
   // Preload last 5 days on mount
   useEffect(() => {
@@ -708,7 +708,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
       if ((r.dailyViews || 0) <= 0) return false;
 
       // Multiplier threshold
-      if ((r.multiplier || 0) < minMultiplier) return false;
+      if ((r.multiplier || 0) < MIN_MULTIPLIER) return false;
 
       // Model filter
       if (selectedModels !== null && !selectedModels.includes(profile.models?.id)) return false;
@@ -740,15 +740,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
     });
 
     return result;
-  }, [activeReels, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags, sortBy, minMultiplier]);
-
-  // Dynamic multiplier slider max (based on actual data)
-  const maxMultiplier = useMemo(() => {
-    const max = activeReels.reduce((m: number, r: any) => Math.max(m, r.multiplier || 0), 0);
-    return Math.max(2, Math.ceil(max));
-  }, [activeReels]);
-
-  const sliderStep = maxMultiplier <= 5 ? 0.1 : maxMultiplier <= 20 ? 0.5 : 1.0;
+  }, [activeReels, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags, sortBy]);
 
   // Tier counts
   const tierCounts = useMemo(() => {
@@ -765,7 +757,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
   const paged = filtered.slice(page * REELS_PER_PAGE, (page + 1) * REELS_PER_PAGE);
 
   // Reset page when filters change
-  useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags, sortBy, minMultiplier]);
+  useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags, sortBy]);
 
   // Pagination page numbers
   const pageNumbers = useMemo(() => {
@@ -1087,29 +1079,6 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
                     ))}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-
-              <hr className="border-gray-200" />
-
-              {/* Min Multiplier */}
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-gray-700">Min Performance Multiplier</label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={1.0}
-                    max={maxMultiplier}
-                    step={sliderStep}
-                    value={Math.min(minMultiplier, maxMultiplier)}
-                    onChange={e => setMinMultiplier(parseFloat(e.target.value))}
-                    className="flex-1 h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-gray-900"
-                  />
-                  <span className="text-sm font-semibold text-gray-900 w-12 text-right">{minMultiplier.toFixed(1)}x</span>
-                </div>
-                <div className="flex justify-between text-xs text-gray-400">
-                  <span>1.0x</span>
-                  <span>{maxMultiplier}x</span>
                 </div>
               </div>
 
