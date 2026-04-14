@@ -4,6 +4,7 @@ import { createServiceClient as createClient } from "@/lib/supabase/server";
 import { TopReelsClient } from "@/components/top-reels-client";
 
 const REELS_PER_PROFILE = 36;
+const MIN_REELS_FOR_MEDIAN = 3; // Minimum reels needed for a meaningful median
 
 function computeMedian(values: number[]): number {
   if (values.length === 0) return 0;
@@ -56,21 +57,28 @@ export default async function TopReelsPage() {
     reelsByProfile[pid].push(reel);
   }
 
-  const medianByProfile: Record<string, number> = {};
+  // For each profile, store the recent reels list (for per-reel median calculation)
+  const recentByProfile: Record<string, any[]> = {};
   for (const [pid, reels] of Object.entries(reelsByProfile)) {
-    // Reels are already sorted by posted_at desc, take last N
-    const recent = reels.slice(0, REELS_PER_PROFILE);
-    const views = recent
-      .map((r: any) => r.current_views || 0)
-      .filter((v: number) => v > 0);
-    medianByProfile[pid] = computeMedian(views);
+    recentByProfile[pid] = reels.slice(0, REELS_PER_PROFILE);
   }
 
   // Enrich each reel with multiplier and medianViews
+  // Median is computed EXCLUDING the reel itself to avoid self-comparison
   const enrichedReels = allReels.map(reel => {
     const pid = reel.profile_id;
-    const median = medianByProfile[pid] || 0;
+    const recent = recentByProfile[pid] || [];
+
+    // Get views of OTHER reels in this profile (exclude current reel)
+    const otherViews = recent
+      .filter((r: any) => r.id !== reel.id)
+      .map((r: any) => r.current_views || 0)
+      .filter((v: number) => v > 0);
+
+    // Need at least MIN_REELS_FOR_MEDIAN other reels for a meaningful comparison
+    const median = otherViews.length >= MIN_REELS_FOR_MEDIAN ? computeMedian(otherViews) : 0;
     const multiplier = median > 0 ? (reel.current_views || 0) / median : 0;
+
     return {
       ...reel,
       multiplier: Math.round(multiplier * 100) / 100,
