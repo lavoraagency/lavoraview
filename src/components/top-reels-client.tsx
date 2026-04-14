@@ -918,28 +918,18 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
               <div className="relative aspect-[9/16] bg-gray-100">
                 {playingReelId === r.id && r.video_storage_url ? (
                   /* Video playing */
-                  <>
-                    {videoLoadingId === r.id && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
-                        <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      </div>
-                    )}
-                    <video
-                      src={r.video_storage_url}
-                      autoPlay
-                      loop
-                      playsInline
-                      controls
-                      className="absolute inset-0 w-full h-full object-cover"
-                      onLoadStart={() => setVideoLoadingId(r.id)}
-                      onCanPlay={() => setVideoLoadingId(null)}
-                      onError={() => {
-                        setPlayingReelId(null);
-                        setVideoLoadingId(null);
-                        setFailedVideoIds(prev => new Set(prev).add(r.id));
-                      }}
-                    />
-                  </>
+                  <video
+                    src={r.video_storage_url}
+                    autoPlay
+                    loop
+                    playsInline
+                    controls
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={() => {
+                      setPlayingReelId(null);
+                      setFailedVideoIds(prev => new Set(prev).add(r.id));
+                    }}
+                  />
                 ) : (
                   /* Thumbnail with play button */
                   <>
