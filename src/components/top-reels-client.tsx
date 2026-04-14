@@ -256,7 +256,9 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
                   <span className={cn("text-sm font-bold", getPerformanceTier(reel.multiplier).textColor)}>
                     {reel.multiplier.toFixed(1)}x
                   </span>
-                  <span className="text-xs text-gray-400">vs Ø {formatNumber(reel.medianViews)}</span>
+                  <span className="text-xs text-gray-400">
+                    vs Ø {reel.medianLevel === "group" ? "Group" : reel.medianLevel === "creator" ? "Creator" : "Account"} {formatNumber(reel.medianViews)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -861,9 +863,9 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
                     <span className="font-medium">{formatNumber(r.current_shares)}</span>
                   </div>
                 </div>
-                {/* Account Median Baseline */}
+                {/* Median Baseline with level indicator */}
                 <div className="text-[10px] text-gray-400 text-center pt-0.5">
-                  Ø Account: {formatNumber(r.medianViews)} Views
+                  Ø {r.medianLevel === "group" ? "Group" : r.medianLevel === "creator" ? "Creator" : "Account"}: {formatNumber(r.medianViews)} Views
                 </div>
               </div>
 
