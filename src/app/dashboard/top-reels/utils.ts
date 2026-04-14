@@ -14,11 +14,11 @@ function computeMedian(values: number[]): number {
     : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-/** Collect daily views > 0 from a list of reels using the dailyViewsMap, excluding a specific reel */
-function collectDailyViews(reels: any[], dailyViewsMap: Record<string, number>, excludeReelId?: string): number[] {
+/** Collect current_views > 0 from a list of reels, excluding a specific reel */
+function collectTotalViews(reels: any[], excludeReelId?: string): number[] {
   return reels
-    .filter((r: any) => r.id !== excludeReelId && (dailyViewsMap[r.id] || 0) > 0)
-    .map((r: any) => dailyViewsMap[r.id] as number);
+    .filter((r: any) => r.id !== excludeReelId && (r.current_views || 0) > 0)
+    .map((r: any) => r.current_views as number);
 }
 
 /** Fetch all reels with profile joins (paginated) */
@@ -47,8 +47,16 @@ export async function fetchAllReels(supabase: SupabaseClient): Promise<any[]> {
 }
 
 /**
- * Enrich reels with multiplier based on daily views.
- * Uses fallback hierarchy: Profile (≥9 reels) → Group → Creator
+ * Enrich reels with multiplier.
+ *
+ * Median baseline = median of TOTAL VIEWS (current_views) of last 36 reels per profile.
+ * Multiplier = daily views for target date / median total views.
+ *
+ * Example: Account median = 500 total views per reel.
+ *   Reel gets +5000 views yesterday → 5000/500 = 10x → Viral
+ *   Reel gets +20 views yesterday → 20/500 = 0.04x → not shown
+ *
+ * Fallback hierarchy: Profile (≥9 reels) → Group → Creator
  *
  * @param allReels - All reels with profile joins
  * @param profiles - All profiles (for group/model lookup)
@@ -92,15 +100,15 @@ export function enrichReelsWithMultiplier(
     }
   }
 
-  // Pre-compute group and creator medians (based on daily views)
+  // Pre-compute group and creator medians (based on TOTAL views)
   const medianByGroup: Record<string, number> = {};
   for (const [gid, reels] of Object.entries(reelsByGroup)) {
-    medianByGroup[gid] = computeMedian(collectDailyViews(reels, dailyViewsMap));
+    medianByGroup[gid] = computeMedian(collectTotalViews(reels));
   }
 
   const medianByModel: Record<string, number> = {};
   for (const [mid, reels] of Object.entries(reelsByModel)) {
-    medianByModel[mid] = computeMedian(collectDailyViews(reels, dailyViewsMap));
+    medianByModel[mid] = computeMedian(collectTotalViews(reels));
   }
 
   // Enrich each reel
@@ -110,13 +118,13 @@ export function enrichReelsWithMultiplier(
     const profileReels = reelsByProfile[pid] || [];
     const dailyViews = dailyViewsMap[reel.id] || 0;
 
-    // 1) Try profile-level median (exclude self, need ≥9 other reels with daily views)
-    const profileDailyViews = collectDailyViews(profileReels, dailyViewsMap, reel.id);
+    // 1) Try profile-level median (exclude self, need ≥9 other reels)
+    const profileTotalViews = collectTotalViews(profileReels, reel.id);
     let median = 0;
     let level: MedianLevel = "profile";
 
-    if (profileDailyViews.length >= MIN_REELS_FOR_PROFILE_MEDIAN) {
-      median = computeMedian(profileDailyViews);
+    if (profileTotalViews.length >= MIN_REELS_FOR_PROFILE_MEDIAN) {
+      median = computeMedian(profileTotalViews);
     }
 
     // 2) Fallback: group-level median
@@ -131,6 +139,7 @@ export function enrichReelsWithMultiplier(
       level = "creator";
     }
 
+    // Multiplier = daily views / median total views
     const multiplier = median > 0 ? dailyViews / median : 0;
 
     return {
