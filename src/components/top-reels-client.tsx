@@ -611,6 +611,8 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
   const [page, setPage] = useState(0);
   const [insightsReel, setInsightsReel] = useState<{ reel: any; profile: any } | null>(null);
   const [playingReelId, setPlayingReelId] = useState<string | null>(null);
+  const [videoLoadingId, setVideoLoadingId] = useState<string | null>(null);
+  const [failedVideoIds, setFailedVideoIds] = useState<Set<string>>(new Set());
 
   // Date selection for which day to show
   const [selectedDate, setSelectedDate] = useState<string>(getYesterdayStr());
@@ -916,15 +918,28 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
               <div className="relative aspect-[9/16] bg-gray-100">
                 {playingReelId === r.id && r.video_storage_url ? (
                   /* Video playing */
-                  <video
-                    src={r.video_storage_url}
-                    autoPlay
-                    loop
-                    playsInline
-                    controls
-                    className="absolute inset-0 w-full h-full object-cover"
-                    onError={() => setPlayingReelId(null)}
-                  />
+                  <>
+                    {videoLoadingId === r.id && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
+                        <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      </div>
+                    )}
+                    <video
+                      src={r.video_storage_url}
+                      autoPlay
+                      loop
+                      playsInline
+                      controls
+                      className="absolute inset-0 w-full h-full object-cover"
+                      onLoadStart={() => setVideoLoadingId(r.id)}
+                      onCanPlay={() => setVideoLoadingId(null)}
+                      onError={() => {
+                        setPlayingReelId(null);
+                        setVideoLoadingId(null);
+                        setFailedVideoIds(prev => new Set(prev).add(r.id));
+                      }}
+                    />
+                  </>
                 ) : (
                   /* Thumbnail with play button */
                   <>
@@ -939,8 +954,8 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
                       <div className="absolute inset-0 flex items-center justify-center text-gray-300 text-2xl">▶</div>
                     )}
 
-                    {/* Play button overlay (only if video available) */}
-                    {r.video_storage_url && (
+                    {/* Play button overlay (only if video available and not failed) */}
+                    {r.video_storage_url && !failedVideoIds.has(r.id) && (
                       <button
                         onClick={() => setPlayingReelId(r.id)}
                         className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors group"
