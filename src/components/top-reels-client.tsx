@@ -118,7 +118,6 @@ function DatePicker({
     const todayStr = toLocalDateStr(t);
     const yesterdayStr = addDays(todayStr, -1);
     return [
-      { label: "Today", date: todayStr },
       { label: "Yesterday", date: yesterdayStr },
       { label: "2 Days Ago", date: addDays(todayStr, -2) },
       { label: "3 Days Ago", date: addDays(todayStr, -3) },
@@ -645,9 +644,8 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
     const d = new Date(selectedDate + "T00:00:00");
     d.setDate(d.getDate() + days);
     const newDate = toLocalDateStr(d);
-    // Don't go into the future
-    const today = toLocalDateStr(new Date());
-    if (newDate > today) return;
+    // Don't go past yesterday (data is always from the day before)
+    if (newDate > getYesterdayStr()) return;
     loadDate(newDate);
   }
 
@@ -801,12 +799,12 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
           <DatePicker
             value={selectedDate}
             onChange={loadDate}
-            maxDate={toLocalDateStr(new Date())}
+            maxDate={getYesterdayStr()}
           />
 
           <button
             onClick={() => shiftDate(1)}
-            disabled={selectedDate >= toLocalDateStr(new Date())}
+            disabled={selectedDate >= getYesterdayStr()}
             className="flex items-center px-2 py-2 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ChevronRight className="w-4 h-4" />
