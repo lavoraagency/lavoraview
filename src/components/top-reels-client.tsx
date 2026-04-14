@@ -103,7 +103,7 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
                     {reel.multiplier.toFixed(1)}x
                   </span>
                   <span className="text-xs text-gray-400">
-                    vs Ø {reel.medianLevel === "group" ? "Group" : reel.medianLevel === "creator" ? "Creator" : "Account"} {formatNumber(reel.medianViews)} Views
+                    vs Ø {reel.avgLevel === "group" ? "Group" : reel.avgLevel === "creator" ? "Creator" : "Account"} {formatNumber(reel.avgViews)} Views
                   </span>
                 </div>
               </div>
@@ -773,7 +773,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
                 </div>
                 {/* Median Baseline with level indicator */}
                 <div className="text-[10px] text-gray-400 text-center pt-0.5">
-                  Ø {r.medianLevel === "group" ? "Group" : r.medianLevel === "creator" ? "Creator" : "Account"}: {formatNumber(r.medianViews)} Views
+                  Ø {r.avgLevel === "group" ? "Group" : r.avgLevel === "creator" ? "Creator" : "Account"}: {formatNumber(r.avgViews)} Views
                 </div>
               </div>
 

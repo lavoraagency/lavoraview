@@ -1,17 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const REELS_PER_PROFILE = 36;
-const MIN_REELS_FOR_PROFILE_MEDIAN = 9;
+const MIN_REELS_FOR_PROFILE_AVG = 9;
 
-type MedianLevel = "profile" | "group" | "creator";
+type AvgLevel = "profile" | "group" | "creator";
 
-function computeMedian(values: number[]): number {
+function computeAverage(values: number[]): number {
   if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0
-    ? sorted[mid]
-    : (sorted[mid - 1] + sorted[mid]) / 2;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
 /** Collect current_views > 0 from a list of reels, excluding a specific reel */
@@ -100,15 +96,15 @@ export function enrichReelsWithMultiplier(
     }
   }
 
-  // Pre-compute group and creator medians (based on TOTAL views)
-  const medianByGroup: Record<string, number> = {};
+  // Pre-compute group and creator averages (based on TOTAL views)
+  const avgByGroup: Record<string, number> = {};
   for (const [gid, reels] of Object.entries(reelsByGroup)) {
-    medianByGroup[gid] = computeMedian(collectTotalViews(reels));
+    avgByGroup[gid] = computeAverage(collectTotalViews(reels));
   }
 
-  const medianByModel: Record<string, number> = {};
+  const avgByModel: Record<string, number> = {};
   for (const [mid, reels] of Object.entries(reelsByModel)) {
-    medianByModel[mid] = computeMedian(collectTotalViews(reels));
+    avgByModel[mid] = computeAverage(collectTotalViews(reels));
   }
 
   // Enrich each reel
@@ -118,36 +114,36 @@ export function enrichReelsWithMultiplier(
     const profileReels = reelsByProfile[pid] || [];
     const dailyViews = dailyViewsMap[reel.id] || 0;
 
-    // 1) Try profile-level median (exclude self, need ≥9 other reels)
+    // 1) Try profile-level average (exclude self, need ≥9 other reels)
     const profileTotalViews = collectTotalViews(profileReels, reel.id);
-    let median = 0;
-    let level: MedianLevel = "profile";
+    let avg = 0;
+    let level: AvgLevel = "profile";
 
-    if (profileTotalViews.length >= MIN_REELS_FOR_PROFILE_MEDIAN) {
-      median = computeMedian(profileTotalViews);
+    if (profileTotalViews.length >= MIN_REELS_FOR_PROFILE_AVG) {
+      avg = computeAverage(profileTotalViews);
     }
 
-    // 2) Fallback: group-level median
-    if (median === 0 && info?.account_group_id) {
-      median = medianByGroup[info.account_group_id] || 0;
+    // 2) Fallback: group-level average
+    if (avg === 0 && info?.account_group_id) {
+      avg = avgByGroup[info.account_group_id] || 0;
       level = "group";
     }
 
-    // 3) Fallback: creator/model-level median
-    if (median === 0 && info?.model_id) {
-      median = medianByModel[info.model_id] || 0;
+    // 3) Fallback: creator/model-level average
+    if (avg === 0 && info?.model_id) {
+      avg = avgByModel[info.model_id] || 0;
       level = "creator";
     }
 
-    // Multiplier = daily views / median total views
-    const multiplier = median > 0 ? dailyViews / median : 0;
+    // Multiplier = daily views / average total views
+    const multiplier = avg > 0 ? dailyViews / avg : 0;
 
     return {
       ...reel,
       dailyViews,
       multiplier: Math.round(multiplier * 100) / 100,
-      medianViews: Math.round(median),
-      medianLevel: level,
+      avgViews: Math.round(avg),
+      avgLevel: level,
     };
   });
 }
