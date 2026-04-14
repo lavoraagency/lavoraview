@@ -6,7 +6,7 @@ import { ExternalLink, Eye, Heart, MessageCircle, Share2, ChevronDown, ChevronLe
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { createClient } from "@/lib/supabase/client";
+import { getReelSnapshots } from "@/app/dashboard/posts/actions";
 
 const REELS_PER_PAGE = 12;
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -302,16 +302,10 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from("reel_snapshots")
-      .select("scraped_at, views, views_delta")
-      .eq("reel_id", reel.id)
-      .order("scraped_at", { ascending: true })
-      .then(({ data }) => {
-        setSnapshots(data || []);
-        setLoading(false);
-      });
+    getReelSnapshots(reel.id).then((data) => {
+      setSnapshots(data || []);
+      setLoading(false);
+    });
   }, [reel.id]);
 
   const chartData = snapshots.map(s => ({
