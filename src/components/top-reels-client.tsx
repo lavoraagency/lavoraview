@@ -20,8 +20,20 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 ];
 
 
+const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 function toLocalDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function addDays(dateStr: string, n: number) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return toLocalDateStr(d);
 }
 
 function formatPostDate(dateStr: string | null) {
@@ -29,6 +41,177 @@ function formatPostDate(dateStr: string | null) {
   const d = new Date(dateStr);
   return d.toLocaleDateString("de-DE", { day: "2-digit", month: "short" }) + ", " +
     d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+}
+
+// ── Single-Day Date Picker (matches Analytics DateRangePicker style) ──
+function DatePicker({
+  value,
+  onChange,
+  maxDate,
+}: {
+  value: string;
+  onChange: (date: string) => void;
+  maxDate: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() => {
+    const d = new Date(value + "T00:00:00");
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      const d = new Date(value + "T00:00:00");
+      setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
+    }
+  }, [open]);
+
+  function handleDayClick(dateStr: string) {
+    if (dateStr > maxDate) return;
+    onChange(dateStr);
+    setOpen(false);
+  }
+
+  const calendarDays = useMemo(() => {
+    const { year, month } = viewMonth;
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    let startWeekday = firstDay.getDay() - 1;
+    if (startWeekday < 0) startWeekday = 6;
+
+    const days: { dateStr: string; day: number; inMonth: boolean }[] = [];
+    for (let i = startWeekday - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i);
+      days.push({ dateStr: toLocalDateStr(d), day: d.getDate(), inMonth: false });
+    }
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const date = new Date(year, month, d);
+      days.push({ dateStr: toLocalDateStr(date), day: d, inMonth: true });
+    }
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(year, month + 1, i);
+      days.push({ dateStr: toLocalDateStr(d), day: d.getDate(), inMonth: false });
+    }
+    return days;
+  }, [viewMonth]);
+
+  function prevMonth() {
+    setViewMonth(v => v.month === 0 ? { year: v.year - 1, month: 11 } : { ...v, month: v.month - 1 });
+  }
+  function nextMonth() {
+    setViewMonth(v => v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 });
+  }
+
+  const today = toLocalDateStr(new Date());
+  const presets = useMemo(() => {
+    const t = new Date();
+    const todayStr = toLocalDateStr(t);
+    const yesterdayStr = addDays(todayStr, -1);
+    return [
+      { label: "Today", date: todayStr },
+      { label: "Yesterday", date: yesterdayStr },
+      { label: "2 Days Ago", date: addDays(todayStr, -2) },
+      { label: "3 Days Ago", date: addDays(todayStr, -3) },
+      { label: "1 Week Ago", date: addDays(todayStr, -7) },
+    ];
+  }, []);
+
+  const displayText = useMemo(() => {
+    for (const p of presets) {
+      if (value === p.date) return p.label;
+    }
+    const d = new Date(value + "T00:00:00");
+    return d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+  }, [value, presets]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium cursor-pointer hover:border-gray-300 transition-colors"
+      >
+        <Calendar className="w-4 h-4 text-gray-400" />
+        {displayText}
+        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 flex">
+          {/* Presets */}
+          <div className="border-r border-gray-100 py-2 w-36">
+            {presets.map(p => (
+              <button
+                key={p.label}
+                onClick={() => handleDayClick(p.date)}
+                className={cn(
+                  "block w-full text-left px-4 py-2 text-sm transition-colors",
+                  value === p.date
+                    ? "bg-brand-50 text-brand-600 font-medium"
+                    : "text-gray-600 hover:bg-gray-50"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Calendar */}
+          <div className="p-4 w-[280px]">
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+              <span className="text-sm font-semibold text-gray-900">
+                {MONTH_NAMES[viewMonth.month]} {viewMonth.year}
+              </span>
+              <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 mb-1">
+              {WEEKDAYS.map(d => (
+                <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7">
+              {calendarDays.map(({ dateStr, day, inMonth }, i) => {
+                const disabled = dateStr > maxDate;
+                const isSelected = dateStr === value;
+                return (
+                  <button
+                    key={i}
+                    disabled={disabled}
+                    onClick={() => handleDayClick(dateStr)}
+                    className={cn(
+                      "h-8 text-xs rounded transition-colors",
+                      !inMonth && "text-gray-300",
+                      inMonth && !disabled && !isSelected && "text-gray-700 hover:bg-gray-100",
+                      disabled && "text-gray-200 cursor-not-allowed",
+                      isSelected && "bg-gray-900 text-white font-semibold rounded-lg",
+                    )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Performance Tier Helper ────────────────────────────────────
@@ -614,33 +797,19 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            <input
-              type="date"
-              value={selectedDate}
-              max={toLocalDateStr(new Date())}
-              onChange={e => loadDate(e.target.value)}
-              className="text-sm font-medium text-gray-900 bg-transparent border-none focus:outline-none cursor-pointer"
-            />
-          </div>
+
+          <DatePicker
+            value={selectedDate}
+            onChange={loadDate}
+            maxDate={toLocalDateStr(new Date())}
+          />
+
           <button
             onClick={() => shiftDate(1)}
             disabled={selectedDate >= toLocalDateStr(new Date())}
             className="flex items-center px-2 py-2 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ChevronRight className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => loadDate(getYesterdayStr())}
-            className={cn(
-              "px-3 py-2 text-sm font-medium rounded-lg border transition-colors",
-              selectedDate === getYesterdayStr()
-                ? "bg-gray-900 text-white border-gray-900"
-                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-            )}
-          >
-            Yesterday
           </button>
           {dateLoading && (
             <span className="text-sm text-gray-400 animate-pulse">Loading…</span>
