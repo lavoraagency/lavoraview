@@ -294,6 +294,67 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
             </div>
           )}
 
+          {/* AI Analysis */}
+          {reel.video_analysis && !reel.video_analysis.parse_error && (
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-px flex-1 bg-gray-100" />
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">AI Analysis</span>
+                <div className="h-px flex-1 bg-gray-100" />
+              </div>
+              <div className="space-y-2.5">
+                {reel.video_analysis.content && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Content</span>
+                    <span className="text-sm text-gray-800">{reel.video_analysis.content}</span>
+                  </div>
+                )}
+                {reel.video_analysis.category && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Category</span>
+                    <span className="text-sm font-medium text-gray-800 bg-gray-100 px-2 py-0.5 rounded">{reel.video_analysis.category}</span>
+                  </div>
+                )}
+                {reel.video_analysis.text_in_video && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Text</span>
+                    <span className="text-sm text-gray-800 italic">&ldquo;{reel.video_analysis.text_in_video}&rdquo;</span>
+                  </div>
+                )}
+                {reel.video_analysis.music && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Music</span>
+                    <span className="text-sm text-gray-800">{reel.video_analysis.music}</span>
+                  </div>
+                )}
+                {reel.video_analysis.quality != null && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Quality</span>
+                    <span className="text-sm font-semibold text-gray-800">{reel.video_analysis.quality}/10</span>
+                  </div>
+                )}
+                {reel.video_analysis.engagement_potential && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Potential</span>
+                    <div>
+                      <span className={cn(
+                        "text-sm font-semibold px-2 py-0.5 rounded",
+                        reel.video_analysis.engagement_potential === "hoch" ? "bg-green-100 text-green-700" :
+                        reel.video_analysis.engagement_potential === "mittel" ? "bg-amber-100 text-amber-700" :
+                        "bg-gray-100 text-gray-600"
+                      )}>
+                        {reel.video_analysis.engagement_potential}
+                      </span>
+                      {reel.video_analysis.engagement_reason && (
+                        <p className="text-xs text-gray-500 mt-1">{reel.video_analysis.engagement_reason}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Interaction */}
           <div>
             <div className="flex items-center gap-3 mb-3">
