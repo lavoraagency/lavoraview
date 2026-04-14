@@ -615,23 +615,49 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
   const [activeReels, setActiveReels] = useState<any[]>(reels);
   const [dateLoading, setDateLoading] = useState(false);
 
+  // Cache: date → enriched reels (persists across date switches within session)
+  const dateCache = useRef<Record<string, any[]>>({ [getYesterdayStr()]: reels });
+
   // Filter panel state
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("best_performing");
   const [minMultiplier, setMinMultiplier] = useState(2.0);
 
-  // Load data for a specific date
+  // Preload last 5 days on mount
+  useEffect(() => {
+    async function preload() {
+      const yesterday = getYesterdayStr();
+      const datesToLoad: string[] = [];
+      for (let i = 2; i <= 5; i++) {
+        const d = addDays(yesterday, -(i - 1));
+        if (!dateCache.current[d]) datesToLoad.push(d);
+      }
+      // Load in parallel
+      const results = await Promise.all(
+        datesToLoad.map(d => getTopReelsForDate(d).then(data => ({ date: d, data })).catch(() => null))
+      );
+      for (const r of results) {
+        if (r) dateCache.current[r.date] = r.data;
+      }
+    }
+    preload();
+  }, []);
+
+  // Load data for a specific date (uses cache if available)
   async function loadDate(dateStr: string) {
     setSelectedDate(dateStr);
     setPage(0);
-    if (dateStr === getYesterdayStr()) {
-      // Yesterday = use preloaded data from server
-      setActiveReels(reels);
+
+    // Check cache first
+    if (dateCache.current[dateStr]) {
+      setActiveReels(dateCache.current[dateStr]);
       return;
     }
+
     setDateLoading(true);
     try {
       const data = await getTopReelsForDate(dateStr);
+      dateCache.current[dateStr] = data;
       setActiveReels(data);
     } catch (e) {
       console.error("Failed to load data for date", dateStr, e);
