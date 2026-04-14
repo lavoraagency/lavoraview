@@ -308,10 +308,10 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
     });
   }, [reel.id]);
 
-  const chartData = snapshots.map((s, i) => ({
+  const chartData = snapshots.map(s => ({
     date: new Date(s.scraped_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short" }),
     views: s.views,
-    newViews: i === 0 ? 0 : Math.max(0, s.views - snapshots[i - 1].views),
+    newViews: s.views_delta || 0,
   }));
 
   const lastSnapshot = snapshots[snapshots.length - 1];
