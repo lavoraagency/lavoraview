@@ -311,6 +311,7 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
   const chartData = snapshots.map(s => ({
     date: new Date(s.scraped_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short" }),
     views: s.views,
+    newViews: s.views_delta || 0,
   }));
 
   const lastSnapshot = snapshots[snapshots.length - 1];
@@ -452,20 +453,44 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
             ) : chartData.length < 2 ? (
               <div className="h-40 flex items-center justify-center text-sm text-gray-400">Not enough data yet</div>
             ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="viewsGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tickFormatter={v => formatNumber(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
-                  <Tooltip formatter={(v) => [formatNumber(v as number), "Views"]} />
-                  <Area type="monotone" dataKey="views" stroke="#10b981" strokeWidth={2} fill="url(#viewsGrad)" dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <div className="space-y-4">
+                {/* Total Views Chart */}
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Total Views</p>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="viewsGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                      <YAxis tickFormatter={v => formatNumber(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
+                      <Tooltip formatter={(v) => [formatNumber(v as number), "Total Views"]} />
+                      <Area type="monotone" dataKey="views" stroke="#10b981" strokeWidth={2} fill="url(#viewsGrad)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* New Views Chart */}
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">New Views</p>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="newViewsGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                      <YAxis tickFormatter={v => formatNumber(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
+                      <Tooltip formatter={(v) => [formatNumber(v as number), "New Views"]} />
+                      <Area type="monotone" dataKey="newViews" stroke="#6366f1" strokeWidth={2} fill="url(#newViewsGrad)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             )}
           </div>
         </div>
