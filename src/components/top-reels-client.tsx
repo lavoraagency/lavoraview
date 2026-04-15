@@ -411,6 +411,57 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
             </div>
           )}
 
+          {/* History Chart */}
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-px flex-1 bg-gray-100" />
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">History Chart</span>
+              <div className="h-px flex-1 bg-gray-100" />
+            </div>
+            {loading ? (
+              <div className="h-40 flex items-center justify-center text-sm text-gray-400">Loading…</div>
+            ) : chartData.length < 2 ? (
+              <div className="h-40 flex items-center justify-center text-sm text-gray-400">Not enough data yet</div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Total Views</p>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="topReelsViewsGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                      <YAxis tickFormatter={v => formatNumber(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
+                      <Tooltip formatter={(v) => [formatNumber(v as number), "Total Views"]} />
+                      <Area type="monotone" dataKey="views" stroke="#10b981" strokeWidth={2} fill="url(#topReelsViewsGrad)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">New Views</p>
+                  <ResponsiveContainer width="100%" height={120}>
+                    <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="topReelsNewViewsGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                      <YAxis tickFormatter={v => formatNumber(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
+                      <Tooltip formatter={(v) => [formatNumber(v as number), "New Views"]} />
+                      <Area type="monotone" dataKey="newViews" stroke="#6366f1" strokeWidth={2} fill="url(#topReelsNewViewsGrad)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* AI Analysis — with video duration from DB prepended */}
           {reel.video_analysis && !reel.video_analysis.parse_error && (
             <AIAnalysisSection analysis={reel.video_analysis} videoDuration={reel.video_duration} />
@@ -521,56 +572,6 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
             </div>
           </div>
 
-          {/* History Chart */}
-          <div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="h-px flex-1 bg-gray-100" />
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">History Chart</span>
-              <div className="h-px flex-1 bg-gray-100" />
-            </div>
-            {loading ? (
-              <div className="h-40 flex items-center justify-center text-sm text-gray-400">Loading…</div>
-            ) : chartData.length < 2 ? (
-              <div className="h-40 flex items-center justify-center text-sm text-gray-400">Not enough data yet</div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Total Views</p>
-                  <ResponsiveContainer width="100%" height={120}>
-                    <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="topReelsViewsGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                      <YAxis tickFormatter={v => formatNumber(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
-                      <Tooltip formatter={(v) => [formatNumber(v as number), "Total Views"]} />
-                      <Area type="monotone" dataKey="views" stroke="#10b981" strokeWidth={2} fill="url(#topReelsViewsGrad)" dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">New Views</p>
-                  <ResponsiveContainer width="100%" height={120}>
-                    <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="topReelsNewViewsGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                      <YAxis tickFormatter={v => formatNumber(v)} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
-                      <Tooltip formatter={(v) => [formatNumber(v as number), "New Views"]} />
-                      <Area type="monotone" dataKey="newViews" stroke="#6366f1" strokeWidth={2} fill="url(#topReelsNewViewsGrad)" dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>
