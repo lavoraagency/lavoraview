@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
-type SortField = "views" | "posted_at" | "username" | "music" | "speaking" | "text_goal" | "location" | "outfit" | "scroll_stopper" | "reward_ending" | "caption_type";
+type SortField = "views" | "posted_at" | "username" | "music" | "speaking" | "text_goal" | "location" | "outfit" | "acting" | "camera" | "scroll_stopper" | "reward_ending" | "caption_type" | "other";
 type SortDir = "asc" | "desc";
 
 // ── MultiSelect (same pattern as other tabs) ──────────────────
@@ -73,17 +73,6 @@ function MultiSelect({
   );
 }
 
-// ── Truncated cell with expand ─────────────────────────────────
-function TruncCell({ text, maxLen = 40 }: { text: string; maxLen?: number }) {
-  if (!text) return <span className="text-gray-300">—</span>;
-  if (text.length <= maxLen) return <span>{text}</span>;
-  return (
-    <span title={text}>
-      {text.substring(0, maxLen)}…
-    </span>
-  );
-}
-
 function Badge({ text, color }: { text: string; color?: string }) {
   if (!text) return null;
   return <span className={cn("text-[11px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap", color || "bg-gray-100 text-gray-700")}>{text}</span>;
@@ -96,94 +85,6 @@ function YesNoBadge({ value }: { value: boolean }) {
 }
 
 // ── Expanded Row Detail ────────────────────────────────────────
-function ExpandedRow({ reel }: { reel: any }) {
-  const a = reel.video_analysis;
-  if (!a) return null;
-
-  // Cell component aligned to column widths (same widths as table header)
-  const Cell = ({ text, widthClass }: { text: string | null | undefined; widthClass: string }) => (
-    <td className={cn("px-3 py-3 align-top", widthClass)}>
-      {text ? <span className="text-xs text-gray-700 leading-relaxed">{text}</span> : <span className="text-gray-300 text-xs">—</span>}
-    </td>
-  );
-
-  return (
-    <tr className="bg-gray-50/50 border-t border-gray-100">
-      {/* Thumbnail column (empty) */}
-      <td className="px-3 py-3 w-12"></td>
-      {/* Account column (empty — details shown in data columns) */}
-      <td className="px-3 py-3 w-28"></td>
-      {/* Views column (empty) */}
-      <td className="px-3 py-3 w-20"></td>
-      {/* Music details */}
-      <Cell text={a.sound_music?.description} widthClass="w-32" />
-      {/* Speaking details */}
-      <Cell text={a.sound_speaking?.summary} widthClass="w-28" />
-      {/* Text details */}
-      <td className="px-3 py-3 align-top w-28">
-        <div className="space-y-1">
-          {a.text_overlay?.text_content && (
-            <p className="text-xs text-gray-700 italic leading-relaxed">&ldquo;{a.text_overlay.text_content}&rdquo;</p>
-          )}
-          {(a.text_overlay?.text_description || a.text_overlay?.text_purpose) && (
-            <p className="text-xs text-gray-500 leading-relaxed">{a.text_overlay.text_description || a.text_overlay.text_purpose}</p>
-          )}
-          {!a.text_overlay?.text_content && !a.text_overlay?.text_description && !a.text_overlay?.text_purpose && (
-            <span className="text-gray-300 text-xs">—</span>
-          )}
-        </div>
-      </td>
-      {/* Location (same as in row, already full) */}
-      <Cell text={a.background_location} widthClass="w-28" />
-      {/* Outfit — full text */}
-      <Cell text={a.outfit} widthClass="w-36" />
-      {/* Scroll Stop details */}
-      <Cell text={a.scroll_stopper?.description} widthClass="w-24" />
-      {/* Reward End details */}
-      <Cell text={a.reward_ending?.description} widthClass="w-24" />
-      {/* Caption Purpose */}
-      <Cell text={a.caption_type?.purpose} widthClass="w-28" />
-      {/* Expand arrow column (empty) */}
-      <td className="px-3 py-3 w-8"></td>
-
-      {/* Extra row below for Acting, Camera, Other — since they don't have top-level columns */}
-    </tr>
-  );
-}
-
-function ExpandedExtraRow({ reel }: { reel: any }) {
-  const a = reel.video_analysis;
-  if (!a) return null;
-  const hasExtra = a.acting || a.camera_setup || a.other_notable;
-  if (!hasExtra) return null;
-
-  return (
-    <tr className="bg-gray-50/50">
-      <td colSpan={100} className="px-5 pb-4 pt-0">
-        <div className="grid grid-cols-3 gap-x-6 gap-y-2 text-xs">
-          {a.acting && (
-            <div>
-              <span className="block font-semibold text-gray-500 uppercase text-[10px] tracking-wider mb-1">Acting</span>
-              <span className="text-gray-700 leading-relaxed">{a.acting}</span>
-            </div>
-          )}
-          {a.camera_setup && (
-            <div>
-              <span className="block font-semibold text-gray-500 uppercase text-[10px] tracking-wider mb-1">Camera</span>
-              <span className="text-gray-700 leading-relaxed">{a.camera_setup}</span>
-            </div>
-          )}
-          {a.other_notable && (
-            <div>
-              <span className="block font-semibold text-gray-500 uppercase text-[10px] tracking-wider mb-1">Other</span>
-              <span className="text-gray-700 leading-relaxed">{a.other_notable}</span>
-            </div>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
-}
 
 // ── Main Component ─────────────────────────────────────────────
 interface PatternAnalysisClientProps {
@@ -239,9 +140,12 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
       case "text_goal": return a.text_overlay?.text_goal || a.text_overlay?.text_type || "";
       case "location": return a.background_location || "";
       case "outfit": return a.outfit || "";
+      case "acting": return a.acting || "";
+      case "camera": return a.camera_setup || "";
       case "scroll_stopper": return a.scroll_stopper?.has_scroll_stopper ? 1 : 0;
       case "reward_ending": return a.reward_ending?.has_reward ? 1 : 0;
       case "caption_type": return a.caption_type?.type || "";
+      case "other": return a.other_notable || "";
       default: return 0;
     }
   }
@@ -298,16 +202,19 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
 
   useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags, searchText, sortField, sortDir, rowsPerPage]);
 
-  const columns: { field: SortField; label: string; width: string }[] = [
-    { field: "views", label: "Views", width: "w-20" },
-    { field: "music", label: "Music", width: "w-32" },
-    { field: "speaking", label: "Speaking", width: "w-28" },
-    { field: "text_goal", label: "Text", width: "w-28" },
-    { field: "location", label: "Location", width: "w-28" },
-    { field: "outfit", label: "Outfit", width: "w-36" },
-    { field: "scroll_stopper", label: "Scroll Stop", width: "w-24" },
-    { field: "reward_ending", label: "Reward End", width: "w-24" },
-    { field: "caption_type", label: "Caption", width: "w-28" },
+  const columns: { field: SortField; label: string; minWidth: string }[] = [
+    { field: "views", label: "Views", minWidth: "min-w-[80px]" },
+    { field: "music", label: "Music", minWidth: "min-w-[200px]" },
+    { field: "speaking", label: "Speaking", minWidth: "min-w-[200px]" },
+    { field: "text_goal", label: "Text", minWidth: "min-w-[240px]" },
+    { field: "location", label: "Location", minWidth: "min-w-[160px]" },
+    { field: "outfit", label: "Outfit", minWidth: "min-w-[240px]" },
+    { field: "acting", label: "Acting", minWidth: "min-w-[240px]" },
+    { field: "camera", label: "Camera", minWidth: "min-w-[220px]" },
+    { field: "scroll_stopper", label: "Scroll Stop", minWidth: "min-w-[200px]" },
+    { field: "reward_ending", label: "Reward End", minWidth: "min-w-[200px]" },
+    { field: "caption_type", label: "Caption", minWidth: "min-w-[220px]" },
+    { field: "other", label: "Other", minWidth: "min-w-[220px]" },
   ];
 
   return (
@@ -337,15 +244,15 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
       {/* Table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="text-sm" style={{ minWidth: "100%" }}>
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-100">
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12"></th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">
                   <button onClick={() => toggleSort("username")} className="flex items-center gap-1">Account <SortIcon field="username" /></button>
                 </th>
                 {columns.map(col => (
-                  <th key={col.field} className={cn("px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", col.width)}>
+                  <th key={col.field} className={cn("px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", col.minWidth)}>
                     <button onClick={() => toggleSort(col.field)} className="flex items-center gap-1">{col.label} <SortIcon field={col.field} /></button>
                   </th>
                 ))}
@@ -358,69 +265,98 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
                 const a = r.video_analysis || {};
                 const isExpanded = expandedId === r.id;
 
+                const trunc = (s: string | null | undefined, n: number) => !s ? "" : (s.length > n ? s.substring(0, n) + "…" : s);
+                const Cell = ({ children, minWidth }: { children: React.ReactNode; minWidth: string }) => (
+                  <td className={cn("px-3 py-2 align-top text-xs", minWidth)}>{children}</td>
+                );
+
                 return (
-                  <>{/* Use fragment with key on first tr */}
-                    <tr key={r.id} className={cn("hover:bg-gray-50/50 transition-colors cursor-pointer", isExpanded && "bg-gray-50/30")} onClick={() => setExpandedId(isExpanded ? null : r.id)}>
-                      {/* Thumbnail */}
-                      <td className="px-3 py-2">
-                        <a href={r.reel_url || `https://www.instagram.com/reel/${r.shortcode}/`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                          {r.thumbnail_url ? (
-                            <img src={r.thumbnail_url} alt="" className="w-10 h-[60px] object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                          ) : (
-                            <div className="w-10 h-[60px] bg-gray-100 rounded flex items-center justify-center text-gray-300 text-xs">▶</div>
-                          )}
-                        </a>
-                      </td>
-                      {/* Username */}
-                      <td className="px-3 py-2">
-                        <Link href={`/dashboard/profiles/${profile?.id}`} onClick={e => e.stopPropagation()} className="text-xs font-medium text-gray-700 hover:text-brand-600">
-                          @{profile?.instagram_username}
-                        </Link>
-                        <div className="text-[10px] text-gray-400">{r.posted_at ? new Date(r.posted_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short" }) : "?"}</div>
-                      </td>
-                      {/* Views */}
-                      <td className="px-3 py-2 text-xs font-semibold text-gray-900">{formatNumber(r.current_views)}</td>
-                      {/* Music */}
-                      <td className="px-3 py-2">
-                        {a.sound_music?.has_music ? (
-                          <div className="flex flex-col gap-0.5">
-                            <Badge text={a.sound_music.genre || "?"} />
-                            <span className="text-[10px] text-gray-400">{a.sound_music.volume}</span>
-                          </div>
-                        ) : <span className="text-gray-300 text-xs">—</span>}
-                      </td>
-                      {/* Speaking */}
-                      <td className="px-3 py-2">
-                        {a.sound_speaking?.has_speaking
-                          ? <Badge text={a.sound_speaking.speaking_purpose || "?"} color="bg-blue-50 text-blue-700" />
-                          : <span className="text-gray-300 text-xs">—</span>}
-                      </td>
-                      {/* Text Goal */}
-                      <td className="px-3 py-2">
-                        {a.text_overlay?.has_text
-                          ? <Badge text={a.text_overlay.text_goal || a.text_overlay.text_type || "?"} />
-                          : <span className="text-gray-300 text-xs">—</span>}
-                      </td>
-                      {/* Location */}
-                      <td className="px-3 py-2 text-xs"><TruncCell text={a.background_location} maxLen={20} /></td>
-                      {/* Outfit */}
-                      <td className="px-3 py-2 text-xs"><TruncCell text={a.outfit} maxLen={30} /></td>
-                      {/* Scroll Stop */}
-                      <td className="px-3 py-2"><YesNoBadge value={a.scroll_stopper?.has_scroll_stopper} /></td>
-                      {/* Reward End */}
-                      <td className="px-3 py-2"><YesNoBadge value={a.reward_ending?.has_reward} /></td>
-                      {/* Caption Type */}
-                      <td className="px-3 py-2">
-                        {a.caption_type?.type ? <Badge text={a.caption_type.type} /> : <span className="text-gray-300 text-xs">—</span>}
-                      </td>
-                      {/* Expand arrow */}
-                      <td className="px-3 py-2">
-                        {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-300" />}
-                      </td>
-                    </tr>
-                    {isExpanded && <ExpandedRow key={`exp-${r.id}`} reel={r} />}
-                    {isExpanded && <ExpandedExtraRow key={`exp-extra-${r.id}`} reel={r} />}
-                  </>
+                  <tr key={r.id} className={cn("hover:bg-gray-50/50 transition-colors cursor-pointer border-b border-gray-50", isExpanded && "bg-gray-50/30")} onClick={() => setExpandedId(isExpanded ? null : r.id)}>
+                    {/* Thumbnail */}
+                    <td className="px-3 py-2 align-top">
+                      <a href={r.reel_url || `https://www.instagram.com/reel/${r.shortcode}/`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+                        {r.thumbnail_url ? (
+                          <img src={r.thumbnail_url} alt="" className="w-10 h-[60px] object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <div className="w-10 h-[60px] bg-gray-100 rounded flex items-center justify-center text-gray-300 text-xs">▶</div>
+                        )}
+                      </a>
+                    </td>
+                    {/* Account */}
+                    <td className="px-3 py-2 align-top min-w-[140px]">
+                      <Link href={`/dashboard/profiles/${profile?.id}`} onClick={e => e.stopPropagation()} className="text-xs font-medium text-gray-700 hover:text-brand-600">
+                        @{profile?.instagram_username}
+                      </Link>
+                      <div className="text-[10px] text-gray-400">{r.posted_at ? new Date(r.posted_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short" }) : "?"}</div>
+                    </td>
+                    {/* Views */}
+                    <Cell minWidth="min-w-[80px]"><span className="font-semibold text-gray-900">{formatNumber(r.current_views)}</span></Cell>
+                    {/* Music */}
+                    <Cell minWidth="min-w-[200px]">
+                      {a.sound_music?.has_music ? (
+                        <div className="space-y-1">
+                          <div className="flex gap-1"><Badge text={a.sound_music.genre || "?"} /><Badge text={a.sound_music.volume || "?"} /></div>
+                          {a.sound_music.description && <p className="text-[11px] text-gray-600 leading-snug">{isExpanded ? a.sound_music.description : trunc(a.sound_music.description, 60)}</p>}
+                        </div>
+                      ) : <span className="text-gray-300">—</span>}
+                    </Cell>
+                    {/* Speaking */}
+                    <Cell minWidth="min-w-[200px]">
+                      {a.sound_speaking?.has_speaking ? (
+                        <div className="space-y-1">
+                          <Badge text={a.sound_speaking.speaking_purpose || "?"} color="bg-blue-50 text-blue-700" />
+                          {a.sound_speaking.summary && <p className="text-[11px] text-gray-600 leading-snug">{isExpanded ? a.sound_speaking.summary : trunc(a.sound_speaking.summary, 60)}</p>}
+                        </div>
+                      ) : <span className="text-gray-300">—</span>}
+                    </Cell>
+                    {/* Text */}
+                    <Cell minWidth="min-w-[240px]">
+                      {a.text_overlay?.has_text ? (
+                        <div className="space-y-1">
+                          <Badge text={a.text_overlay.text_goal || a.text_overlay.text_type || "?"} />
+                          {a.text_overlay.text_content && <p className="text-[11px] text-gray-700 italic leading-snug">&ldquo;{isExpanded ? a.text_overlay.text_content : trunc(a.text_overlay.text_content, 70)}&rdquo;</p>}
+                          {(a.text_overlay.text_description || a.text_overlay.text_purpose) && <p className="text-[11px] text-gray-500 leading-snug">{isExpanded ? (a.text_overlay.text_description || a.text_overlay.text_purpose) : trunc(a.text_overlay.text_description || a.text_overlay.text_purpose, 70)}</p>}
+                        </div>
+                      ) : <span className="text-gray-300">—</span>}
+                    </Cell>
+                    {/* Location */}
+                    <Cell minWidth="min-w-[160px]">{a.background_location ? (isExpanded ? a.background_location : trunc(a.background_location, 40)) : <span className="text-gray-300">—</span>}</Cell>
+                    {/* Outfit */}
+                    <Cell minWidth="min-w-[240px]">{a.outfit ? (isExpanded ? a.outfit : trunc(a.outfit, 70)) : <span className="text-gray-300">—</span>}</Cell>
+                    {/* Acting */}
+                    <Cell minWidth="min-w-[240px]">{a.acting ? (isExpanded ? a.acting : trunc(a.acting, 70)) : <span className="text-gray-300">—</span>}</Cell>
+                    {/* Camera */}
+                    <Cell minWidth="min-w-[220px]">{a.camera_setup ? (isExpanded ? a.camera_setup : trunc(a.camera_setup, 60)) : <span className="text-gray-300">—</span>}</Cell>
+                    {/* Scroll Stop */}
+                    <Cell minWidth="min-w-[200px]">
+                      <div className="space-y-1">
+                        <YesNoBadge value={a.scroll_stopper?.has_scroll_stopper} />
+                        {a.scroll_stopper?.has_scroll_stopper && a.scroll_stopper?.description && <p className="text-[11px] text-gray-600 leading-snug">{isExpanded ? a.scroll_stopper.description : trunc(a.scroll_stopper.description, 60)}</p>}
+                      </div>
+                    </Cell>
+                    {/* Reward End */}
+                    <Cell minWidth="min-w-[200px]">
+                      <div className="space-y-1">
+                        <YesNoBadge value={a.reward_ending?.has_reward} />
+                        {a.reward_ending?.has_reward && a.reward_ending?.description && <p className="text-[11px] text-gray-600 leading-snug">{isExpanded ? a.reward_ending.description : trunc(a.reward_ending.description, 60)}</p>}
+                      </div>
+                    </Cell>
+                    {/* Caption */}
+                    <Cell minWidth="min-w-[220px]">
+                      {a.caption_type?.type ? (
+                        <div className="space-y-1">
+                          <Badge text={a.caption_type.type} />
+                          {a.caption_type.purpose && <p className="text-[11px] text-gray-600 leading-snug">{isExpanded ? a.caption_type.purpose : trunc(a.caption_type.purpose, 60)}</p>}
+                        </div>
+                      ) : <span className="text-gray-300">—</span>}
+                    </Cell>
+                    {/* Other */}
+                    <Cell minWidth="min-w-[220px]">{a.other_notable ? (isExpanded ? a.other_notable : trunc(a.other_notable, 60)) : <span className="text-gray-300">—</span>}</Cell>
+                    {/* Expand arrow */}
+                    <td className="px-3 py-2 align-top">
+                      {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-300" />}
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
