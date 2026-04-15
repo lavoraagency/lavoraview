@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
         multiplier: r.multiplier,
         daily_views: r.dailyViews,
         username: r.profiles?.instagram_username || "",
+        caption: r.caption || "",
       })),
     });
   } catch (e: any) {
