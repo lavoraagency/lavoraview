@@ -266,7 +266,7 @@ function AIAnalysisSection({ analysis: a, videoDuration }: { analysis: any; vide
                 <AnalysisBadge text={a.sound_music.genre || "?"} /> <AnalysisBadge text={a.sound_music.volume || "?"} />
                 {a.sound_music.description && <p className="text-xs text-gray-500 mt-0.5">{a.sound_music.description}</p>}
               </span>
-            ) : <span className="text-gray-400">Keine Musik</span>}
+            ) : <span className="text-gray-400">No music</span>}
           </AnalysisRow>
         )}
 
@@ -277,7 +277,7 @@ function AIAnalysisSection({ analysis: a, videoDuration }: { analysis: any; vide
                 <AnalysisBadge text={a.sound_speaking.speaking_purpose || "?"} color="bg-blue-50 text-blue-700" />
                 {a.sound_speaking.summary && <p className="text-xs text-gray-600 mt-0.5">{a.sound_speaking.summary}</p>}
               </span>
-            ) : <span className="text-gray-400">Kein Speaking</span>}
+            ) : <span className="text-gray-400">No speaking</span>}
           </AnalysisRow>
         )}
 
@@ -286,11 +286,11 @@ function AIAnalysisSection({ analysis: a, videoDuration }: { analysis: any; vide
             {a.text_overlay.has_text ? (
               <span>
                 <AnalysisBadge text={a.text_overlay.text_goal || a.text_overlay.text_type || "?"} />
-                {a.text_overlay.text_matches_video === false && <> <AnalysisBadge text="passt nicht zum Video" color="bg-amber-50 text-amber-700" /></>}
+                {a.text_overlay.text_matches_video === false && <> <AnalysisBadge text="doesn't match video" color="bg-amber-50 text-amber-700" /></>}
                 {a.text_overlay.text_content && <p className="text-xs text-gray-600 mt-0.5 italic">&ldquo;{a.text_overlay.text_content}&rdquo;</p>}
                 {(a.text_overlay.text_description || a.text_overlay.text_purpose) && <p className="text-xs text-gray-500 mt-0.5">{a.text_overlay.text_description || a.text_overlay.text_purpose}</p>}
               </span>
-            ) : <span className="text-gray-400">Kein Text-Overlay</span>}
+            ) : <span className="text-gray-400">No text overlay</span>}
           </AnalysisRow>
         )}
 
@@ -314,10 +314,10 @@ function AIAnalysisSection({ analysis: a, videoDuration }: { analysis: any; vide
           <AnalysisRow label="Scroll Stop">
             {a.scroll_stopper.has_scroll_stopper ? (
               <span>
-                <AnalysisBadge text="Ja" color="bg-green-50 text-green-700" />
+                <AnalysisBadge text="Yes" color="bg-green-50 text-green-700" />
                 {a.scroll_stopper.description && <p className="text-xs text-gray-600 mt-0.5">{a.scroll_stopper.description}</p>}
               </span>
-            ) : <AnalysisBadge text="Nein" color="bg-gray-50 text-gray-500" />}
+            ) : <AnalysisBadge text="No" color="bg-gray-50 text-gray-500" />}
           </AnalysisRow>
         )}
 
@@ -325,10 +325,10 @@ function AIAnalysisSection({ analysis: a, videoDuration }: { analysis: any; vide
           <AnalysisRow label="Reward End">
             {a.reward_ending.has_reward ? (
               <span>
-                <AnalysisBadge text="Ja" color="bg-green-50 text-green-700" />
+                <AnalysisBadge text="Yes" color="bg-green-50 text-green-700" />
                 {a.reward_ending.description && <p className="text-xs text-gray-600 mt-0.5">{a.reward_ending.description}</p>}
               </span>
-            ) : <AnalysisBadge text="Nein" color="bg-gray-50 text-gray-500" />}
+            ) : <AnalysisBadge text="No" color="bg-gray-50 text-gray-500" />}
           </AnalysisRow>
         )}
 
@@ -340,7 +340,7 @@ function AIAnalysisSection({ analysis: a, videoDuration }: { analysis: any; vide
         )}
 
         {a.other_notable && (
-          <AnalysisRow label="Sonstiges"><span className="text-xs text-gray-600">{a.other_notable}</span></AnalysisRow>
+          <AnalysisRow label="Other"><span className="text-xs text-gray-600">{a.other_notable}</span></AnalysisRow>
         )}
       </div>
     </div>
