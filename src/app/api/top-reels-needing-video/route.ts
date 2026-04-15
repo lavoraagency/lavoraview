@@ -38,12 +38,11 @@ export async function GET(req: NextRequest) {
     // Enrich with multiplier
     const enriched = enrichReelsWithMultiplier(allReels, profiles || [], dailyViewsMap);
 
-    // Filter: multiplier >= 2x AND has video_cdn_url AND no video_storage_url
+    // Filter: multiplier >= 2x AND has video_cdn_url
     const needingVideo = enriched.filter((r: any) => {
       if ((r.multiplier || 0) < 2.0) return false;
       if ((r.dailyViews || 0) <= 0) return false;
       if (!r.video_cdn_url) return false;
-      if (r.video_storage_url) return false; // already has video
       return true;
     });
 
