@@ -246,7 +246,7 @@ function AnalysisBadge({ text, color }: { text: string; color?: string }) {
   );
 }
 
-function AIAnalysisSection({ analysis: a }: { analysis: any }) {
+function AIAnalysisSection({ analysis: a, videoDuration }: { analysis: any; videoDuration?: number }) {
   return (
     <div>
       <div className="flex items-center gap-3 mb-3">
@@ -255,8 +255,8 @@ function AIAnalysisSection({ analysis: a }: { analysis: any }) {
         <div className="h-px flex-1 bg-gray-100" />
       </div>
       <div className="space-y-2">
-        {a.video_length_seconds > 0 && (
-          <AnalysisRow label="Length"><span className="font-semibold">{a.video_length_seconds}s</span></AnalysisRow>
+        {videoDuration != null && videoDuration > 0 && (
+          <AnalysisRow label="Length"><span className="font-semibold">{Math.round(videoDuration)}s</span></AnalysisRow>
         )}
 
         {a.sound_music && (
@@ -411,9 +411,9 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
             </div>
           )}
 
-          {/* AI Analysis */}
+          {/* AI Analysis — with video duration from DB prepended */}
           {reel.video_analysis && !reel.video_analysis.parse_error && (
-            <AIAnalysisSection analysis={reel.video_analysis} />
+            <AIAnalysisSection analysis={reel.video_analysis} videoDuration={reel.video_duration} />
           )}
 
           {/* Interaction */}
