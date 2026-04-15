@@ -100,32 +100,85 @@ function ExpandedRow({ reel }: { reel: any }) {
   const a = reel.video_analysis;
   if (!a) return null;
 
-  const Section = ({ label, value }: { label: string; value: string | null | undefined }) => {
-    if (!value) return null;
-    return (
-      <div className="flex gap-3">
-        <span className="text-xs font-medium text-gray-500 w-28 flex-shrink-0">{label}</span>
-        <span className="text-xs text-gray-800">{value}</span>
-      </div>
-    );
-  };
+  // Cell component aligned to column widths (same widths as table header)
+  const Cell = ({ text, widthClass }: { text: string | null | undefined; widthClass: string }) => (
+    <td className={cn("px-3 py-3 align-top", widthClass)}>
+      {text ? <span className="text-xs text-gray-700 leading-relaxed">{text}</span> : <span className="text-gray-300 text-xs">—</span>}
+    </td>
+  );
+
+  return (
+    <tr className="bg-gray-50/50 border-t border-gray-100">
+      {/* Thumbnail column (empty) */}
+      <td className="px-3 py-3 w-12"></td>
+      {/* Account column (empty — details shown in data columns) */}
+      <td className="px-3 py-3 w-28"></td>
+      {/* Views column (empty) */}
+      <td className="px-3 py-3 w-20"></td>
+      {/* Music details */}
+      <Cell text={a.sound_music?.description} widthClass="w-32" />
+      {/* Speaking details */}
+      <Cell text={a.sound_speaking?.summary} widthClass="w-28" />
+      {/* Text details */}
+      <td className="px-3 py-3 align-top w-28">
+        <div className="space-y-1">
+          {a.text_overlay?.text_content && (
+            <p className="text-xs text-gray-700 italic leading-relaxed">&ldquo;{a.text_overlay.text_content}&rdquo;</p>
+          )}
+          {(a.text_overlay?.text_description || a.text_overlay?.text_purpose) && (
+            <p className="text-xs text-gray-500 leading-relaxed">{a.text_overlay.text_description || a.text_overlay.text_purpose}</p>
+          )}
+          {!a.text_overlay?.text_content && !a.text_overlay?.text_description && !a.text_overlay?.text_purpose && (
+            <span className="text-gray-300 text-xs">—</span>
+          )}
+        </div>
+      </td>
+      {/* Location (same as in row, already full) */}
+      <Cell text={a.background_location} widthClass="w-28" />
+      {/* Outfit — full text */}
+      <Cell text={a.outfit} widthClass="w-36" />
+      {/* Scroll Stop details */}
+      <Cell text={a.scroll_stopper?.description} widthClass="w-24" />
+      {/* Reward End details */}
+      <Cell text={a.reward_ending?.description} widthClass="w-24" />
+      {/* Caption Purpose */}
+      <Cell text={a.caption_type?.purpose} widthClass="w-28" />
+      {/* Expand arrow column (empty) */}
+      <td className="px-3 py-3 w-8"></td>
+
+      {/* Extra row below for Acting, Camera, Other — since they don't have top-level columns */}
+    </tr>
+  );
+}
+
+function ExpandedExtraRow({ reel }: { reel: any }) {
+  const a = reel.video_analysis;
+  if (!a) return null;
+  const hasExtra = a.acting || a.camera_setup || a.other_notable;
+  if (!hasExtra) return null;
 
   return (
     <tr className="bg-gray-50/50">
-      <td colSpan={100} className="px-5 py-4">
-        <div className="grid grid-cols-2 gap-x-8 gap-y-2 max-w-4xl">
-          <Section label="Music" value={a.sound_music?.description} />
-          <Section label="Speaking" value={a.sound_speaking?.summary} />
-          <Section label="Text Content" value={a.text_overlay?.text_content} />
-          <Section label="Text Purpose" value={a.text_overlay?.text_description || a.text_overlay?.text_purpose} />
-          <Section label="Outfit" value={a.outfit} />
-          <Section label="Acting" value={a.acting} />
-          <Section label="Camera" value={a.camera_setup} />
-          <Section label="Location" value={a.background_location} />
-          <Section label="Scroll Stopper" value={a.scroll_stopper?.description} />
-          <Section label="Reward End" value={a.reward_ending?.description} />
-          <Section label="Caption Purpose" value={a.caption_type?.purpose} />
-          <Section label="Other" value={a.other_notable} />
+      <td colSpan={100} className="px-5 pb-4 pt-0">
+        <div className="grid grid-cols-3 gap-x-6 gap-y-2 text-xs">
+          {a.acting && (
+            <div>
+              <span className="block font-semibold text-gray-500 uppercase text-[10px] tracking-wider mb-1">Acting</span>
+              <span className="text-gray-700 leading-relaxed">{a.acting}</span>
+            </div>
+          )}
+          {a.camera_setup && (
+            <div>
+              <span className="block font-semibold text-gray-500 uppercase text-[10px] tracking-wider mb-1">Camera</span>
+              <span className="text-gray-700 leading-relaxed">{a.camera_setup}</span>
+            </div>
+          )}
+          {a.other_notable && (
+            <div>
+              <span className="block font-semibold text-gray-500 uppercase text-[10px] tracking-wider mb-1">Other</span>
+              <span className="text-gray-700 leading-relaxed">{a.other_notable}</span>
+            </div>
+          )}
         </div>
       </td>
     </tr>
@@ -366,6 +419,7 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
                       </td>
                     </tr>
                     {isExpanded && <ExpandedRow key={`exp-${r.id}`} reel={r} />}
+                    {isExpanded && <ExpandedExtraRow key={`exp-extra-${r.id}`} reel={r} />}
                   </>
                 );
               })}
