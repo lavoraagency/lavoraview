@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Search, Sparkles, X, Loader2, Calendar } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { getTopReelsForDate } from "@/app/dashboard/top-reels/actions";
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
@@ -373,6 +374,39 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(""); // empty = All Time
+  const [dateFilterReelIds, setDateFilterReelIds] = useState<Set<string> | null>(null);
+  const [dateLoading, setDateLoading] = useState(false);
+  const dateCacheRef = useRef<Record<string, Set<string>>>({});
+
+  // When selectedDate changes, fetch top reel IDs for that date
+  useEffect(() => {
+    if (!selectedDate) {
+      setDateFilterReelIds(null);
+      return;
+    }
+    // Check cache
+    if (dateCacheRef.current[selectedDate]) {
+      setDateFilterReelIds(dateCacheRef.current[selectedDate]);
+      return;
+    }
+    setDateLoading(true);
+    getTopReelsForDate(selectedDate)
+      .then(data => {
+        // data is enriched reels; filter to those with multiplier >= 2 and dailyViews > 0
+        const ids = new Set<string>(
+          (data || [])
+            .filter((r: any) => (r.multiplier || 0) >= 2.0 && (r.dailyViews || 0) > 0)
+            .map((r: any) => r.id)
+        );
+        dateCacheRef.current[selectedDate] = ids;
+        setDateFilterReelIds(ids);
+      })
+      .catch(e => {
+        console.error("Failed to load date filter", e);
+        setDateFilterReelIds(new Set());
+      })
+      .finally(() => setDateLoading(false));
+  }, [selectedDate]);
   const [searchText, setSearchText] = useState("");
 
   const [page, setPage] = useState(0);
@@ -455,12 +489,9 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
         const tagNames = tags.filter((t: any) => selectedTags.includes(t.id)).map((t: any) => t.name);
         if (!tagNames.some((tn: string) => profileTags.includes(tn))) return false;
       }
-      // Date filter: only reels analyzed on selected day
-      if (selectedDate) {
-        const analyzedAt = r.video_analysis?.analyzed_at;
-        if (!analyzedAt) return false;
-        const date = analyzedAt.split("T")[0];
-        if (date !== selectedDate) return false;
+      // Date filter: reels that were Top Reels on selected day
+      if (selectedDate && dateFilterReelIds) {
+        if (!dateFilterReelIds.has(r.id)) return false;
       }
       if (searchText.trim()) {
         const q = searchText.toLowerCase();
@@ -483,7 +514,7 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
     });
 
     return result;
-  }, [reels, selectedModels, selectedGroups, selectedProfiles, selectedTags, searchText, tags, sortField, sortDir, selectedDate]);
+  }, [reels, selectedModels, selectedGroups, selectedProfiles, selectedTags, searchText, tags, sortField, sortDir, selectedDate, dateFilterReelIds]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const paged = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
@@ -596,6 +627,7 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
             <ChevronLeft className="w-4 h-4" />
           </button>
           <DatePicker value={selectedDate} onChange={setSelectedDate} maxDate={toLocalDateStr(new Date())} />
+          {dateLoading && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
           <button
             onClick={() => {
               if (!selectedDate) return;
