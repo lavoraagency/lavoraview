@@ -230,6 +230,123 @@ function getDaysSincePosted(postedAt: string | null): number {
 }
 
 // ── Post Insights Modal ─────────────────────────────────────────
+// ── AI Analysis Section ─────────────────────────────────────────
+function AnalysisRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className="text-sm text-gray-500 flex-shrink-0 w-24">{label}</span>
+      <div className="text-sm text-gray-800">{children}</div>
+    </div>
+  );
+}
+
+function AnalysisBadge({ text, color }: { text: string; color?: string }) {
+  return (
+    <span className={cn("text-xs font-medium px-2 py-0.5 rounded inline-block", color || "bg-gray-100 text-gray-700")}>{text}</span>
+  );
+}
+
+function AIAnalysisSection({ analysis: a }: { analysis: any }) {
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-3">
+        <div className="h-px flex-1 bg-gray-100" />
+        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">AI Pattern Analysis</span>
+        <div className="h-px flex-1 bg-gray-100" />
+      </div>
+      <div className="space-y-2">
+        {a.video_length_seconds > 0 && (
+          <AnalysisRow label="Length"><span className="font-semibold">{a.video_length_seconds}s</span></AnalysisRow>
+        )}
+
+        {a.sound_music && (
+          <AnalysisRow label="Music">
+            {a.sound_music.has_music ? (
+              <span>
+                <AnalysisBadge text={a.sound_music.genre || "?"} /> <AnalysisBadge text={a.sound_music.volume || "?"} />
+                {a.sound_music.description && <p className="text-xs text-gray-500 mt-0.5">{a.sound_music.description}</p>}
+              </span>
+            ) : <span className="text-gray-400">Keine Musik</span>}
+          </AnalysisRow>
+        )}
+
+        {a.sound_speaking && (
+          <AnalysisRow label="Speaking">
+            {a.sound_speaking.has_speaking ? (
+              <span>
+                <AnalysisBadge text={a.sound_speaking.speaking_purpose || "?"} color="bg-blue-50 text-blue-700" />
+                {a.sound_speaking.summary && <p className="text-xs text-gray-600 mt-0.5">{a.sound_speaking.summary}</p>}
+              </span>
+            ) : <span className="text-gray-400">Kein Speaking</span>}
+          </AnalysisRow>
+        )}
+
+        {a.text_overlay && (
+          <AnalysisRow label="Text">
+            {a.text_overlay.has_text ? (
+              <span>
+                <AnalysisBadge text={a.text_overlay.text_type || "?"} />
+                {a.text_overlay.text_matches_video === false && <> <AnalysisBadge text="passt nicht zum Video" color="bg-amber-50 text-amber-700" /></>}
+                {a.text_overlay.text_content && <p className="text-xs text-gray-600 mt-0.5 italic">&ldquo;{a.text_overlay.text_content}&rdquo;</p>}
+                {a.text_overlay.text_purpose && <p className="text-xs text-gray-500 mt-0.5">{a.text_overlay.text_purpose}</p>}
+              </span>
+            ) : <span className="text-gray-400">Kein Text-Overlay</span>}
+          </AnalysisRow>
+        )}
+
+        {a.background_location && (
+          <AnalysisRow label="Location">{a.background_location}</AnalysisRow>
+        )}
+
+        {a.outfit && (
+          <AnalysisRow label="Outfit">{a.outfit}</AnalysisRow>
+        )}
+
+        {a.acting && (
+          <AnalysisRow label="Acting">{a.acting}</AnalysisRow>
+        )}
+
+        {a.camera_setup && (
+          <AnalysisRow label="Camera">{a.camera_setup}</AnalysisRow>
+        )}
+
+        {a.scroll_stopper && (
+          <AnalysisRow label="Scroll Stop">
+            {a.scroll_stopper.has_scroll_stopper ? (
+              <span>
+                <AnalysisBadge text="Ja" color="bg-green-50 text-green-700" />
+                {a.scroll_stopper.description && <p className="text-xs text-gray-600 mt-0.5">{a.scroll_stopper.description}</p>}
+              </span>
+            ) : <AnalysisBadge text="Nein" color="bg-gray-50 text-gray-500" />}
+          </AnalysisRow>
+        )}
+
+        {a.reward_ending && (
+          <AnalysisRow label="Reward End">
+            {a.reward_ending.has_reward ? (
+              <span>
+                <AnalysisBadge text="Ja" color="bg-green-50 text-green-700" />
+                {a.reward_ending.description && <p className="text-xs text-gray-600 mt-0.5">{a.reward_ending.description}</p>}
+              </span>
+            ) : <AnalysisBadge text="Nein" color="bg-gray-50 text-gray-500" />}
+          </AnalysisRow>
+        )}
+
+        {a.caption_type && (
+          <AnalysisRow label="Caption">
+            <AnalysisBadge text={a.caption_type.type || "?"} />
+            {a.caption_type.purpose && <p className="text-xs text-gray-500 mt-0.5">{a.caption_type.purpose}</p>}
+          </AnalysisRow>
+        )}
+
+        {a.other_notable && (
+          <AnalysisRow label="Sonstiges"><span className="text-xs text-gray-600">{a.other_notable}</span></AnalysisRow>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any; onClose: () => void }) {
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -296,63 +413,7 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
 
           {/* AI Analysis */}
           {reel.video_analysis && !reel.video_analysis.parse_error && (
-            <div>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="h-px flex-1 bg-gray-100" />
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">AI Analysis</span>
-                <div className="h-px flex-1 bg-gray-100" />
-              </div>
-              <div className="space-y-2.5">
-                {reel.video_analysis.content && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Content</span>
-                    <span className="text-sm text-gray-800">{reel.video_analysis.content}</span>
-                  </div>
-                )}
-                {reel.video_analysis.category && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Category</span>
-                    <span className="text-sm font-medium text-gray-800 bg-gray-100 px-2 py-0.5 rounded">{reel.video_analysis.category}</span>
-                  </div>
-                )}
-                {reel.video_analysis.text_in_video && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Text</span>
-                    <span className="text-sm text-gray-800 italic">&ldquo;{reel.video_analysis.text_in_video}&rdquo;</span>
-                  </div>
-                )}
-                {reel.video_analysis.music && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Music</span>
-                    <span className="text-sm text-gray-800">{reel.video_analysis.music}</span>
-                  </div>
-                )}
-                {reel.video_analysis.quality != null && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Quality</span>
-                    <span className="text-sm font-semibold text-gray-800">{reel.video_analysis.quality}/10</span>
-                  </div>
-                )}
-                {reel.video_analysis.engagement_potential && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm text-gray-500 flex-shrink-0 w-20">Potential</span>
-                    <div>
-                      <span className={cn(
-                        "text-sm font-semibold px-2 py-0.5 rounded",
-                        reel.video_analysis.engagement_potential === "hoch" ? "bg-green-100 text-green-700" :
-                        reel.video_analysis.engagement_potential === "mittel" ? "bg-amber-100 text-amber-700" :
-                        "bg-gray-100 text-gray-600"
-                      )}>
-                        {reel.video_analysis.engagement_potential}
-                      </span>
-                      {reel.video_analysis.engagement_reason && (
-                        <p className="text-xs text-gray-500 mt-1">{reel.video_analysis.engagement_reason}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <AIAnalysisSection analysis={reel.video_analysis} />
           )}
 
           {/* Interaction */}
