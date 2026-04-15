@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Save, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Save, Plus, Trash2, Sparkles } from "lucide-react";
 import { updateModel as updateModelAction, createTag as createTagAction, deleteTag as deleteTagAction } from "@/app/dashboard/settings/actions";
 
 export function SettingsClient({ initialModels, initialTags }: {
@@ -13,6 +13,20 @@ export function SettingsClient({ initialModels, initialTags }: {
   const [newTagColor, setNewTagColor] = useState("#6366f1");
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // AI Settings (stored in localStorage, used by Pattern Analysis)
+  const [aiLanguage, setAiLanguage] = useState<"en" | "de">("en");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("ai_analysis_language");
+    if (saved === "de" || saved === "en") setAiLanguage(saved);
+  }, []);
+
+  function updateAiLanguage(lang: "en" | "de") {
+    setAiLanguage(lang);
+    localStorage.setItem("ai_analysis_language", lang);
+    showMessage("success", lang === "de" ? "AI-Sprache auf Deutsch gestellt" : "AI language set to English");
+  }
 
   function showMessage(type: "success" | "error", text: string) {
     setMessage({ type, text });
@@ -193,6 +207,44 @@ export function SettingsClient({ initialModels, initialTags }: {
             {tags.length === 0 && (
               <p className="text-gray-400 text-sm text-center py-4">Noch keine Tags vorhanden</p>
             )}
+          </div>
+        </div>
+      </section>
+
+      {/* AI Analysis Settings */}
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-purple-500" />
+          AI-Analyse Einstellungen
+        </h2>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Sprache der Auswertung</label>
+            <p className="text-xs text-gray-500 mb-3">
+              Die Video-Daten bleiben immer auf Englisch. Hier wählst du die Sprache, in der Claude die Pattern-Analyse schreibt.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => updateAiLanguage("en")}
+                className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                  aiLanguage === "en"
+                    ? "bg-purple-500 border-purple-500 text-white"
+                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                🇬🇧 English
+              </button>
+              <button
+                onClick={() => updateAiLanguage("de")}
+                className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                  aiLanguage === "de"
+                    ? "bg-purple-500 border-purple-500 text-white"
+                    : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                🇩🇪 Deutsch
+              </button>
+            </div>
           </div>
         </div>
       </section>

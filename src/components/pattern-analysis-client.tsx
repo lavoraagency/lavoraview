@@ -86,6 +86,121 @@ function YesNoBadge({ value }: { value: boolean }) {
 
 // ── Expanded Row Detail ────────────────────────────────────────
 
+// ── Markdown Analysis Renderer ─────────────────────────────────
+function renderInline(text: string): React.ReactNode[] {
+  // Handle **bold** and numbers in bold
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((p, j) => {
+    if (p.startsWith("**") && p.endsWith("**")) {
+      const inner = p.slice(2, -2);
+      // Special: highlight fraction like "8 out of 11" or "8 von 11"
+      const isFraction = /\d+\s*(out of|von|\/)\s*\d+/i.test(inner);
+      if (isFraction) {
+        return <span key={j} className="inline-flex items-center px-1.5 py-0.5 bg-purple-100 text-purple-700 font-bold text-sm rounded">{inner}</span>;
+      }
+      return <strong key={j} className="font-bold text-gray-900">{inner}</strong>;
+    }
+    return <span key={j}>{p}</span>;
+  });
+}
+
+function AnalysisRenderer({ markdown }: { markdown: string }) {
+  const lines = markdown.split("\n");
+  const sections: Array<{ heading: string | null; items: React.ReactNode[] }> = [];
+  let current: { heading: string | null; items: React.ReactNode[] } = { heading: null, items: [] };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) continue;
+
+    // H2 / H1 heading
+    if (trimmed.startsWith("## ") || trimmed.startsWith("# ")) {
+      if (current.heading !== null || current.items.length > 0) sections.push(current);
+      current = { heading: trimmed.replace(/^#+\s*/, ""), items: [] };
+      continue;
+    }
+
+    // Bullet list
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      current.items.push(
+        <li key={`li-${i}`} className="flex gap-2 mb-1.5">
+          <span className="text-purple-500 mt-0.5 flex-shrink-0">•</span>
+          <span className="flex-1">{renderInline(trimmed.slice(2))}</span>
+        </li>
+      );
+      continue;
+    }
+
+    // Regular paragraph
+    current.items.push(
+      <p key={`p-${i}`} className="mb-2 leading-relaxed">{renderInline(trimmed)}</p>
+    );
+  }
+  if (current.heading !== null || current.items.length > 0) sections.push(current);
+
+  return (
+    <div className="space-y-5">
+      {sections.map((s, idx) => {
+        // Extract leading emoji (anything before the first space, if non-ASCII)
+        let emoji: string | null = null;
+        let headingText: string | null = s.heading;
+        if (s.heading) {
+          const firstSpace = s.heading.indexOf(" ");
+          if (firstSpace > 0) {
+            const prefix = s.heading.slice(0, firstSpace);
+            // Check if prefix is non-ASCII (likely an emoji)
+            if (/[^\x00-\x7F]/.test(prefix)) {
+              emoji = prefix;
+              headingText = s.heading.substring(firstSpace).trim();
+            }
+          }
+        }
+
+        return (
+          <div key={idx} className="bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-xl p-4">
+            {s.heading && (
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                {emoji && <span className="text-xl leading-none">{emoji}</span>}
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">{headingText}</h3>
+              </div>
+            )}
+            <div className="text-sm text-gray-700">
+              {/* Wrap bullet items in ul, keep paragraphs as-is */}
+              {groupItems(s.items)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Group consecutive <li> elements into <ul>
+function groupItems(items: React.ReactNode[]): React.ReactNode[] {
+  const out: React.ReactNode[] = [];
+  let buffer: React.ReactNode[] = [];
+  const flush = () => {
+    if (buffer.length > 0) {
+      out.push(<ul key={`ul-${out.length}`} className="space-y-0 mb-2">{buffer}</ul>);
+      buffer = [];
+    }
+  };
+  for (const item of items) {
+    // Check if it's an <li> by inspecting props (rough check)
+    const el = item as any;
+    if (el?.type === "li" || (el?.props && typeof el.props === "object" && el.key?.toString().startsWith("li-"))) {
+      buffer.push(item);
+    } else {
+      flush();
+      out.push(item);
+    }
+  }
+  flush();
+  return out;
+}
+
 // ── Main Component ─────────────────────────────────────────────
 interface PatternAnalysisClientProps {
   reels: any[];
@@ -261,10 +376,13 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
 
       setAnalysisCount(payload.length);
 
+      // Read language preference from localStorage
+      const language = typeof window !== "undefined" ? localStorage.getItem("ai_analysis_language") || "en" : "en";
+
       const resp = await fetch("/api/analyze-pattern", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ column, reels: payload }),
+        body: JSON.stringify({ column, reels: payload, language }),
       });
 
       const data = await resp.json();
@@ -514,19 +632,7 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
                 </div>
               )}
               {!analysisLoading && !analysisError && analysisResult && (
-                <div className="prose prose-sm max-w-none text-gray-800">
-                  {analysisResult.split("\n").map((line, i) => {
-                    if (!line.trim()) return <br key={i} />;
-                    // Basic markdown: **bold** and headings
-                    const parts = line.split(/(\*\*[^*]+\*\*)/g);
-                    const content = parts.map((p, j) =>
-                      p.startsWith("**") && p.endsWith("**")
-                        ? <strong key={j} className="font-semibold text-gray-900">{p.slice(2, -2)}</strong>
-                        : <span key={j}>{p}</span>
-                    );
-                    return <p key={i} className="mb-2 leading-relaxed">{content}</p>;
-                  })}
-                </div>
+                <AnalysisRenderer markdown={analysisResult} />
               )}
             </div>
           </div>
