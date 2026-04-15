@@ -285,10 +285,10 @@ function AIAnalysisSection({ analysis: a, videoDuration }: { analysis: any; vide
           <AnalysisRow label="Text">
             {a.text_overlay.has_text ? (
               <span>
-                <AnalysisBadge text={a.text_overlay.text_type || "?"} />
+                <AnalysisBadge text={a.text_overlay.text_goal || a.text_overlay.text_type || "?"} />
                 {a.text_overlay.text_matches_video === false && <> <AnalysisBadge text="passt nicht zum Video" color="bg-amber-50 text-amber-700" /></>}
                 {a.text_overlay.text_content && <p className="text-xs text-gray-600 mt-0.5 italic">&ldquo;{a.text_overlay.text_content}&rdquo;</p>}
-                {a.text_overlay.text_purpose && <p className="text-xs text-gray-500 mt-0.5">{a.text_overlay.text_purpose}</p>}
+                {(a.text_overlay.text_description || a.text_overlay.text_purpose) && <p className="text-xs text-gray-500 mt-0.5">{a.text_overlay.text_description || a.text_overlay.text_purpose}</p>}
               </span>
             ) : <span className="text-gray-400">Kein Text-Overlay</span>}
           </AnalysisRow>
