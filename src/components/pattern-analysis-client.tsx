@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Search } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Search, Sparkles, X, Loader2 } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -108,6 +108,14 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // AI Analysis state
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisColumn, setAnalysisColumn] = useState<string>("");
+  const [analysisResult, setAnalysisResult] = useState<string>("");
+  const [analysisCount, setAnalysisCount] = useState(0);
+  const [analysisError, setAnalysisError] = useState<string>("");
+
   // Group options
   const groupOptions = useMemo(() => {
     let opts = groups.map((g: any) => ({ id: g.id, name: g.name, model_id: g.model_id }));
@@ -202,6 +210,74 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
 
   useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags, searchText, sortField, sortDir, rowsPerPage]);
 
+  // Extract the string value of a column for a given reel (for AI analysis)
+  function getColumnValue(r: any, col: string): string {
+    const a = r.video_analysis || {};
+    switch (col) {
+      case "music":
+        if (!a.sound_music?.has_music) return "No music";
+        return `${a.sound_music.genre || "?"}, ${a.sound_music.volume || "?"} volume. ${a.sound_music.description || ""}`.trim();
+      case "speaking":
+        if (!a.sound_speaking?.has_speaking) return "No speaking";
+        return `[${a.sound_speaking.speaking_purpose || "?"}] ${a.sound_speaking.summary || ""}`.trim();
+      case "text_goal":
+        if (!a.text_overlay?.has_text) return "No text overlay";
+        return `[${a.text_overlay.text_goal || a.text_overlay.text_type || "?"}] "${a.text_overlay.text_content || ""}" — ${a.text_overlay.text_description || a.text_overlay.text_purpose || ""}`.trim();
+      case "location": return a.background_location || "";
+      case "outfit": return a.outfit || "";
+      case "acting": return a.acting || "";
+      case "camera": return a.camera_setup || "";
+      case "scroll_stopper":
+        return a.scroll_stopper?.has_scroll_stopper
+          ? `Yes — ${a.scroll_stopper.description || ""}`
+          : "No scroll stopper";
+      case "reward_ending":
+        return a.reward_ending?.has_reward
+          ? `Yes — ${a.reward_ending.description || ""}`
+          : "No reward ending";
+      case "caption_type":
+        return `[${a.caption_type?.type || "?"}] ${a.caption_type?.purpose || ""}`.trim();
+      case "other": return a.other_notable || "";
+      default: return "";
+    }
+  }
+
+  async function runAnalysis(column: string, columnLabel: string) {
+    setAnalysisOpen(true);
+    setAnalysisLoading(true);
+    setAnalysisColumn(columnLabel);
+    setAnalysisResult("");
+    setAnalysisError("");
+
+    try {
+      // Build payload: sorted by views DESC, include views + extracted column value
+      const payload = filtered
+        .map((r: any) => ({
+          shortcode: r.shortcode,
+          views: r.current_views || 0,
+          value: getColumnValue(r, column),
+        }))
+        .sort((a: any, b: any) => b.views - a.views);
+
+      setAnalysisCount(payload.length);
+
+      const resp = await fetch("/api/analyze-pattern", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ column, reels: payload }),
+      });
+
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Analysis failed");
+
+      setAnalysisResult(data.analysis);
+    } catch (e: any) {
+      setAnalysisError(e.message || "Something went wrong");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
+
   const columns: { field: SortField; label: string; minWidth: string }[] = [
     { field: "views", label: "Views", minWidth: "min-w-[80px]" },
     { field: "music", label: "Music", minWidth: "min-w-[200px]" },
@@ -251,11 +327,26 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">
                   <button onClick={() => toggleSort("username")} className="flex items-center gap-1">Account <SortIcon field="username" /></button>
                 </th>
-                {columns.map(col => (
-                  <th key={col.field} className={cn("px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", col.minWidth)}>
-                    <button onClick={() => toggleSort(col.field)} className="flex items-center gap-1">{col.label} <SortIcon field={col.field} /></button>
-                  </th>
-                ))}
+                {columns.map(col => {
+                  const canAnalyze = col.field !== "views";
+                  return (
+                    <th key={col.field} className={cn("px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider", col.minWidth)}>
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => toggleSort(col.field)} className="flex items-center gap-1 hover:text-gray-700">{col.label} <SortIcon field={col.field} /></button>
+                        {canAnalyze && (
+                          <button
+                            onClick={() => runAnalysis(col.field, col.label)}
+                            disabled={filtered.length === 0}
+                            title={`AI pattern analysis for ${col.label}`}
+                            className="p-0.5 rounded hover:bg-purple-100 text-purple-500 hover:text-purple-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
                 <th className="px-3 py-3 w-8"></th>
               </tr>
             </thead>
@@ -388,6 +479,59 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
           </div>
         )}
       </div>
+
+      {/* AI Analysis Modal */}
+      {analysisOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setAnalysisOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-start justify-between px-6 py-5 border-b border-gray-100">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">Pattern Analysis: {analysisColumn}</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">{analysisCount} reels · AI-generated insights</p>
+                </div>
+              </div>
+              <button onClick={() => setAnalysisOpen(false)} className="text-gray-400 hover:text-gray-600 mt-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {analysisLoading && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+                  <p className="text-sm text-gray-500">Analyzing {analysisCount} reels…</p>
+                </div>
+              )}
+              {analysisError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                  <strong>Error:</strong> {analysisError}
+                </div>
+              )}
+              {!analysisLoading && !analysisError && analysisResult && (
+                <div className="prose prose-sm max-w-none text-gray-800">
+                  {analysisResult.split("\n").map((line, i) => {
+                    if (!line.trim()) return <br key={i} />;
+                    // Basic markdown: **bold** and headings
+                    const parts = line.split(/(\*\*[^*]+\*\*)/g);
+                    const content = parts.map((p, j) =>
+                      p.startsWith("**") && p.endsWith("**")
+                        ? <strong key={j} className="font-semibold text-gray-900">{p.slice(2, -2)}</strong>
+                        : <span key={j}>{p}</span>
+                    );
+                    return <p key={i} className="mb-2 leading-relaxed">{content}</p>;
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
