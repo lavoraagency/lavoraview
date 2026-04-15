@@ -247,7 +247,7 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
           <table className="text-sm" style={{ minWidth: "100%" }}>
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-100">
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12"></th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[70px]"></th>
                 <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">
                   <button onClick={() => toggleSort("username")} className="flex items-center gap-1">Account <SortIcon field="username" /></button>
                 </th>
