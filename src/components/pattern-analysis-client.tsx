@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Search, Sparkles, X, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, Search, Sparkles, X, Loader2, Calendar } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -85,6 +85,163 @@ function YesNoBadge({ value }: { value: boolean }) {
 }
 
 // ── Expanded Row Detail ────────────────────────────────────────
+
+// ── Date helpers ───────────────────────────────────────────────
+const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function toLocalDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function addDays(dateStr: string, n: number) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return toLocalDateStr(d);
+}
+
+// ── DatePicker with "All Time" support ─────────────────────────
+function DatePicker({
+  value,
+  onChange,
+  maxDate,
+}: {
+  value: string; // empty string = All Time
+  onChange: (date: string) => void;
+  maxDate: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() => {
+    const base = value ? new Date(value + "T00:00:00") : new Date();
+    return { year: base.getFullYear(), month: base.getMonth() };
+  });
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      const base = value ? new Date(value + "T00:00:00") : new Date();
+      setViewMonth({ year: base.getFullYear(), month: base.getMonth() });
+    }
+  }, [open]);
+
+  function handleDayClick(dateStr: string) { if (dateStr > maxDate) return; onChange(dateStr); setOpen(false); }
+
+  const calendarDays = useMemo(() => {
+    const { year, month } = viewMonth;
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    let startWeekday = firstDay.getDay() - 1;
+    if (startWeekday < 0) startWeekday = 6;
+    const days: { dateStr: string; day: number; inMonth: boolean }[] = [];
+    for (let i = startWeekday - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i);
+      days.push({ dateStr: toLocalDateStr(d), day: d.getDate(), inMonth: false });
+    }
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const date = new Date(year, month, d);
+      days.push({ dateStr: toLocalDateStr(date), day: d, inMonth: true });
+    }
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(year, month + 1, i);
+      days.push({ dateStr: toLocalDateStr(d), day: d.getDate(), inMonth: false });
+    }
+    return days;
+  }, [viewMonth]);
+
+  function prevMonth() { setViewMonth(v => v.month === 0 ? { year: v.year - 1, month: 11 } : { ...v, month: v.month - 1 }); }
+  function nextMonth() { setViewMonth(v => v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 }); }
+
+  const presets = useMemo(() => {
+    const t = new Date();
+    const todayStr = toLocalDateStr(t);
+    return [
+      { label: "All Time", date: "" },
+      { label: "Yesterday", date: addDays(todayStr, -1) },
+      { label: "2 Days Ago", date: addDays(todayStr, -2) },
+      { label: "3 Days Ago", date: addDays(todayStr, -3) },
+      { label: "1 Week Ago", date: addDays(todayStr, -7) },
+    ];
+  }, []);
+
+  const displayText = useMemo(() => {
+    if (!value) return "All Time";
+    for (const p of presets) { if (value === p.date && p.date) return p.label; }
+    const d = new Date(value + "T00:00:00");
+    return d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+  }, [value, presets]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium cursor-pointer hover:border-gray-300 transition-colors">
+        <Calendar className="w-4 h-4 text-gray-400" />
+        {displayText}
+        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 flex">
+          <div className="border-r border-gray-100 py-2 w-36">
+            {presets.map(p => (
+              <button
+                key={p.label}
+                onClick={() => { onChange(p.date); setOpen(false); }}
+                className={cn(
+                  "block w-full text-left px-4 py-2 text-sm transition-colors",
+                  value === p.date ? "bg-brand-50 text-brand-600 font-medium" : "text-gray-600 hover:bg-gray-50"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="p-4 w-[280px]">
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+              <span className="text-sm font-semibold text-gray-900">{MONTH_NAMES[viewMonth.month]} {viewMonth.year}</span>
+              <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="grid grid-cols-7 mb-1">
+              {WEEKDAYS.map(d => <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7">
+              {calendarDays.map(({ dateStr, day, inMonth }, i) => {
+                const disabled = dateStr > maxDate;
+                const isSelected = dateStr === value;
+                return (
+                  <button
+                    key={i} disabled={disabled} onClick={() => handleDayClick(dateStr)}
+                    className={cn(
+                      "h-8 text-xs rounded transition-colors",
+                      !inMonth && "text-gray-300",
+                      inMonth && !disabled && !isSelected && "text-gray-700 hover:bg-gray-100",
+                      disabled && "text-gray-200 cursor-not-allowed",
+                      isSelected && "bg-gray-900 text-white font-semibold rounded-lg",
+                    )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Markdown Analysis Renderer ─────────────────────────────────
 function renderInline(text: string): React.ReactNode[] {
@@ -215,6 +372,7 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
   const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(""); // empty = All Time
   const [searchText, setSearchText] = useState("");
 
   const [page, setPage] = useState(0);
@@ -297,6 +455,13 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
         const tagNames = tags.filter((t: any) => selectedTags.includes(t.id)).map((t: any) => t.name);
         if (!tagNames.some((tn: string) => profileTags.includes(tn))) return false;
       }
+      // Date filter: only reels analyzed on selected day
+      if (selectedDate) {
+        const analyzedAt = r.video_analysis?.analyzed_at;
+        if (!analyzedAt) return false;
+        const date = analyzedAt.split("T")[0];
+        if (date !== selectedDate) return false;
+      }
       if (searchText.trim()) {
         const q = searchText.toLowerCase();
         const a = r.video_analysis || {};
@@ -318,12 +483,12 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
     });
 
     return result;
-  }, [reels, selectedModels, selectedGroups, selectedProfiles, selectedTags, searchText, tags, sortField, sortDir]);
+  }, [reels, selectedModels, selectedGroups, selectedProfiles, selectedTags, searchText, tags, sortField, sortDir, selectedDate]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const paged = filtered.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
 
-  useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags, searchText, sortField, sortDir, rowsPerPage]);
+  useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags, searchText, sortField, sortDir, rowsPerPage, selectedDate]);
 
   // Extract the string value of a column for a given reel (for AI analysis)
   function getColumnValue(r: any, col: string): string {
@@ -421,6 +586,30 @@ export function PatternAnalysisClient({ reels, models, groups, profiles, tags }:
         <MultiSelect label="Tags" options={tags.map((t: any) => ({ id: t.id, name: t.name }))} selected={selectedTags} onChange={(ids) => setSelectedTags((ids ?? []) as string[])} noneLabel="No Tags" />
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Date Navigator (same style as Top Reels) */}
+          <button
+            onClick={() => { if (selectedDate) setSelectedDate(addDays(selectedDate, -1)); }}
+            disabled={!selectedDate}
+            className="flex items-center px-2 py-2 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Previous day"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <DatePicker value={selectedDate} onChange={setSelectedDate} maxDate={toLocalDateStr(new Date())} />
+          <button
+            onClick={() => {
+              if (!selectedDate) return;
+              const today = toLocalDateStr(new Date());
+              const next = addDays(selectedDate, 1);
+              if (next <= today) setSelectedDate(next);
+            }}
+            disabled={!selectedDate || selectedDate >= toLocalDateStr(new Date())}
+            className="flex items-center px-2 py-2 text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Next day"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
