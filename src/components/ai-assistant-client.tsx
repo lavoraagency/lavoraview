@@ -459,8 +459,8 @@ export function AIAssistantClient({ models, groups, profiles, analyses: initialA
             <Bot className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">AI Assistant</h1>
-            <p className="text-gray-500 text-sm">Ask Claude Opus to analyze your data</p>
+            <h1 className="text-2xl font-bold text-gray-900">AI Analysis Assistant</h1>
+            <p className="text-gray-500 text-sm">Ask Claude to analyze your data</p>
           </div>
         </div>
         <button

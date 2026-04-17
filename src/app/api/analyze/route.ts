@@ -80,6 +80,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Load which data sources are enabled (default: all)
+    const { data: sourcesSetting } = await supabase
+      .from("app_settings")
+      .select("value")
+      .eq("key", "ai_data_sources")
+      .maybeSingle();
+    const sourcesValue = sourcesSetting?.value;
+    const includedSources: string[] | undefined = Array.isArray(sourcesValue)
+      ? sourcesValue
+      : (sourcesValue?.sources && Array.isArray(sourcesValue.sources) ? sourcesValue.sources : undefined);
+
     // Collect all raw data
     const dataMarkdown = await collectData(supabase, {
       scope,
@@ -88,6 +99,7 @@ export async function POST(req: NextRequest) {
       profileIds,
       dateFrom,
       dateTo,
+      includedSources,
     });
 
     // Build the prompt

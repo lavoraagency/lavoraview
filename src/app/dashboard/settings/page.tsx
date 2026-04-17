@@ -1,19 +1,27 @@
 import { createServiceClient as createClient } from "@/lib/supabase/server";
 import { SettingsClient } from "@/components/settings-client";
-import { getSystemDescription } from "@/app/dashboard/settings/actions";
+import { getSystemDescription, getAiDataSources } from "@/app/dashboard/settings/actions";
 
 export default async function SettingsPage() {
   const supabase = createClient();
 
-  const [{ data: models }, { data: tags }, { data: profiles }, systemDescription] = await Promise.all([
+  const [{ data: models }, { data: tags }, { data: profiles }, systemDescription, aiDataSources] = await Promise.all([
     supabase.from("models").select("id, name, nickname, max_recent_reels, viral_view_threshold").order("name"),
     supabase.from("tags").select("id, name, color").order("name"),
     supabase.from("profiles").select("model_id").not("model_id", "is", null),
     getSystemDescription(),
+    getAiDataSources(),
   ]);
 
   const usedModelIds = new Set((profiles || []).map((p: any) => p.model_id));
   const filteredModels = (models || []).filter((m: any) => usedModelIds.has(m.id));
 
-  return <SettingsClient initialModels={filteredModels} initialTags={tags || []} initialSystemDescription={systemDescription} />;
+  return (
+    <SettingsClient
+      initialModels={filteredModels}
+      initialTags={tags || []}
+      initialSystemDescription={systemDescription}
+      initialAiDataSources={aiDataSources}
+    />
+  );
 }

@@ -1,14 +1,18 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Plus, Trash2, Sparkles, FileText } from "lucide-react";
-import { updateModel as updateModelAction, createTag as createTagAction, deleteTag as deleteTagAction, saveSystemDescription } from "@/app/dashboard/settings/actions";
+import { Save, Plus, Trash2, Sparkles, FileText, Database } from "lucide-react";
+import { updateModel as updateModelAction, createTag as createTagAction, deleteTag as deleteTagAction, saveSystemDescription, saveAiDataSources } from "@/app/dashboard/settings/actions";
+import { AI_DATA_SOURCES, DEFAULT_AI_DATA_SOURCES, type AiDataSourceKey } from "@/lib/ai-data-sources";
 
-export function SettingsClient({ initialModels, initialTags, initialSystemDescription = "" }: {
-  initialModels: any[]; initialTags: any[]; initialSystemDescription?: string;
+export function SettingsClient({ initialModels, initialTags, initialSystemDescription = "", initialAiDataSources }: {
+  initialModels: any[]; initialTags: any[]; initialSystemDescription?: string; initialAiDataSources?: AiDataSourceKey[];
 }) {
   const [systemDescription, setSystemDescription] = useState(initialSystemDescription);
   const [systemDescSaving, setSystemDescSaving] = useState(false);
+
+  // AI data sources — which sections go into Claude
+  const [aiSources, setAiSources] = useState<AiDataSourceKey[]>(initialAiDataSources || DEFAULT_AI_DATA_SOURCES);
 
   async function handleSaveSystemDesc() {
     setSystemDescSaving(true);
@@ -16,6 +20,15 @@ export function SettingsClient({ initialModels, initialTags, initialSystemDescri
     if (!result.success) showMessage("error", result.error || "Failed to save");
     else showMessage("success", "System description saved");
     setSystemDescSaving(false);
+  }
+
+  async function toggleAiSource(key: AiDataSourceKey, checked: boolean) {
+    const next = checked
+      ? Array.from(new Set([...aiSources, key])) as AiDataSourceKey[]
+      : aiSources.filter(k => k !== key);
+    setAiSources(next);
+    const result = await saveAiDataSources(next);
+    if (!result.success) showMessage("error", result.error || "Failed to save");
   }
 
   const [models, setModels] = useState(initialModels);
@@ -249,6 +262,44 @@ export function SettingsClient({ initialModels, initialTags, initialSystemDescri
               <Save className="w-3 h-3" />
               {systemDescSaving ? "Saving..." : "Save Description"}
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* AI Data Sources */}
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <Database className="w-5 h-5 text-gray-500" />
+          AI Analysis Data Sources
+        </h2>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+          <p className="text-xs text-gray-500 mb-2">
+            Select which data sections are included in ALL AI analyses (both Change Impact and AI Analysis Assistant). Uncheck anything you want Claude to ignore. Fewer sections = lower token cost.
+          </p>
+          <div className="divide-y divide-gray-100">
+            {AI_DATA_SOURCES.map(src => {
+              const checked = aiSources.includes(src.key);
+              return (
+                <label key={src.key} className="flex items-start gap-3 py-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={e => toggleAiSource(src.key, e.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900">{src.label}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{src.description}</div>
+                  </div>
+                  {checked && (
+                    <span className="text-[10px] font-medium text-green-700 bg-green-50 px-1.5 py-0.5 rounded self-center">Included</span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+          <div className="text-xs text-gray-400 pt-2 border-t border-gray-100">
+            {aiSources.length}/{AI_DATA_SOURCES.length} sources enabled · Auto-saved
           </div>
         </div>
       </section>

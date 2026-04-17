@@ -7,6 +7,11 @@ export interface CollectDataOptions {
   profileIds?: string[];
   dateFrom: string; // YYYY-MM-DD
   dateTo: string;
+  /**
+   * Which data sections to include. If undefined, all are included.
+   * Supported: 'profiles_info' | 'profile_daily' | 'conversions' | 'reels_in_period' | 'reel_snapshots' | 'video_analyses' | 'other_changes'
+   */
+  includedSources?: string[];
 }
 
 /**
@@ -15,7 +20,8 @@ export interface CollectDataOptions {
  * Scope-filtered for efficiency.
  */
 export async function collectData(supabase: SupabaseClient, opts: CollectDataOptions): Promise<string> {
-  const { scope, modelIds = [], groupIds = [], profileIds = [], dateFrom, dateTo } = opts;
+  const { scope, modelIds = [], groupIds = [], profileIds = [], dateFrom, dateTo, includedSources } = opts;
+  const include = (key: string) => !includedSources || includedSources.includes(key);
 
   // Resolve the list of profile IDs based on scope
   const { data: allProfiles } = await supabase
@@ -146,91 +152,114 @@ export async function collectData(supabase: SupabaseClient, opts: CollectDataOpt
   parts.push(``);
 
   // Profiles list
-  parts.push(`## Profiles in Scope`);
-  parts.push(`| username | model | group | status | active | tags |`);
-  parts.push(`|---|---|---|---|---|---|`);
-  for (const p of scopedProfiles) {
-    const tags = (p.tags || []).join(",");
-    parts.push(`| @${p.instagram_username} | ${modelMap[p.model_id] || "?"} | ${groupMap[p.account_group_id] || "?"} | ${p.status || "?"} | ${p.is_active ? "yes" : "no"} | ${tags} |`);
+  if (include("profiles_info")) {
+    parts.push(`## Profiles in Scope`);
+    parts.push(`| username | model | group | status | active | tags |`);
+    parts.push(`|---|---|---|---|---|---|`);
+    for (const p of scopedProfiles) {
+      const tags = (p.tags || []).join(",");
+      parts.push(`| @${p.instagram_username} | ${modelMap[p.model_id] || "?"} | ${groupMap[p.account_group_id] || "?"} | ${p.status || "?"} | ${p.is_active ? "yes" : "no"} | ${tags} |`);
+    }
+    parts.push(``);
   }
-  parts.push(``);
 
   // Profile daily snapshots (CSV)
-  parts.push(`## Daily Profile Snapshots (CSV)`);
-  parts.push(`\`\`\`csv`);
-  parts.push(`profile,date,followers,daily_views,daily_likes,daily_comments,daily_shares,reels_tracked,total_reel_views`);
-  for (const s of profileSnapshots) {
-    const date = s.scraped_at.split("T")[0];
-    const user = profileNameMap[s.profile_id] || s.profile_id;
-    parts.push(`${user},${date},${s.followers ?? ""},${s.daily_views ?? ""},${s.daily_likes ?? ""},${s.daily_comments ?? ""},${s.daily_shares ?? ""},${s.reels_tracked ?? ""},${s.total_reel_views ?? ""}`);
+  if (include("profile_daily")) {
+    parts.push(`## Daily Profile Snapshots (CSV)`);
+    parts.push(`\`\`\`csv`);
+    parts.push(`profile,date,followers,daily_views,daily_likes,daily_comments,daily_shares,reels_tracked,total_reel_views`);
+    for (const s of profileSnapshots) {
+      const date = s.scraped_at.split("T")[0];
+      const user = profileNameMap[s.profile_id] || s.profile_id;
+      parts.push(`${user},${date},${s.followers ?? ""},${s.daily_views ?? ""},${s.daily_likes ?? ""},${s.daily_comments ?? ""},${s.daily_shares ?? ""},${s.reels_tracked ?? ""},${s.total_reel_views ?? ""}`);
+    }
+    parts.push(`\`\`\``);
+    parts.push(``);
   }
-  parts.push(`\`\`\``);
-  parts.push(``);
 
   // Conversions daily (CSV)
-  parts.push(`## Conversions Daily (CSV)`);
-  parts.push(`\`\`\`csv`);
-  parts.push(`profile,date,link_clicks,new_subs`);
-  for (const c of conversions) {
-    const user = profileNameMap[c.profile_id] || c.profile_id;
-    parts.push(`${user},${c.date},${c.link_clicks ?? 0},${c.new_subs ?? 0}`);
-  }
-  parts.push(`\`\`\``);
-  parts.push(``);
-
-  // Reels posted in period (with video analysis summary)
-  parts.push(`## Reels Posted In Period`);
-  parts.push(`| shortcode | profile | posted_at | current_views | current_likes | viral | video_analysis_summary |`);
-  parts.push(`|---|---|---|---|---|---|---|`);
-  for (const r of reelsInPeriodArr) {
-    const user = profileNameMap[r.profile_id] || r.profile_id;
-    const a = r.video_analysis;
-    let summary = "—";
-    if (a && !a.parse_error) {
-      const parts2: string[] = [];
-      if (a.sound_music?.has_music) parts2.push(`music:${a.sound_music.genre || "?"}`);
-      if (a.sound_speaking?.has_speaking) parts2.push(`speaking:${a.sound_speaking.speaking_purpose || "?"}`);
-      if (a.text_overlay?.has_text) parts2.push(`text:${a.text_overlay.text_goal || "?"}`);
-      if (a.outfit) parts2.push(`outfit:${a.outfit.substring(0, 40)}`);
-      if (a.acting) parts2.push(`acting:${a.acting.substring(0, 40)}`);
-      if (a.background_location) parts2.push(`loc:${a.background_location}`);
-      if (a.scroll_stopper?.has_scroll_stopper) parts2.push(`scroll_stop:yes`);
-      if (a.caption_type?.type) parts2.push(`caption:${a.caption_type.type}`);
-      summary = parts2.join("; ");
+  if (include("conversions")) {
+    parts.push(`## Conversions Daily (CSV)`);
+    parts.push(`\`\`\`csv`);
+    parts.push(`profile,date,link_clicks,new_subs`);
+    for (const c of conversions) {
+      const user = profileNameMap[c.profile_id] || c.profile_id;
+      parts.push(`${user},${c.date},${c.link_clicks ?? 0},${c.new_subs ?? 0}`);
     }
-    const postedDate = r.posted_at ? r.posted_at.split("T")[0] : "?";
-    parts.push(`| ${r.shortcode} | @${user} | ${postedDate} | ${r.current_views ?? 0} | ${r.current_likes ?? 0} | ${r.is_viral_tracked ? "yes" : "no"} | ${summary.replace(/\|/g, "/")} |`);
+    parts.push(`\`\`\``);
+    parts.push(``);
   }
-  parts.push(``);
+
+  // Reels posted in period (optionally with video analysis summary)
+  if (include("reels_in_period")) {
+    parts.push(`## Reels Posted In Period`);
+    const showAnalysis = include("video_analyses");
+    const headerCols = showAnalysis
+      ? `| shortcode | profile | posted_at | current_views | current_likes | viral | video_analysis_summary |`
+      : `| shortcode | profile | posted_at | current_views | current_likes | viral |`;
+    const separatorCols = showAnalysis
+      ? `|---|---|---|---|---|---|---|`
+      : `|---|---|---|---|---|---|`;
+    parts.push(headerCols);
+    parts.push(separatorCols);
+    for (const r of reelsInPeriodArr) {
+      const user = profileNameMap[r.profile_id] || r.profile_id;
+      const postedDate = r.posted_at ? r.posted_at.split("T")[0] : "?";
+      if (showAnalysis) {
+        const a = r.video_analysis;
+        let summary = "—";
+        if (a && !a.parse_error) {
+          const parts2: string[] = [];
+          if (a.sound_music?.has_music) parts2.push(`music:${a.sound_music.genre || "?"}`);
+          if (a.sound_speaking?.has_speaking) parts2.push(`speaking:${a.sound_speaking.speaking_purpose || "?"}`);
+          if (a.text_overlay?.has_text) parts2.push(`text:${a.text_overlay.text_goal || "?"}`);
+          if (a.outfit) parts2.push(`outfit:${a.outfit.substring(0, 40)}`);
+          if (a.acting) parts2.push(`acting:${a.acting.substring(0, 40)}`);
+          if (a.background_location) parts2.push(`loc:${a.background_location}`);
+          if (a.scroll_stopper?.has_scroll_stopper) parts2.push(`scroll_stop:yes`);
+          if (a.caption_type?.type) parts2.push(`caption:${a.caption_type.type}`);
+          summary = parts2.join("; ");
+        }
+        parts.push(`| ${r.shortcode} | @${user} | ${postedDate} | ${r.current_views ?? 0} | ${r.current_likes ?? 0} | ${r.is_viral_tracked ? "yes" : "no"} | ${summary.replace(/\|/g, "/")} |`);
+      } else {
+        parts.push(`| ${r.shortcode} | @${user} | ${postedDate} | ${r.current_views ?? 0} | ${r.current_likes ?? 0} | ${r.is_viral_tracked ? "yes" : "no"} |`);
+      }
+    }
+    parts.push(``);
+  }
 
   // Reel daily snapshots (CSV) — only for reels in period
-  parts.push(`## Reel Daily Snapshots (CSV) — only reels posted in this period`);
-  parts.push(`\`\`\`csv`);
-  parts.push(`shortcode,date,views,views_delta,likes_delta,comments_delta`);
-  for (const s of reelSnapshots) {
-    const date = s.scraped_at.split("T")[0];
-    const sc = reelShortcodeMap[s.reel_id] || s.reel_id;
-    parts.push(`${sc},${date},${s.views ?? 0},${s.views_delta ?? 0},${s.likes_delta ?? 0},${s.comments_delta ?? 0}`);
+  if (include("reel_snapshots")) {
+    parts.push(`## Reel Daily Snapshots (CSV) — only reels posted in this period`);
+    parts.push(`\`\`\`csv`);
+    parts.push(`shortcode,date,views,views_delta,likes_delta,comments_delta`);
+    for (const s of reelSnapshots) {
+      const date = s.scraped_at.split("T")[0];
+      const sc = reelShortcodeMap[s.reel_id] || s.reel_id;
+      parts.push(`${sc},${date},${s.views ?? 0},${s.views_delta ?? 0},${s.likes_delta ?? 0},${s.comments_delta ?? 0}`);
+    }
+    parts.push(`\`\`\``);
+    parts.push(``);
   }
-  parts.push(`\`\`\``);
-  parts.push(``);
 
   // Other changes in window
-  parts.push(`## System Changes In Window (other changes that happened in this time period — may confound analysis)`);
-  if (!changesInWindow || changesInWindow.length === 0) {
-    parts.push(`(none)`);
-  } else {
-    for (const c of changesInWindow) {
-      parts.push(`### ${c.change_date} — ${c.category}: ${c.title}`);
-      parts.push(`- Scope: ${c.scope}`);
-      if (c.description) parts.push(`- Description: ${c.description}`);
-      if (c.hypothesis) parts.push(`- Hypothesis: ${c.hypothesis}`);
-      const affectedModels = (c.affected_model_ids || []).map((id: string) => modelMap[id]).filter(Boolean);
-      const affectedGroups = (c.affected_group_ids || []).map((id: string) => groupMap[id]).filter(Boolean);
-      if (affectedModels.length) parts.push(`- Affected Models: ${affectedModels.join(", ")}`);
-      if (affectedGroups.length) parts.push(`- Affected Groups: ${affectedGroups.join(", ")}`);
-      if (c.tags && c.tags.length) parts.push(`- Tags: ${c.tags.join(", ")}`);
-      parts.push(``);
+  if (include("other_changes")) {
+    parts.push(`## System Changes In Window (other changes that happened in this time period — may confound analysis)`);
+    if (!changesInWindow || changesInWindow.length === 0) {
+      parts.push(`(none)`);
+    } else {
+      for (const c of changesInWindow) {
+        parts.push(`### ${c.change_date} — ${c.category}: ${c.title}`);
+        parts.push(`- Scope: ${c.scope}`);
+        if (c.description) parts.push(`- Description: ${c.description}`);
+        if (c.hypothesis) parts.push(`- Hypothesis: ${c.hypothesis}`);
+        const affectedModels = (c.affected_model_ids || []).map((id: string) => modelMap[id]).filter(Boolean);
+        const affectedGroups = (c.affected_group_ids || []).map((id: string) => groupMap[id]).filter(Boolean);
+        if (affectedModels.length) parts.push(`- Affected Models: ${affectedModels.join(", ")}`);
+        if (affectedGroups.length) parts.push(`- Affected Groups: ${affectedGroups.join(", ")}`);
+        if (c.tags && c.tags.length) parts.push(`- Tags: ${c.tags.join(", ")}`);
+        parts.push(``);
+      }
     }
   }
 
