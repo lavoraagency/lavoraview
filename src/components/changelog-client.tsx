@@ -780,15 +780,32 @@ export function ChangelogClient({ changes: initialChanges, models, groups, profi
                   <span className="text-xs text-gray-400 capitalize">Scope: {change.scope}</span>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={() => runImpactAnalysis(change)}
-                    disabled={analyzingChangeId === change.id}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors disabled:opacity-50"
-                    title="Analyze Impact with Claude Opus"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Analyze Impact
-                  </button>
+                  {(() => {
+                    // Require at least 3 full days of data after the change
+                    const changeDate = new Date(change.change_date + "T00:00:00");
+                    const today = new Date(); today.setHours(0, 0, 0, 0);
+                    const daysSince = Math.floor((today.getTime() - changeDate.getTime()) / (1000 * 60 * 60 * 24));
+                    const needsWait = daysSince < 3;
+                    const daysRemaining = 3 - daysSince;
+                    return (
+                      <button
+                        onClick={() => runImpactAnalysis(change)}
+                        disabled={analyzingChangeId === change.id || needsWait}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors",
+                          needsWait
+                            ? "text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed"
+                            : "text-purple-700 bg-purple-50 hover:bg-purple-100 border-purple-200 disabled:opacity-50"
+                        )}
+                        title={needsWait
+                          ? `Needs at least 3 days of data after the change (${daysRemaining} day${daysRemaining === 1 ? "" : "s"} to go)`
+                          : "Analyze Impact with Claude"}
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        {needsWait ? `Wait ${daysRemaining}d` : "Analyze Impact"}
+                      </button>
+                    );
+                  })()}
                   <button
                     onClick={() => { setEditing(change); setModalOpen(true); }}
                     className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
