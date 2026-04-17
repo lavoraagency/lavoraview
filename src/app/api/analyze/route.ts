@@ -152,27 +152,15 @@ ${dataMarkdown}
 
 ${instructions}`;
 
-    // Call Claude Opus (fallback to Sonnet if Opus fails)
+    // Call Claude Sonnet (default — fast + cost-effective for structured data analysis)
     const client = new Anthropic({ apiKey });
+    const modelUsed = "claude-sonnet-4-5";
 
-    let modelUsed = "claude-opus-4-5";
-    let response: any;
-
-    try {
-      response = await client.messages.create({
-        model: modelUsed,
-        max_tokens: 4096,
-        messages: [{ role: "user", content: fullPrompt }],
-      });
-    } catch (e: any) {
-      console.warn("Opus failed, trying Sonnet:", e.message);
-      modelUsed = "claude-sonnet-4-5";
-      response = await client.messages.create({
-        model: modelUsed,
-        max_tokens: 4096,
-        messages: [{ role: "user", content: fullPrompt }],
-      });
-    }
+    const response = await client.messages.create({
+      model: modelUsed,
+      max_tokens: 4096,
+      messages: [{ role: "user", content: fullPrompt }],
+    });
 
     const resultText = response.content
       .filter((b: any) => b.type === "text")
