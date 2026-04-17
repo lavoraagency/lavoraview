@@ -10,6 +10,7 @@ export function SettingsClient({ initialModels, initialTags, initialSystemDescri
 }) {
   const [systemDescription, setSystemDescription] = useState(initialSystemDescription);
   const [systemDescSaving, setSystemDescSaving] = useState(false);
+  const [systemDescEditing, setSystemDescEditing] = useState(false);
 
   // AI data sources — which sections go into Claude
   const [aiSources, setAiSources] = useState<AiDataSourceKey[]>(initialAiDataSources || DEFAULT_AI_DATA_SOURCES);
@@ -243,26 +244,56 @@ export function SettingsClient({ initialModels, initialTags, initialSystemDescri
         </h2>
         <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
           <p className="text-xs text-gray-500">
-            This text is given to Claude as context when running analyses. Describe what your metrics mean, how your system works, how conversions flow, account structure etc. Leave empty to use the default description.
+            This text is given to Claude as context when running analyses. Describe what your metrics mean, how your system works, how conversions flow, account structure etc.
           </p>
-          <textarea
-            value={systemDescription}
-            onChange={e => setSystemDescription(e.target.value)}
-            rows={12}
-            placeholder="e.g. 'We run multiple Instagram accounts to drive traffic to OnlyFans subscriptions. Link clicks come from bio taps...'"
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-y"
-          />
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400">{systemDescription.length} chars</span>
-            <button
-              onClick={handleSaveSystemDesc}
-              disabled={systemDescSaving}
-              className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              <Save className="w-3 h-3" />
-              {systemDescSaving ? "Saving..." : "Save Description"}
-            </button>
-          </div>
+
+          {!systemDescEditing ? (
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                {systemDescription.trim() ? (
+                  <span><span className="font-medium text-gray-900">{systemDescription.length} chars</span> saved</span>
+                ) : (
+                  <span className="text-gray-400">No custom description — default in use</span>
+                )}
+              </div>
+              <button
+                onClick={() => setSystemDescEditing(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <FileText className="w-3 h-3" />
+                Change System Prompt
+              </button>
+            </div>
+          ) : (
+            <>
+              <textarea
+                value={systemDescription}
+                onChange={e => setSystemDescription(e.target.value)}
+                rows={14}
+                placeholder="e.g. 'We run multiple Instagram accounts to drive traffic to OnlyFans subscriptions...'"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-y"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">{systemDescription.length} chars</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { setSystemDescription(initialSystemDescription); setSystemDescEditing(false); }}
+                    className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => { await handleSaveSystemDesc(); setSystemDescEditing(false); }}
+                    disabled={systemDescSaving}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Save className="w-3 h-3" />
+                    {systemDescSaving ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </section>
 

@@ -24,20 +24,55 @@ function addDays(dateStr: string, n: number) {
   return toLocalDateStr(d);
 }
 
-// ── Simple Single-Date Picker (same as Changelog) ─────────────
-function DatePicker({ value, onChange, maxDate }: { value: string; onChange: (d: string) => void; maxDate?: string }) {
+// ── Date Range Picker (Analytics-style) ────────────────────────
+interface DateRange { from: string; to: string; }
+
+function DateRangePicker({ range, onChange, maxDate }: { range: DateRange; onChange: (r: DateRange) => void; maxDate?: string }) {
   const [open, setOpen] = useState(false);
+  const [tempFrom, setTempFrom] = useState<string | null>(null);
   const [viewMonth, setViewMonth] = useState(() => {
-    const d = new Date(value + "T00:00:00");
+    const d = new Date(range.to + "T00:00:00");
     return { year: d.getFullYear(), month: d.getMonth() };
   });
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setTempFrom(null);
+      }
+    }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  useEffect(() => {
+    if (open) {
+      const d = new Date(range.to + "T00:00:00");
+      setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
+      setTempFrom(null);
+    }
+  }, [open]);
+
+  function handleDayClick(dateStr: string) {
+    if (maxDate && dateStr > maxDate) return;
+    if (!tempFrom) {
+      setTempFrom(dateStr);
+    } else {
+      const from = dateStr < tempFrom ? dateStr : tempFrom;
+      const to = dateStr < tempFrom ? tempFrom : dateStr;
+      onChange({ from, to });
+      setOpen(false);
+      setTempFrom(null);
+    }
+  }
+
+  function applyPreset(from: string, to: string) {
+    onChange({ from, to });
+    setOpen(false);
+    setTempFrom(null);
+  }
 
   const calendarDays = useMemo(() => {
     const { year, month } = viewMonth;
@@ -62,10 +97,47 @@ function DatePicker({ value, onChange, maxDate }: { value: string; onChange: (d:
     return days;
   }, [viewMonth]);
 
+  const presets = useMemo(() => {
+    const t = new Date();
+    const todayStr = toLocalDateStr(t);
+    const yesterdayStr = addDays(todayStr, -1);
+    const dayOfWeek = t.getDay() === 0 ? 6 : t.getDay() - 1;
+    const mondayD = new Date(t);
+    mondayD.setDate(mondayD.getDate() - dayOfWeek);
+    const mondayStr = toLocalDateStr(mondayD);
+    const monthStartStr = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-01`;
+    return [
+      { label: "Today", from: todayStr, to: todayStr },
+      { label: "Yesterday", from: yesterdayStr, to: yesterdayStr },
+      { label: "Current Week", from: mondayStr, to: todayStr },
+      { label: "Last 7 Days", from: addDays(todayStr, -6), to: todayStr },
+      { label: "Last 14 Days", from: addDays(todayStr, -13), to: todayStr },
+      { label: "Current Month", from: monthStartStr, to: todayStr },
+      { label: "Last 30 Days", from: addDays(todayStr, -29), to: todayStr },
+      { label: "Last 90 Days", from: addDays(todayStr, -89), to: todayStr },
+    ];
+  }, []);
+
   const displayText = useMemo(() => {
-    const d = new Date(value + "T00:00:00");
-    return d.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
-  }, [value]);
+    for (const p of presets) {
+      if (range.from === p.from && range.to === p.to) return p.label;
+    }
+    if (range.from === range.to) {
+      const d = new Date(range.from + "T00:00:00");
+      return d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+    }
+    const f = new Date(range.from + "T00:00:00");
+    const t = new Date(range.to + "T00:00:00");
+    const fmt = (d: Date) => d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+    return `${fmt(f)} – ${fmt(t)}`;
+  }, [range, presets]);
+
+  const activePreset = useMemo(() => {
+    for (const p of presets) {
+      if (range.from === p.from && range.to === p.to) return p.label;
+    }
+    return null;
+  }, [range, presets]);
 
   return (
     <div className="relative" ref={ref}>
@@ -75,41 +147,67 @@ function DatePicker({ value, onChange, maxDate }: { value: string; onChange: (d:
         <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
       </button>
       {open && (
-        <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 w-[280px]">
-          <div className="flex items-center justify-between mb-3">
-            <button type="button" onClick={() => setViewMonth(v => v.month === 0 ? { year: v.year - 1, month: 11 } : { ...v, month: v.month - 1 })} className="p-1 hover:bg-gray-100 rounded">
-              <ChevronLeft className="w-4 h-4 text-gray-500" />
-            </button>
-            <span className="text-sm font-semibold text-gray-900">{MONTH_NAMES[viewMonth.month]} {viewMonth.year}</span>
-            <button type="button" onClick={() => setViewMonth(v => v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 })} className="p-1 hover:bg-gray-100 rounded">
-              <ChevronRight className="w-4 h-4 text-gray-500" />
-            </button>
+        <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 flex">
+          {/* Presets */}
+          <div className="border-r border-gray-100 py-2 w-40">
+            {presets.map(p => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => applyPreset(p.from, p.to)}
+                className={cn(
+                  "block w-full text-left px-4 py-2 text-sm transition-colors",
+                  activePreset === p.label ? "bg-brand-50 text-brand-600 font-medium" : "text-gray-600 hover:bg-gray-50"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
           </div>
-          <div className="grid grid-cols-7 mb-1">
-            {WEEKDAYS.map(d => <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>)}
-          </div>
-          <div className="grid grid-cols-7">
-            {calendarDays.map(({ dateStr, day, inMonth }, i) => {
-              const isSelected = dateStr === value;
-              const disabled = maxDate ? dateStr > maxDate : false;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => { onChange(dateStr); setOpen(false); }}
-                  className={cn(
-                    "h-8 text-xs rounded transition-colors",
-                    !inMonth && "text-gray-300",
-                    inMonth && !isSelected && !disabled && "text-gray-700 hover:bg-gray-100",
-                    disabled && "text-gray-200 cursor-not-allowed",
-                    isSelected && "bg-gray-900 text-white font-semibold rounded-lg",
-                  )}
-                >
-                  {day}
-                </button>
-              );
-            })}
+          {/* Calendar */}
+          <div className="p-4 w-[280px]">
+            <div className="flex items-center justify-between mb-3">
+              <button type="button" onClick={() => setViewMonth(v => v.month === 0 ? { year: v.year - 1, month: 11 } : { ...v, month: v.month - 1 })} className="p-1 hover:bg-gray-100 rounded">
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+              <span className="text-sm font-semibold text-gray-900">{MONTH_NAMES[viewMonth.month]} {viewMonth.year}</span>
+              <button type="button" onClick={() => setViewMonth(v => v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 })} className="p-1 hover:bg-gray-100 rounded">
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="grid grid-cols-7 mb-1">
+              {WEEKDAYS.map(d => <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7">
+              {calendarDays.map(({ dateStr, day, inMonth }, i) => {
+                const disabled = maxDate ? dateStr > maxDate : false;
+                const isFrom = dateStr === (tempFrom || range.from);
+                const isTo = !tempFrom && dateStr === range.to;
+                const inRange = tempFrom ? false : (dateStr >= range.from && dateStr <= range.to);
+                const isSelected = isFrom || isTo;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => handleDayClick(dateStr)}
+                    className={cn(
+                      "h-8 text-xs rounded transition-colors",
+                      !inMonth && "text-gray-300",
+                      inMonth && !disabled && !isSelected && !inRange && "text-gray-700 hover:bg-gray-100",
+                      disabled && "text-gray-200 cursor-not-allowed",
+                      inRange && !isSelected && "bg-brand-50 text-brand-700",
+                      isSelected && "bg-gray-900 text-white font-semibold rounded-lg",
+                    )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 text-xs text-gray-400 text-center">
+              {tempFrom ? "Select end date" : "Select start date"}
+            </div>
           </div>
         </div>
       )}
@@ -189,8 +287,9 @@ function NewAnalysisModal({ models, groups, profiles, onClose, onStarted }: {
   const today = toLocalDateStr(new Date());
   const weekAgo = addDays(today, -7);
 
-  const [dateFrom, setDateFrom] = useState(weekAgo);
-  const [dateTo, setDateTo] = useState(today);
+  const [range, setRange] = useState<DateRange>({ from: weekAgo, to: today });
+  const dateFrom = range.from;
+  const dateTo = range.to;
   const [scope, setScope] = useState<Scope>("global");
   const [modelIds, setModelIds] = useState<string[]>([]);
   const [groupIds, setGroupIds] = useState<string[]>([]);
@@ -245,15 +344,9 @@ function NewAnalysisModal({ models, groups, profiles, onClose, onStarted }: {
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           {/* Date range */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">From</label>
-              <DatePicker value={dateFrom} onChange={setDateFrom} maxDate={today} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">To</label>
-              <DatePicker value={dateTo} onChange={setDateTo} maxDate={today} />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Date Range</label>
+            <DateRangePicker range={range} onChange={setRange} maxDate={today} />
           </div>
 
           {/* Scope */}
