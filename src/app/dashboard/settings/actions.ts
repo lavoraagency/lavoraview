@@ -32,3 +32,25 @@ export async function deleteTag(tagId: string) {
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
+
+export async function getSystemDescription(): Promise<string> {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "system_description")
+    .maybeSingle();
+  const val = data?.value;
+  if (typeof val === "string") return val;
+  if (val?.text && typeof val.text === "string") return val.text;
+  return "";
+}
+
+export async function saveSystemDescription(text: string) {
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert({ key: "system_description", value: { text }, updated_at: new Date().toISOString() });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}

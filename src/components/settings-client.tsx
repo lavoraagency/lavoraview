@@ -1,12 +1,23 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Plus, Trash2, Sparkles } from "lucide-react";
-import { updateModel as updateModelAction, createTag as createTagAction, deleteTag as deleteTagAction } from "@/app/dashboard/settings/actions";
+import { Save, Plus, Trash2, Sparkles, FileText } from "lucide-react";
+import { updateModel as updateModelAction, createTag as createTagAction, deleteTag as deleteTagAction, saveSystemDescription } from "@/app/dashboard/settings/actions";
 
-export function SettingsClient({ initialModels, initialTags }: {
-  initialModels: any[]; initialTags: any[];
+export function SettingsClient({ initialModels, initialTags, initialSystemDescription = "" }: {
+  initialModels: any[]; initialTags: any[]; initialSystemDescription?: string;
 }) {
+  const [systemDescription, setSystemDescription] = useState(initialSystemDescription);
+  const [systemDescSaving, setSystemDescSaving] = useState(false);
+
+  async function handleSaveSystemDesc() {
+    setSystemDescSaving(true);
+    const result = await saveSystemDescription(systemDescription);
+    if (!result.success) showMessage("error", result.error || "Failed to save");
+    else showMessage("success", "System description saved");
+    setSystemDescSaving(false);
+  }
+
   const [models, setModels] = useState(initialModels);
   const [tags, setTags] = useState(initialTags);
   const [newTagName, setNewTagName] = useState("");
@@ -207,6 +218,37 @@ export function SettingsClient({ initialModels, initialTags }: {
             {tags.length === 0 && (
               <p className="text-gray-400 text-sm text-center py-4">Noch keine Tags vorhanden</p>
             )}
+          </div>
+        </div>
+      </section>
+
+      {/* System Description */}
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <FileText className="w-5 h-5 text-gray-500" />
+          System Description
+        </h2>
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+          <p className="text-xs text-gray-500">
+            This text is given to Claude as context when running analyses. Describe what your metrics mean, how your system works, how conversions flow, account structure etc. Leave empty to use the default description.
+          </p>
+          <textarea
+            value={systemDescription}
+            onChange={e => setSystemDescription(e.target.value)}
+            rows={12}
+            placeholder="e.g. 'We run multiple Instagram accounts to drive traffic to OnlyFans subscriptions. Link clicks come from bio taps...'"
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 resize-y"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">{systemDescription.length} chars</span>
+            <button
+              onClick={handleSaveSystemDesc}
+              disabled={systemDescSaving}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Save className="w-3 h-3" />
+              {systemDescSaving ? "Saving..." : "Save Description"}
+            </button>
           </div>
         </div>
       </section>

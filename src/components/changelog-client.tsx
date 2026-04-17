@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Trash2, Calendar, ChevronDown, ChevronLeft, ChevronRight, X, Edit, Tag as TagIcon, Target, Lightbulb, FileText } from "lucide-react";
+import { Plus, Trash2, Calendar, ChevronDown, ChevronLeft, ChevronRight, X, Edit, Tag as TagIcon, Target, Lightbulb, FileText, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createChange, deleteChange, updateChange, type ChangeScope, type NewChange } from "@/app/dashboard/changelog/actions";
+import { AnalysisViewer } from "@/components/analysis-viewer";
+import { getAnalysis, deleteAnalysis } from "@/lib/ai-analyses";
 
 const CATEGORIES = [
   { value: "tracking_link", label: "Tracking Link", color: "bg-blue-100 text-blue-700" },
@@ -510,14 +512,146 @@ interface ChangelogClientProps {
   models: any[];
   groups: any[];
   profiles: any[];
+  analyses?: any[];
 }
 
-export function ChangelogClient({ changes: initialChanges, models, groups, profiles }: ChangelogClientProps) {
+export function ChangelogClient({ changes: initialChanges, models, groups, profiles, analyses: initialAnalyses = [] }: ChangelogClientProps) {
   const [changes, setChanges] = useState(initialChanges);
+  const [analyses, setAnalyses] = useState(initialAnalyses);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterModels, setFilterModels] = useState<string[]>([]);
+
+  // AI Analysis state
+  const [analyzingChangeId, setAnalyzingChangeId] = useState<string | null>(null);
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
+  const [analysisResult, setAnalysisResult] = useState("");
+  const [analysisMeta, setAnalysisMeta] = useState<any>(null);
+  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
+
+  // Group analyses by change_id for display
+  const analysesByChange = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    for (const a of analyses) {
+      if (!a.change_id) continue;
+      if (!map[a.change_id]) map[a.change_id] = [];
+      map[a.change_id].push(a);
+    }
+    return map;
+  }, [analyses]);
+
+  async function runImpactAnalysis(change: any) {
+    setAnalyzingChangeId(change.id);
+    setAnalysisOpen(true);
+    setAnalysisLoading(true);
+    setAnalysisError("");
+    setAnalysisResult("");
+    setCurrentAnalysisId(null);
+
+    // Date range: 7 days before change, to today
+    const changeDate = new Date(change.change_date + "T00:00:00");
+    const from = new Date(changeDate);
+    from.setDate(from.getDate() - 7);
+    const today = new Date();
+    const fromStr = from.toISOString().split("T")[0];
+    const toStr = today.toISOString().split("T")[0];
+
+    const language = typeof window !== "undefined" ? (localStorage.getItem("ai_analysis_language") || "en") : "en";
+
+    setAnalysisMeta({
+      title: `Impact: ${change.title}`,
+      scope: change.scope,
+      date_from: fromStr,
+      date_to: toStr,
+      created_at: new Date().toISOString(),
+    });
+
+    try {
+      const resp = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "change_impact",
+          changeId: change.id,
+          scope: change.scope,
+          modelIds: change.affected_model_ids || [],
+          groupIds: change.affected_group_ids || [],
+          profileIds: change.affected_profile_ids || [],
+          dateFrom: fromStr,
+          dateTo: toStr,
+          language,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Analysis failed");
+      setAnalysisResult(data.result);
+      setCurrentAnalysisId(data.id);
+      setAnalysisMeta((prev: any) => ({
+        ...prev,
+        title: data.title,
+        model_used: data.model_used,
+        input_tokens: data.input_tokens,
+        output_tokens: data.output_tokens,
+      }));
+      // Add to local analyses list so it shows up under the change
+      setAnalyses(prev => [{
+        id: data.id,
+        change_id: change.id,
+        title: data.title,
+        date_from: fromStr,
+        date_to: toStr,
+        created_at: new Date().toISOString(),
+        model_used: data.model_used,
+        input_tokens: data.input_tokens,
+        output_tokens: data.output_tokens,
+      }, ...prev]);
+    } catch (e: any) {
+      setAnalysisError(e.message || "Analysis failed");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
+
+  async function viewAnalysis(analysisId: string) {
+    setAnalysisOpen(true);
+    setAnalysisLoading(true);
+    setAnalysisError("");
+    setAnalysisResult("");
+    setCurrentAnalysisId(analysisId);
+
+    try {
+      const a = await getAnalysis(analysisId);
+      if (!a) throw new Error("Analysis not found");
+      setAnalysisResult(a.result_markdown || "");
+      setAnalysisMeta({
+        title: a.title,
+        scope: a.scope,
+        date_from: a.date_from,
+        date_to: a.date_to,
+        created_at: a.created_at,
+        model_used: a.model_used,
+        input_tokens: a.input_tokens,
+        output_tokens: a.output_tokens,
+      });
+    } catch (e: any) {
+      setAnalysisError(e.message || "Failed to load");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
+
+  async function handleDeleteAnalysis() {
+    if (!currentAnalysisId) return;
+    if (!confirm("Delete this analysis?")) return;
+    const result = await deleteAnalysis(currentAnalysisId);
+    if (result.success) {
+      setAnalyses(prev => prev.filter(a => a.id !== currentAnalysisId));
+      setAnalysisOpen(false);
+    }
+  }
 
   // Build lookup maps for quick display
   const modelMap = useMemo(() => Object.fromEntries(models.map((m: any) => [m.id, m.nickname || m.name])), [models]);
@@ -647,6 +781,15 @@ export function ChangelogClient({ changes: initialChanges, models, groups, profi
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button
+                    onClick={() => runImpactAnalysis(change)}
+                    disabled={analyzingChangeId === change.id}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg border border-purple-200 transition-colors disabled:opacity-50"
+                    title="Analyze Impact with Claude Opus"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Analyze Impact
+                  </button>
+                  <button
                     onClick={() => { setEditing(change); setModalOpen(true); }}
                     className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
                     title="Edit"
@@ -707,6 +850,32 @@ export function ChangelogClient({ changes: initialChanges, models, groups, profi
                   ))}
                 </div>
               )}
+
+              {/* Saved Analyses */}
+              {analysesByChange[change.id] && analysesByChange[change.id].length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                      Past Analyses ({analysesByChange[change.id].length})
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {analysesByChange[change.id].map((a: any) => (
+                      <button
+                        key={a.id}
+                        onClick={() => viewAnalysis(a.id)}
+                        className="flex items-center justify-between w-full text-left px-3 py-2 bg-purple-50/50 hover:bg-purple-50 border border-purple-100 rounded-lg transition-colors"
+                      >
+                        <span className="text-xs text-gray-700 truncate flex-1">{a.title || "Impact Analysis"}</span>
+                        <span className="text-[10px] text-gray-400 ml-2 flex-shrink-0">
+                          {new Date(a.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -721,6 +890,18 @@ export function ChangelogClient({ changes: initialChanges, models, groups, profi
           profiles={profiles}
           onClose={() => { setModalOpen(false); setEditing(null); }}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* AI Analysis Viewer */}
+      {analysisOpen && (
+        <AnalysisViewer
+          result={analysisResult}
+          meta={analysisMeta}
+          loading={analysisLoading}
+          error={analysisError}
+          onClose={() => { setAnalysisOpen(false); setAnalyzingChangeId(null); }}
+          onDelete={currentAnalysisId && !analysisLoading ? handleDeleteAnalysis : undefined}
         />
       )}
     </div>

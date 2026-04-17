@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Users, Settings, LogOut, LayoutGrid, PieChart, ClipboardList, TrendingUp, TableProperties, History } from "lucide-react";
+import { Users, Settings, LogOut, LayoutGrid, PieChart, ClipboardList, TrendingUp, TableProperties, History, Bot } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ const navItems = [
   { href: "/dashboard/profiles", label: "Profiles", icon: Users },
   { href: "/dashboard/reposter", label: "Reposter Overview", icon: ClipboardList },
   { href: "/dashboard/changelog", label: "Changelog", icon: History },
+  { href: "/dashboard/ai-assistant", label: "AI Assistant", icon: Bot },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
