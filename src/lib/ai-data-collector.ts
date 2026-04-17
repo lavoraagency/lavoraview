@@ -42,7 +42,8 @@ export async function collectData(supabase: SupabaseClient, opts: CollectDataOpt
   }
 
   const profileSet = new Set(targetProfileIds);
-  const scopedProfiles = profiles.filter((p: any) => profileSet.has(p.id));
+  let scopedProfiles = profiles.filter((p: any) => profileSet.has(p.id));
+  const totalInScopeBeforeFilter = scopedProfiles.length;
 
   // Also load models and groups for display
   const [{ data: models }, { data: groups }] = await Promise.all([
@@ -76,6 +77,33 @@ export async function collectData(supabase: SupabaseClient, opts: CollectDataOpt
       offset += limit;
     }
   }
+
+  // Filter out profiles that were NOT active during the analysis period.
+  // A profile counts as active if it has at least one profile_snapshot in the window.
+  // This prevents historical bans from polluting the analysis (e.g. 100 accounts
+  // banned over 2 years ago should not show up as "10/27 suspended" today).
+  const profilesActiveInPeriod = new Set(profileSnapshots.map((s: any) => s.profile_id));
+
+  // Also check if they had any reel_snapshots in the period (extra safety net
+  // in case profile_snapshots is missing but reels were still tracked)
+  {
+    const { data: snapshotPeek } = await supabase
+      .from("reel_snapshots")
+      .select("profile_id")
+      .in("profile_id", Array.from(profileSet))
+      .gte("scraped_at", fromTs)
+      .lte("scraped_at", toTs)
+      .limit(5000);
+    for (const s of snapshotPeek || []) {
+      if (s.profile_id) profilesActiveInPeriod.add(s.profile_id);
+    }
+  }
+
+  // Rebuild scoped profiles: only those active in the window
+  const activeProfileIds = Array.from(profilesActiveInPeriod);
+  scopedProfiles = scopedProfiles.filter((p: any) => profilesActiveInPeriod.has(p.id));
+  // Update target IDs so downstream queries match the filtered set
+  targetProfileIds = activeProfileIds;
 
   // 2) conversion_snapshots for these profiles in range
   let conversions: any[] = [];
@@ -142,23 +170,37 @@ export async function collectData(supabase: SupabaseClient, opts: CollectDataOpt
   const parts: string[] = [];
 
   // Scope summary
+  const filteredOut = totalInScopeBeforeFilter - scopedProfiles.length;
   parts.push(`## Scope\n`);
   parts.push(`- Scope: ${scope}`);
   parts.push(`- Date range: ${dateFrom} to ${dateTo}`);
-  parts.push(`- Profiles included: ${scopedProfiles.length}`);
+  parts.push(`- Profiles active in window: ${scopedProfiles.length}${filteredOut > 0 ? ` (${filteredOut} profiles excluded — they had no activity in the window and are not relevant for this period)` : ""}`);
   parts.push(`- Reels posted in period: ${reelsInPeriodArr.length}`);
   parts.push(`- Total profile snapshots: ${profileSnapshots.length}`);
   parts.push(`- Conversion records: ${conversions.length}`);
   parts.push(``);
 
+  // Compute last-activity date within the period for each profile
+  const lastActivityByProfile: Record<string, string> = {};
+  for (const s of profileSnapshots) {
+    const d = s.scraped_at.split("T")[0];
+    if (!lastActivityByProfile[s.profile_id] || d > lastActivityByProfile[s.profile_id]) {
+      lastActivityByProfile[s.profile_id] = d;
+    }
+  }
+
   // Profiles list
   if (include("profiles_info")) {
     parts.push(`## Profiles in Scope`);
-    parts.push(`| username | model | group | status | active | tags |`);
-    parts.push(`|---|---|---|---|---|---|`);
+    parts.push(`Only profiles that had activity (snapshots) within the analysis window. Profiles inactive before the window are excluded.`);
+    parts.push(`Column 'last_activity_in_period' = last day this profile was successfully scraped in the window. If earlier than ${dateTo}, the profile likely went inactive (ban/issue) during the period.`);
+    parts.push(``);
+    parts.push(`| username | model | group | status | active | last_activity_in_period | tags |`);
+    parts.push(`|---|---|---|---|---|---|---|`);
     for (const p of scopedProfiles) {
       const tags = (p.tags || []).join(",");
-      parts.push(`| @${p.instagram_username} | ${modelMap[p.model_id] || "?"} | ${groupMap[p.account_group_id] || "?"} | ${p.status || "?"} | ${p.is_active ? "yes" : "no"} | ${tags} |`);
+      const lastAct = lastActivityByProfile[p.id] || "(no data)";
+      parts.push(`| @${p.instagram_username} | ${modelMap[p.model_id] || "?"} | ${groupMap[p.account_group_id] || "?"} | ${p.status || "?"} | ${p.is_active ? "yes" : "no"} | ${lastAct} | ${tags} |`);
     }
     parts.push(``);
   }

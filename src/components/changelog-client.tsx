@@ -531,6 +531,7 @@ export function ChangelogClient({ changes: initialChanges, models, groups, profi
   const [analysisResult, setAnalysisResult] = useState("");
   const [analysisMeta, setAnalysisMeta] = useState<any>(null);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
+  const [analysisFollowUps, setAnalysisFollowUps] = useState<any[]>([]);
 
   // Group analyses by change_id for display
   const analysesByChange = useMemo(() => {
@@ -550,14 +551,18 @@ export function ChangelogClient({ changes: initialChanges, models, groups, profi
     setAnalysisError("");
     setAnalysisResult("");
     setCurrentAnalysisId(null);
+    setAnalysisFollowUps([]);
 
     // Date range: 7 days before change, to today
     const changeDate = new Date(change.change_date + "T00:00:00");
     const from = new Date(changeDate);
     from.setDate(from.getDate() - 7);
     const today = new Date();
-    const fromStr = from.toISOString().split("T")[0];
+    let fromStr = from.toISOString().split("T")[0];
     const toStr = today.toISOString().split("T")[0];
+    // Clamp to earliest date with complete tracking data
+    const MIN_DATE = "2026-04-13";
+    if (fromStr < MIN_DATE) fromStr = MIN_DATE;
 
     const language = typeof window !== "undefined" ? (localStorage.getItem("ai_analysis_language") || "en") : "en";
 
@@ -621,11 +626,13 @@ export function ChangelogClient({ changes: initialChanges, models, groups, profi
     setAnalysisError("");
     setAnalysisResult("");
     setCurrentAnalysisId(analysisId);
+    setAnalysisFollowUps([]);
 
     try {
       const a = await getAnalysis(analysisId);
       if (!a) throw new Error("Analysis not found");
       setAnalysisResult(a.result_markdown || "");
+      setAnalysisFollowUps(Array.isArray(a.follow_up_messages) ? a.follow_up_messages : []);
       setAnalysisMeta({
         title: a.title,
         scope: a.scope,
@@ -919,6 +926,8 @@ export function ChangelogClient({ changes: initialChanges, models, groups, profi
           error={analysisError}
           onClose={() => { setAnalysisOpen(false); setAnalyzingChangeId(null); }}
           onDelete={currentAnalysisId && !analysisLoading ? handleDeleteAnalysis : undefined}
+          analysisId={currentAnalysisId}
+          initialFollowUps={analysisFollowUps}
         />
       )}
     </div>

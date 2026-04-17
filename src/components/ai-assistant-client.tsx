@@ -8,6 +8,10 @@ import { getAnalysis, deleteAnalysis } from "@/lib/ai-analyses";
 
 type Scope = "global" | "model" | "group" | "profile";
 
+// Earliest date the tracking system has complete data for.
+// Before this, data was incomplete (accounts weren't all tracked yet).
+const MIN_ANALYSIS_DATE = "2026-04-13";
+
 // ── Date helpers ───────────────────────────────────────────────
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const MONTH_NAMES = [
@@ -27,7 +31,7 @@ function addDays(dateStr: string, n: number) {
 // ── Date Range Picker (Analytics-style) ────────────────────────
 interface DateRange { from: string; to: string; }
 
-function DateRangePicker({ range, onChange, maxDate }: { range: DateRange; onChange: (r: DateRange) => void; maxDate?: string }) {
+function DateRangePicker({ range, onChange, minDate, maxDate }: { range: DateRange; onChange: (r: DateRange) => void; minDate?: string; maxDate?: string }) {
   const [open, setOpen] = useState(false);
   const [tempFrom, setTempFrom] = useState<string | null>(null);
   const [viewMonth, setViewMonth] = useState(() => {
@@ -57,6 +61,7 @@ function DateRangePicker({ range, onChange, maxDate }: { range: DateRange; onCha
 
   function handleDayClick(dateStr: string) {
     if (maxDate && dateStr > maxDate) return;
+    if (minDate && dateStr < minDate) return;
     if (!tempFrom) {
       setTempFrom(dateStr);
     } else {
@@ -106,17 +111,21 @@ function DateRangePicker({ range, onChange, maxDate }: { range: DateRange; onCha
     mondayD.setDate(mondayD.getDate() - dayOfWeek);
     const mondayStr = toLocalDateStr(mondayD);
     const monthStartStr = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-01`;
-    return [
-      { label: "Today", from: todayStr, to: todayStr },
-      { label: "Yesterday", from: yesterdayStr, to: yesterdayStr },
-      { label: "Current Week", from: mondayStr, to: todayStr },
-      { label: "Last 7 Days", from: addDays(todayStr, -6), to: todayStr },
-      { label: "Last 14 Days", from: addDays(todayStr, -13), to: todayStr },
-      { label: "Current Month", from: monthStartStr, to: todayStr },
-      { label: "Last 30 Days", from: addDays(todayStr, -29), to: todayStr },
-      { label: "Last 90 Days", from: addDays(todayStr, -89), to: todayStr },
+    // Clamp "from" to minDate if set
+    const clamp = (from: string) => (minDate && from < minDate) ? minDate : from;
+    const all = [
+      { label: "Today", from: clamp(todayStr), to: todayStr },
+      { label: "Yesterday", from: clamp(yesterdayStr), to: yesterdayStr },
+      { label: "Current Week", from: clamp(mondayStr), to: todayStr },
+      { label: "Last 7 Days", from: clamp(addDays(todayStr, -6)), to: todayStr },
+      { label: "Last 14 Days", from: clamp(addDays(todayStr, -13)), to: todayStr },
+      { label: "Current Month", from: clamp(monthStartStr), to: todayStr },
+      { label: "Last 30 Days", from: clamp(addDays(todayStr, -29)), to: todayStr },
+      { label: "Last 90 Days", from: clamp(addDays(todayStr, -89)), to: todayStr },
     ];
-  }, []);
+    // Filter out presets where 'to' is also before minDate (wouldn't make sense)
+    return minDate ? all.filter(p => p.to >= minDate) : all;
+  }, [minDate]);
 
   const displayText = useMemo(() => {
     for (const p of presets) {
@@ -180,7 +189,7 @@ function DateRangePicker({ range, onChange, maxDate }: { range: DateRange; onCha
             </div>
             <div className="grid grid-cols-7">
               {calendarDays.map(({ dateStr, day, inMonth }, i) => {
-                const disabled = maxDate ? dateStr > maxDate : false;
+                const disabled = (maxDate && dateStr > maxDate) || (minDate && dateStr < minDate) || false;
                 const isFrom = dateStr === (tempFrom || range.from);
                 const isTo = !tempFrom && dateStr === range.to;
                 const inRange = tempFrom ? false : (dateStr >= range.from && dateStr <= range.to);
@@ -285,7 +294,9 @@ function NewAnalysisModal({ models, groups, profiles, onClose, onStarted }: {
   onStarted: (payload: any) => void;
 }) {
   const today = toLocalDateStr(new Date());
-  const weekAgo = addDays(today, -7);
+  const weekAgoRaw = addDays(today, -7);
+  // Clamp to min available date
+  const weekAgo = weekAgoRaw < MIN_ANALYSIS_DATE ? MIN_ANALYSIS_DATE : weekAgoRaw;
 
   const [range, setRange] = useState<DateRange>({ from: weekAgo, to: today });
   const dateFrom = range.from;
@@ -346,7 +357,7 @@ function NewAnalysisModal({ models, groups, profiles, onClose, onStarted }: {
           {/* Date range */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Date Range</label>
-            <DateRangePicker range={range} onChange={setRange} maxDate={today} />
+            <DateRangePicker range={range} onChange={setRange} minDate={MIN_ANALYSIS_DATE} maxDate={today} />
           </div>
 
           {/* Scope */}
@@ -444,6 +455,7 @@ export function AIAssistantClient({ models, groups, profiles, analyses: initialA
   const [viewerResult, setViewerResult] = useState("");
   const [viewerMeta, setViewerMeta] = useState<any>(null);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [viewerFollowUps, setViewerFollowUps] = useState<any[]>([]);
 
   async function runAnalysis(payload: any) {
     setNewModalOpen(false);
@@ -452,6 +464,7 @@ export function AIAssistantClient({ models, groups, profiles, analyses: initialA
     setViewerError("");
     setViewerResult("");
     setCurrentId(null);
+    setViewerFollowUps([]);
 
     const language = typeof window !== "undefined" ? (localStorage.getItem("ai_analysis_language") || "en") : "en";
 
@@ -510,11 +523,13 @@ export function AIAssistantClient({ models, groups, profiles, analyses: initialA
     setViewerError("");
     setViewerResult("");
     setCurrentId(id);
+    setViewerFollowUps([]);
 
     try {
       const a = await getAnalysis(id);
       if (!a) throw new Error("Not found");
       setViewerResult(a.result_markdown || "");
+      setViewerFollowUps(Array.isArray(a.follow_up_messages) ? a.follow_up_messages : []);
       setViewerMeta({
         title: a.title,
         scope: a.scope,
@@ -621,6 +636,8 @@ export function AIAssistantClient({ models, groups, profiles, analyses: initialA
           meta={viewerMeta}
           loading={viewerLoading}
           error={viewerError}
+          analysisId={currentId}
+          initialFollowUps={viewerFollowUps}
           onClose={() => setViewerOpen(false)}
           onDelete={currentId && !viewerLoading ? handleDelete : undefined}
         />

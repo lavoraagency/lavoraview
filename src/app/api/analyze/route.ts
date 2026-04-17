@@ -201,6 +201,7 @@ ${instructions}`;
         group_ids: groupIds,
         profile_ids: profileIds,
         title,
+        original_prompt: fullPrompt,
         result_markdown: resultText,
         model_used: modelUsed,
         input_tokens: inputTokens,

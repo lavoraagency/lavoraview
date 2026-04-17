@@ -29,6 +29,7 @@ export async function getAnalysis(id: string) {
   return data;
 }
 
+
 export async function deleteAnalysis(id: string) {
   const supabase = createServiceClient();
   const { error } = await supabase.from("ai_analyses").delete().eq("id", id);
