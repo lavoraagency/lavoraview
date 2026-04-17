@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Plus, Trash2, Calendar, ChevronDown, X, Edit, Tag as TagIcon, Target, Lightbulb, FileText } from "lucide-react";
+import { Plus, Trash2, Calendar, ChevronDown, ChevronLeft, ChevronRight, X, Edit, Tag as TagIcon, Target, Lightbulb, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createChange, deleteChange, updateChange, type ChangeScope, type NewChange } from "@/app/dashboard/changelog/actions";
 
@@ -19,6 +19,168 @@ const CATEGORIES = [
 
 function getCategoryInfo(value: string) {
   return CATEGORIES.find(c => c.value === value) || CATEGORIES[CATEGORIES.length - 1];
+}
+
+// ── Date helpers ───────────────────────────────────────────────
+const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function toLocalDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function addDays(dateStr: string, n: number) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return toLocalDateStr(d);
+}
+
+// ── DatePicker (Analytics-style, supports past + future) ──────
+function DatePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (date: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() => {
+    const d = new Date(value + "T00:00:00");
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      const d = new Date(value + "T00:00:00");
+      setViewMonth({ year: d.getFullYear(), month: d.getMonth() });
+    }
+  }, [open]);
+
+  function handleDayClick(dateStr: string) { onChange(dateStr); setOpen(false); }
+
+  const calendarDays = useMemo(() => {
+    const { year, month } = viewMonth;
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    let startWeekday = firstDay.getDay() - 1;
+    if (startWeekday < 0) startWeekday = 6;
+    const days: { dateStr: string; day: number; inMonth: boolean }[] = [];
+    for (let i = startWeekday - 1; i >= 0; i--) {
+      const d = new Date(year, month, -i);
+      days.push({ dateStr: toLocalDateStr(d), day: d.getDate(), inMonth: false });
+    }
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const date = new Date(year, month, d);
+      days.push({ dateStr: toLocalDateStr(date), day: d, inMonth: true });
+    }
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(year, month + 1, i);
+      days.push({ dateStr: toLocalDateStr(d), day: d.getDate(), inMonth: false });
+    }
+    return days;
+  }, [viewMonth]);
+
+  function prevMonth() { setViewMonth(v => v.month === 0 ? { year: v.year - 1, month: 11 } : { ...v, month: v.month - 1 }); }
+  function nextMonth() { setViewMonth(v => v.month === 11 ? { year: v.year + 1, month: 0 } : { ...v, month: v.month + 1 }); }
+
+  const presets = useMemo(() => {
+    const today = toLocalDateStr(new Date());
+    return [
+      { label: "Yesterday", date: addDays(today, -1) },
+      { label: "Today", date: today },
+      { label: "Tomorrow", date: addDays(today, 1) },
+      { label: "In 1 Week", date: addDays(today, 7) },
+      { label: "1 Week Ago", date: addDays(today, -7) },
+    ];
+  }, []);
+
+  const displayText = useMemo(() => {
+    for (const p of presets) { if (value === p.date) return p.label; }
+    const d = new Date(value + "T00:00:00");
+    return d.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
+  }, [value, presets]);
+
+  const today = toLocalDateStr(new Date());
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium cursor-pointer hover:border-gray-300 transition-colors"
+      >
+        <Calendar className="w-4 h-4 text-gray-400" />
+        <span className="flex-1 text-left">{displayText}</span>
+        <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-xl shadow-xl z-50 flex">
+          <div className="border-r border-gray-100 py-2 w-36">
+            {presets.map(p => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => handleDayClick(p.date)}
+                className={cn(
+                  "block w-full text-left px-4 py-2 text-sm transition-colors",
+                  value === p.date ? "bg-brand-50 text-brand-600 font-medium" : "text-gray-600 hover:bg-gray-50"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <div className="p-4 w-[280px]">
+            <div className="flex items-center justify-between mb-3">
+              <button type="button" onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+              <span className="text-sm font-semibold text-gray-900">{MONTH_NAMES[viewMonth.month]} {viewMonth.year}</span>
+              <button type="button" onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="grid grid-cols-7 mb-1">
+              {WEEKDAYS.map(d => <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7">
+              {calendarDays.map(({ dateStr, day, inMonth }, i) => {
+                const isSelected = dateStr === value;
+                const isToday = dateStr === today;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleDayClick(dateStr)}
+                    className={cn(
+                      "h-8 text-xs rounded transition-colors relative",
+                      !inMonth && "text-gray-300",
+                      inMonth && !isSelected && "text-gray-700 hover:bg-gray-100",
+                      isSelected && "bg-gray-900 text-white font-semibold rounded-lg",
+                      isToday && !isSelected && "ring-1 ring-brand-400 ring-inset",
+                    )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── MultiSelect (same pattern as other tabs) ────────────────────
@@ -196,40 +358,7 @@ function ChangeFormModal({
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Date <span className="text-gray-400 font-normal">(past or future)</span>
               </label>
-              <input
-                type="date"
-                value={changeDate}
-                onChange={e => setChangeDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-              <div className="flex gap-1 mt-1.5">
-                {(() => {
-                  const today = new Date();
-                  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-                  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
-                  const fmt = (d: Date) => d.toISOString().split("T")[0];
-                  const presets = [
-                    { label: "Yesterday", date: fmt(yesterday) },
-                    { label: "Today", date: fmt(today) },
-                    { label: "Tomorrow", date: fmt(tomorrow) },
-                  ];
-                  return presets.map(p => (
-                    <button
-                      key={p.label}
-                      type="button"
-                      onClick={() => setChangeDate(p.date)}
-                      className={cn(
-                        "text-xs px-2 py-1 rounded border transition-colors",
-                        changeDate === p.date
-                          ? "bg-gray-900 text-white border-gray-900"
-                          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                      )}
-                    >
-                      {p.label}
-                    </button>
-                  ));
-                })()}
-              </div>
+              <DatePicker value={changeDate} onChange={setChangeDate} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
@@ -266,7 +395,7 @@ function ChangeFormModal({
               onChange={e => setDescription(e.target.value)}
               rows={3}
               placeholder="What exactly did you change? Be specific so future AI analysis can use this context."
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-y"
             />
           </div>
 
@@ -281,7 +410,7 @@ function ChangeFormModal({
               onChange={e => setHypothesis(e.target.value)}
               rows={2}
               placeholder="e.g. I expect link clicks to increase by 20% and subscribers to grow faster"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-y"
             />
           </div>
 
