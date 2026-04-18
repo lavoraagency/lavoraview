@@ -929,13 +929,17 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       && selectedTags.length === 0;
     let exactTotalNewSubs: number | null = null;
     if (isFullModelSelection) {
-      const targetModelIds: Set<string> | null = selectedModels === null
-        ? null
-        : new Set(selectedModels);
+      // Only count models that have at least one profile in our tool.
+      // Prevents subs from models we track in of_daily_stats but haven't
+      // onboarded any profiles for (e.g. stephaniesteward without profiles).
+      const modelsInUse = new Set(models.map((m: any) => m.id));
+      const targetModelIds: Set<string> = selectedModels === null
+        ? modelsInUse
+        : new Set(selectedModels.filter((id: string) => modelsInUse.has(id)));
       let sum = 0;
       for (const s of ofStats) {
         if (!datesInRange.includes(s.date)) continue;
-        if (targetModelIds !== null && !targetModelIds.has(s.model_id)) continue;
+        if (!targetModelIds.has(s.model_id)) continue;
         sum += s.total_new_subs || 0;
       }
       exactTotalNewSubs = sum;
@@ -952,7 +956,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       perProfile, profileCount, totalEstimatedSubs,
       totalNewSubsDisplay, isFullModelSelection,
     };
-  }, [snapshotsByDateProfile, conversionsByDateProfile, reelDeltasByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap, ofStats, profiles, selectedModels, selectedGroups, selectedProfiles, selectedTags]);
+  }, [snapshotsByDateProfile, conversionsByDateProfile, reelDeltasByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap, ofStats, profiles, models, selectedModels, selectedGroups, selectedProfiles, selectedTags]);
 
   // Total New Subs per model (aggregated from proportional per-profile data)
   const ofTotalNewSubsPerModel = useMemo(() => {
