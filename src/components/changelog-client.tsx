@@ -792,8 +792,8 @@ export function ChangelogClient({ changes: initialChanges, models, groups, profi
                     const changeDate = new Date(change.change_date + "T00:00:00");
                     const today = new Date(); today.setHours(0, 0, 0, 0);
                     const daysSince = Math.floor((today.getTime() - changeDate.getTime()) / (1000 * 60 * 60 * 24));
-                    const needsWait = daysSince < 3;
-                    const daysRemaining = 3 - daysSince;
+                    const needsWait = daysSince < 2;
+                    const daysRemaining = 2 - daysSince;
                     return (
                       <button
                         onClick={() => runImpactAnalysis(change)}
@@ -805,7 +805,7 @@ export function ChangelogClient({ changes: initialChanges, models, groups, profi
                             : "text-purple-700 bg-purple-50 hover:bg-purple-100 border-purple-200 disabled:opacity-50"
                         )}
                         title={needsWait
-                          ? `Needs at least 3 days of data after the change (${daysRemaining} day${daysRemaining === 1 ? "" : "s"} to go)`
+                          ? `Needs at least 2 days of data after the change (${daysRemaining} day${daysRemaining === 1 ? "" : "s"} to go)`
                           : "Analyze Impact with Claude"}
                       >
                         <Sparkles className="w-3.5 h-3.5" />
