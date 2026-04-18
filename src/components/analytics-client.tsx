@@ -921,14 +921,38 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     // Sum of proportionally distributed total subs across filtered profiles
     const totalEstimatedSubs = Object.values(perProfile).reduce((sum, p) => sum + p.estimatedTotalSubs, 0);
 
+    // When the user has a "full model" selection (no group/profile/tag narrowing),
+    // use the exact OF total sum directly from of_daily_stats instead of the
+    // lossy proportional sum. This avoids Math.round drift + missing-snapshot drift.
+    const isFullModelSelection = selectedGroups === null
+      && selectedProfiles === null
+      && selectedTags.length === 0;
+    let exactTotalNewSubs: number | null = null;
+    if (isFullModelSelection) {
+      const targetModelIds: Set<string> | null = selectedModels === null
+        ? null
+        : new Set(selectedModels);
+      let sum = 0;
+      for (const s of ofStats) {
+        if (!datesInRange.includes(s.date)) continue;
+        if (targetModelIds !== null && !targetModelIds.has(s.model_id)) continue;
+        sum += s.total_new_subs || 0;
+      }
+      exactTotalNewSubs = sum;
+    }
+
+    // The value we show as "Total New Subs" — exact when available, else the proportional estimate
+    const totalNewSubsDisplay = exactTotalNewSubs !== null ? exactTotalNewSubs : totalEstimatedSubs;
+
     return {
       totalFollowers, totalViews, totalLikes, totalComments,
       deltaFollowers, deltaViews, deltaLikes, deltaComments,
       totalLinkClicks, totalNewSubs,
       totalInteractions, avgViews, viralityRatio,
       perProfile, profileCount, totalEstimatedSubs,
+      totalNewSubsDisplay, isFullModelSelection,
     };
-  }, [snapshotsByDateProfile, conversionsByDateProfile, reelDeltasByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap, ofStats, profiles]);
+  }, [snapshotsByDateProfile, conversionsByDateProfile, reelDeltasByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap, ofStats, profiles, selectedModels, selectedGroups, selectedProfiles, selectedTags]);
 
   // Total New Subs per model (aggregated from proportional per-profile data)
   const ofTotalNewSubsPerModel = useMemo(() => {
@@ -1305,10 +1329,10 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       {/* Stats Row 3 - Conversions */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="grid grid-cols-4 divide-x divide-gray-200">
-          <StatCard label="Total New Subs" value={formatNumber(stats.totalEstimatedSubs)} sub />
+          <StatCard label="Total New Subs" value={formatNumber(stats.totalNewSubsDisplay)} sub />
           <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
-          <StatCard label="Conversion Rate (Total)" value={stats.totalLinkClicks > 0 && stats.totalEstimatedSubs > 0 ? `${((stats.totalEstimatedSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
-          <StatCard label="Total Subs / 100K Views" value={stats.deltaViews > 0 && stats.totalEstimatedSubs > 0 ? `${Math.round(stats.totalEstimatedSubs / (stats.deltaViews / 100000))}` : "—"} sub />
+          <StatCard label="Conversion Rate (Total)" value={stats.totalLinkClicks > 0 && stats.totalNewSubsDisplay > 0 ? `${((stats.totalNewSubsDisplay / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
+          <StatCard label="Total Subs / 100K Views" value={stats.deltaViews > 0 && stats.totalNewSubsDisplay > 0 ? `${Math.round(stats.totalNewSubsDisplay / (stats.deltaViews / 100000))}` : "—"} sub />
         </div>
         <div className="grid grid-cols-4 divide-x divide-gray-200 border-t border-gray-200">
           <StatCard label="Tracked New Subs" value={formatNumber(stats.totalNewSubs)} sub />
