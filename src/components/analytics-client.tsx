@@ -936,10 +936,33 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       const targetModelIds: Set<string> = selectedModels === null
         ? modelsInUse
         : new Set(selectedModels.filter((id: string) => modelsInUse.has(id)));
+
+      // Additional filter PER DAY: only count a model's subs on a given day if
+      // at least one of its profiles actually has views that day. This prevents
+      // subs from being counted when a model's profiles exist in the tool but
+      // weren't scraped yet (e.g. a profile was just added today, scrape runs
+      // tomorrow, but OF subs already arrive tonight).
+      // Build: date -> set of model_ids with at least 1 view that day
+      const modelsWithViewsPerDay: Record<string, Set<string>> = {};
+      for (const date of datesInRange) {
+        modelsWithViewsPerDay[date] = new Set();
+        const snapsByProfile = snapshotsByDateProfile[date] || {};
+        for (const [pid, snap] of Object.entries(snapsByProfile)) {
+          const modelId = profileModelMap[pid];
+          if (!modelId) continue;
+          const reelDelta = reelDeltasByDateProfile[date]?.[pid];
+          const viewsDelta = reelDelta?.views ?? ((snap as any).daily_views || 0);
+          if (viewsDelta > 0) {
+            modelsWithViewsPerDay[date].add(modelId);
+          }
+        }
+      }
+
       let sum = 0;
       for (const s of ofStats) {
         if (!datesInRange.includes(s.date)) continue;
         if (!targetModelIds.has(s.model_id)) continue;
+        if (!modelsWithViewsPerDay[s.date]?.has(s.model_id)) continue;
         sum += s.total_new_subs || 0;
       }
       exactTotalNewSubs = sum;
