@@ -586,6 +586,11 @@ function DonutCard({
   );
 }
 
+// Strip known status prefixes "(S) " or "(I) " to get the raw username
+function stripStatusPrefix(name: string): string {
+  return name.replace(/^\((?:S|I)\)\s+/, "");
+}
+
 function MetricRankList({
   title,
   data,
@@ -606,18 +611,57 @@ function MetricRankList({
         <div className="text-sm text-gray-400 py-8 text-center">No data</div>
       ) : (
         <div className="space-y-2">
-          {visibleData.map((d, i) => (
-            <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-b-0">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-xs text-gray-400 w-5 text-right flex-shrink-0">{i + 1}.</span>
-                <span className="text-sm text-gray-700 truncate">{d.name}</span>
+          {visibleData.map((d, i) => {
+            const username = stripStatusPrefix(d.name);
+            return (
+              <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-b-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs text-gray-400 w-5 text-right flex-shrink-0">{i + 1}.</span>
+                  <span className="text-sm text-gray-700 truncate">{d.name}</span>
+                  <a
+                    href={`https://www.instagram.com/${username}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-300 hover:text-brand-500 transition-colors flex-shrink-0"
+                    title={`Open @${username} on Instagram`}
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 ml-3 tabular-nums flex-shrink-0">{d.value}{suffix || ""}</span>
               </div>
-              <span className="text-sm font-semibold text-gray-900 ml-3 tabular-nums flex-shrink-0">{d.value}{suffix || ""}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
+  );
+}
+
+// Custom SVG tick that renders the username as a clickable link opening Instagram.
+function ClickableProfileTick(props: any) {
+  const { x, y, payload } = props;
+  const label: string = payload?.value || "";
+  const username = stripStatusPrefix(label);
+  // Truncate long labels so they fit in the fixed width
+  const maxChars = 18;
+  const shown = label.length > maxChars ? label.slice(0, maxChars - 1) + "…" : label;
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <a
+        href={`https://www.instagram.com/${username}/`}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ cursor: "pointer" }}
+      >
+        <title>{`Open @${username} on Instagram`}</title>
+        <text x={-4} y={0} dy={4} textAnchor="end" fontSize={11} fill="#475569">
+          {shown}
+        </text>
+        {/* Small external-link marker */}
+        <text x={-4} y={0} dy={14} textAnchor="end" fontSize={8} fill="#94a3b8">↗</text>
+      </a>
+    </g>
   );
 }
 
@@ -644,7 +688,7 @@ function MetricBarChart({
           <BarChart data={visibleData} layout="vertical" margin={{ left: 10, right: 20, top: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
             <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatNumber(v)} />
-            <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={130} />
+            <YAxis type="category" dataKey="name" tick={<ClickableProfileTick />} tickLine={false} axisLine={false} width={140} interval={0} />
             <Tooltip formatter={(value: number) => formatNumber(value)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }} />
             <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={barHeight}>
               {visibleData.map((entry, i) => (
