@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Eye, Heart, Flame, Plus, X, Pause, Play, Trash2, Users, AlertCircle, Calendar, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ExternalLink, Eye, Heart, Flame, Plus, X, Pause, Play, Trash2, Users, AlertCircle, Calendar, ChevronDown, ChevronLeft, ChevronRight, Pin } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +41,7 @@ interface TopReelSnapshot {
     video_storage_url: string | null;
     video_deleted_at: string | null;
     posted_at: string | null;
+    is_pinned: boolean | null;
     research_profile_id: string;
     research_profiles: {
       id: string;
@@ -324,7 +325,7 @@ function ReelCard({ snap }: { snap: TopReelSnapshot }) {
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden group hover:shadow-md transition-shadow">
       <div className="relative aspect-[9/16] bg-gray-100">
         {reel.thumbnail_url ? (
-          <img src={reel.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          <img src={reel.thumbnail_url} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300">
             <Flame className="w-8 h-8" />
@@ -335,6 +336,13 @@ function ReelCard({ snap }: { snap: TopReelSnapshot }) {
           <Flame className="w-3 h-3" />
           {snap.multiplier.toFixed(1)}×
         </div>
+        {/* Pinned badge */}
+        {reel.is_pinned && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-sm" title="Pinned on profile">
+            <Pin className="w-3 h-3 fill-current" />
+            Pinned
+          </div>
+        )}
         {/* Video link */}
         {videoUrl && (
           <a
@@ -362,7 +370,7 @@ function ReelCard({ snap }: { snap: TopReelSnapshot }) {
         {profile && (
           <div className="flex items-center gap-2">
             {profile.profile_pic_url ? (
-              <img src={profile.profile_pic_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+              <img src={profile.profile_pic_url} alt="" referrerPolicy="no-referrer" className="w-6 h-6 rounded-full object-cover" />
             ) : (
               <div className="w-6 h-6 rounded-full bg-gray-200" />
             )}
@@ -517,7 +525,7 @@ function ProfileManagerDrawer({
               {profiles.map(p => (
                 <li key={p.id} className="p-4 flex items-center gap-3">
                   {p.profile_pic_url ? (
-                    <img src={p.profile_pic_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                    <img src={p.profile_pic_url} alt="" referrerPolicy="no-referrer" className="w-10 h-10 rounded-full object-cover" />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-sm">
                       @

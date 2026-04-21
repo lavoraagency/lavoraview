@@ -32,7 +32,7 @@ export default async function ResearchPage({
         research_reels (
           id, instagram_reel_id, shortcode, caption, thumbnail_url, reel_url,
           video_cdn_url, video_storage_url, video_deleted_at, posted_at,
-          research_profile_id,
+          is_pinned, research_profile_id,
           research_profiles ( id, instagram_username, display_name, profile_pic_url )
         )
       `)
