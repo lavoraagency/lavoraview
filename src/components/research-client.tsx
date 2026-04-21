@@ -11,7 +11,6 @@ interface ResearchProfile {
   instagram_username: string;
   display_name: string | null;
   followers: number | null;
-  profile_pic_url: string | null;
   is_active: boolean;
   last_scraped_at: string | null;
   last_scrape_error: string | null;
@@ -47,7 +46,6 @@ interface TopReelSnapshot {
       id: string;
       instagram_username: string;
       display_name: string | null;
-      profile_pic_url: string | null;
     } | null;
   } | null;
 }
@@ -369,11 +367,6 @@ function ReelCard({ snap }: { snap: TopReelSnapshot }) {
         {/* Profile */}
         {profile && (
           <div className="flex items-center gap-2">
-            {profile.profile_pic_url ? (
-              <img src={profile.profile_pic_url} alt="" referrerPolicy="no-referrer" className="w-6 h-6 rounded-full object-cover" />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-gray-200" />
-            )}
             <span className="text-xs font-medium text-gray-900 truncate">
               @{profile.instagram_username}
             </span>
@@ -524,13 +517,6 @@ function ProfileManagerDrawer({
             <ul className="divide-y">
               {profiles.map(p => (
                 <li key={p.id} className="p-4 flex items-center gap-3">
-                  {p.profile_pic_url ? (
-                    <img src={p.profile_pic_url} alt="" referrerPolicy="no-referrer" className="w-10 h-10 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-sm">
-                      @
-                    </div>
-                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm text-gray-900 truncate">@{p.instagram_username}</span>

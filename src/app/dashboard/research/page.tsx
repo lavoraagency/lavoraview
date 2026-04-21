@@ -22,7 +22,7 @@ export default async function ResearchPage({
   const [profilesRes, snapshotsRes] = await Promise.all([
     supabase
       .from("research_profiles")
-      .select("id, instagram_username, display_name, followers, profile_pic_url, is_active, last_scraped_at, last_scrape_error, created_at")
+      .select("id, instagram_username, display_name, followers, is_active, last_scraped_at, last_scrape_error, created_at")
       .order("created_at", { ascending: false }),
     supabase
       .from("research_reel_snapshots")
@@ -33,7 +33,7 @@ export default async function ResearchPage({
           id, instagram_reel_id, shortcode, caption, thumbnail_url, reel_url,
           video_cdn_url, video_storage_url, video_deleted_at, posted_at,
           is_pinned, research_profile_id,
-          research_profiles ( id, instagram_username, display_name, profile_pic_url )
+          research_profiles ( id, instagram_username, display_name )
         )
       `)
       .eq("scraped_at", date)
