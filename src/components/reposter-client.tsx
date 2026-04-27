@@ -363,13 +363,21 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
   const summary = useMemo(() => report ? extractSummary(report.report_text) : { total: 0, issues: 0, ok: 0, vas: 0 }, [report]);
   const structure = useMemo(() => report ? buildReportStructure(report.report_text) : { groups: [], noIssuesFound: false }, [report]);
 
-  // Distinct issue labels and streak buckets present in this report
+  // Distinct issue labels and streak buckets present in this report.
+  // Consolidate any "x/y Reels" variants (0/3, 1/3, 2/3, …) into a single
+  // "Too few Reels" filter bucket — the user doesn't care which exact
+  // ratio it is, only that the account underposted.
+  const issueFilterKey = (issue: string): string => {
+    if (/^\d+\s*\/\s*\d+\s+[Rr]eels?$/.test(issue.trim())) return "Too few Reels";
+    return issue;
+  };
+
   const { issueOptions, streakOptions } = useMemo(() => {
     const issueSet = new Set<string>();
     const streakSet = new Set<number>();
     for (const g of structure.groups) {
       for (const it of g.items) {
-        it.issues.forEach(i => issueSet.add(i));
+        it.issues.forEach(i => issueSet.add(issueFilterKey(i)));
         streakSet.add(it.streak);
       }
     }
@@ -391,7 +399,7 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
       .map(g => ({
         ...g,
         items: g.items.filter(it => {
-          if (useIssue && !it.issues.some(i => issueFilter.has(i))) return false;
+          if (useIssue && !it.issues.some(i => issueFilter.has(issueFilterKey(i)))) return false;
           if (useStreak && !streakFilter.has(String(it.streak))) return false;
           return true;
         }),
