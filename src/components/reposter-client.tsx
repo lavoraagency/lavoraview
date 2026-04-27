@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Calendar, ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertCircle, CheckCircle2, Calendar, ChevronDown, ExternalLink, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Report {
@@ -188,33 +188,151 @@ function SingleDatePicker({
   );
 }
 
-function parseReport(text: string) {
-  // Split report into sections for styled rendering
+interface IssueRow {
+  telegram: string;
+  instagram: string;
+  streak: number;     // 0 = first time / 1 day, otherwise days
+  issues: string[];
+  raw: string;
+  parsed: boolean;
+}
+
+interface ReportGroup {
+  name: string;
+  items: IssueRow[];
+}
+
+interface ReportStructure {
+  groups: ReportGroup[];
+  noIssuesFound: boolean;
+}
+
+function buildReportStructure(text: string): ReportStructure {
   const lines = text.split("\n");
-  const sections: { type: "header" | "group" | "issue" | "divider" | "summary" | "empty"; content: string }[] = [];
+  const groups: ReportGroup[] = [];
+  let current: ReportGroup | null = null;
+  let noIssuesFound = false;
 
   for (const line of lines) {
-    if (line.startsWith("\u{1F4CA} Daily Report")) {
-      sections.push({ type: "header", content: line });
-    } else if (line.startsWith("\u274C ISSUES:")) {
-      // skip, we show it in the header area
-    } else if (line.startsWith("\u{1F4C1} ")) {
-      sections.push({ type: "group", content: line });
-    } else if (line.trim().startsWith("\u2022 ") || line.trim().startsWith("• ")) {
-      sections.push({ type: "issue", content: line.trim().replace(/^[•\u2022]\s*/, "") });
-    } else if (line.startsWith("\u2500") || line.startsWith("──")) {
-      sections.push({ type: "divider", content: "" });
-    } else if (line.startsWith("\u{1F4C8} SUMMARY:") || line.startsWith("Total ") || line.startsWith("Accounts ")) {
-      sections.push({ type: "summary", content: line });
-    } else if (line.startsWith("\u2705 No issues found")) {
-      sections.push({ type: "summary", content: line });
-    } else if (line.trim() === "") {
-      sections.push({ type: "empty", content: "" });
-    } else {
-      sections.push({ type: "summary", content: line });
+    if (line.startsWith("\u{1F4C1} ")) {
+      const name = line.replace(/^📁\s*/, "").replace(/:$/, "");
+      current = { name, items: [] };
+      groups.push(current);
+      continue;
+    }
+    if (line.startsWith("✅ No issues found")) {
+      noIssuesFound = true;
+      continue;
+    }
+    const trimmed = line.trim();
+    if (trimmed.startsWith("• ") || trimmed.startsWith("• ")) {
+      const content = trimmed.replace(/^[••]\s*/, "");
+      const m = content.match(/^(@\S+)\s*\(([^)]+)\)\s*(?:(\d+)\.\s*)?:\s*(.+)$/);
+      if (m && current) {
+        const [, telegram, instagram, streakStr, issuesStr] = m;
+        const streak = streakStr ? parseInt(streakStr) : 0;
+        const issues = issuesStr.split(",").map(s => s.trim()).filter(Boolean);
+        current.items.push({ telegram, instagram, streak, issues, raw: content, parsed: true });
+      } else if (current) {
+        current.items.push({ telegram: "", instagram: "", streak: 0, issues: [], raw: content, parsed: false });
+      }
     }
   }
-  return sections;
+  return { groups, noIssuesFound };
+}
+
+// Lightweight MultiSelect for Reposter filters - empty selection = no filter applied (show all)
+function FilterSelect({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: { id: string; name: string }[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const display = selected.length === 0
+    ? `All ${label}`
+    : selected.length === 1
+    ? options.find(o => o.id === selected[0])?.name || label
+    : `${selected.length} ${label}`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "flex items-center gap-2 px-3 py-2 bg-white border rounded-lg text-sm transition-colors min-w-[180px]",
+          selected.length > 0
+            ? "border-brand-400 text-gray-900"
+            : "border-gray-200 text-gray-700 hover:border-gray-300"
+        )}
+      >
+        <span className="truncate flex-1 text-left">{display}</span>
+        {selected.length > 0 && (
+          <span
+            role="button"
+            aria-label={`Clear ${label}`}
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); onChange([]); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); onChange([]); } }}
+            className="text-gray-400 hover:text-gray-700 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </span>
+        )}
+        <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-40 min-w-[260px] max-w-[90vw]">
+          <div className="max-h-72 overflow-y-auto">
+            <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100">
+              <input
+                type="checkbox"
+                checked={selected.length === 0}
+                onChange={() => onChange([])}
+                className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+              />
+              <span className="text-sm font-medium">All {label}</span>
+            </label>
+            {options.length === 0 && (
+              <div className="px-3 py-4 text-sm text-gray-400 text-center">No options</div>
+            )}
+            {options.map(o => {
+              const checked = selected.includes(o.id);
+              return (
+                <label key={o.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      if (checked) onChange(selected.filter(id => id !== o.id));
+                      else onChange([...selected, o.id]);
+                    }}
+                    className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                  />
+                  <span className="text-sm">{o.name}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function extractSummary(text: string) {
@@ -232,8 +350,56 @@ function extractSummary(text: string) {
 
 export function ReposterClient({ reports }: { reports: Report[] }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [selectedIssues, setSelectedIssues] = useState<string[]>([]);
+  const [selectedStreaks, setSelectedStreaks] = useState<string[]>([]);
 
-  if (reports.length === 0) {
+  // Reset filters when report changes
+  useEffect(() => {
+    setSelectedIssues([]);
+    setSelectedStreaks([]);
+  }, [selectedIdx]);
+
+  const report = reports.length > 0 ? reports[selectedIdx] : null;
+  const summary = useMemo(() => report ? extractSummary(report.report_text) : { total: 0, issues: 0, ok: 0, vas: 0 }, [report]);
+  const structure = useMemo(() => report ? buildReportStructure(report.report_text) : { groups: [], noIssuesFound: false }, [report]);
+
+  // Distinct issue labels and streak buckets present in this report
+  const { issueOptions, streakOptions } = useMemo(() => {
+    const issueSet = new Set<string>();
+    const streakSet = new Set<number>();
+    for (const g of structure.groups) {
+      for (const it of g.items) {
+        it.issues.forEach(i => issueSet.add(i));
+        streakSet.add(it.streak);
+      }
+    }
+    const issueOptions = Array.from(issueSet).sort().map(s => ({ id: s, name: s }));
+    const streakOptions = Array.from(streakSet).sort((a, b) => a - b).map(n => ({
+      id: String(n),
+      name: n === 0 ? "1 day" : `${n} days`,
+    }));
+    return { issueOptions, streakOptions };
+  }, [structure]);
+
+  const filteredGroups = useMemo(() => {
+    const issueFilter = new Set(selectedIssues);
+    const streakFilter = new Set(selectedStreaks);
+    const useIssue = issueFilter.size > 0;
+    const useStreak = streakFilter.size > 0;
+    if (!useIssue && !useStreak) return structure.groups;
+    return structure.groups
+      .map(g => ({
+        ...g,
+        items: g.items.filter(it => {
+          if (useIssue && !it.issues.some(i => issueFilter.has(i))) return false;
+          if (useStreak && !streakFilter.has(String(it.streak))) return false;
+          return true;
+        }),
+      }))
+      .filter(g => g.items.length > 0);
+  }, [structure, selectedIssues, selectedStreaks]);
+
+  if (reports.length === 0 || !report) {
     return (
       <div className="p-4 md:p-6">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Reposter Overview</h1>
@@ -245,15 +411,64 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
     );
   }
 
-  const report = reports[selectedIdx];
-  const sections = parseReport(report.report_text);
-  const summary = extractSummary(report.report_text);
+  const filteredCount = filteredGroups.reduce((sum, g) => sum + g.items.length, 0);
+  const filtersActive = selectedIssues.length > 0 || selectedStreaks.length > 0;
+
   const dateStr = new Date(report.report_date + "T00:00:00").toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+
+  function renderIssueRow(it: IssueRow, key: string) {
+    if (!it.parsed) {
+      return <div key={key} className="px-4 md:px-5 py-2.5 text-sm text-gray-700">{it.raw}</div>;
+    }
+    return (
+      <div key={key} className="px-4 md:px-5 py-2.5 flex items-start gap-3">
+        <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-sm font-medium text-gray-900 break-all">{it.instagram}</span>
+            <a
+              href={`https://www.instagram.com/${it.instagram}/`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-300 hover:text-brand-500 transition-colors"
+              title="Open on Instagram"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+            <span className="text-xs text-gray-400">{it.telegram}</span>
+            {it.streak >= 2 && (
+              <span className={cn(
+                "text-xs font-bold px-1.5 py-0.5 rounded",
+                it.streak >= 5 ? "bg-red-100 text-red-700 border border-red-200" :
+                it.streak >= 3 ? "bg-orange-100 text-orange-700 border border-orange-200" :
+                "bg-yellow-100 text-yellow-700 border border-yellow-200"
+              )}>
+                {it.streak} days
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {it.issues.map((issue, j) => {
+              let color = "bg-red-50 text-red-700 border-red-100";
+              if (issue.includes("screenshot")) color = "bg-yellow-50 text-yellow-700 border-yellow-100";
+              if (issue.includes("trackable") || issue.includes("restriction")) color = "bg-orange-50 text-orange-700 border-orange-100";
+              if (issue.includes("set up")) color = "bg-blue-50 text-blue-700 border-blue-100";
+              return (
+                <span key={j} className={`text-xs px-2 py-0.5 rounded-full border ${color}`}>
+                  {issue}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -308,99 +523,60 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
         </div>
       </div>
 
-      {/* Date subtitle */}
-      <div className="text-sm text-gray-500">{dateStr}</div>
+      {/* Date subtitle + filter row */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="text-sm text-gray-500">{dateStr}</div>
+        {(issueOptions.length > 0 || streakOptions.length > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {issueOptions.length > 0 && (
+              <FilterSelect
+                label="Issues"
+                options={issueOptions}
+                selected={selectedIssues}
+                onChange={setSelectedIssues}
+              />
+            )}
+            {streakOptions.length > 0 && (
+              <FilterSelect
+                label="Streaks"
+                options={streakOptions}
+                selected={selectedStreaks}
+                onChange={setSelectedStreaks}
+              />
+            )}
+            {filtersActive && (
+              <span className="text-xs text-gray-500 ml-1">{filteredCount} match{filteredCount === 1 ? "" : "es"}</span>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Report content */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm divide-y divide-gray-50">
-        {sections.map((section, i) => {
-          if (section.type === "empty") return null;
-          if (section.type === "header") return null; // already shown above
-          if (section.type === "divider") return <div key={i} className="border-t border-gray-200" />;
-
-          if (section.type === "group") {
-            const groupName = section.content.replace(/\uD83D\uDCC1\s*/, "").replace(/:$/, "");
-            return (
-              <div key={i} className="px-4 md:px-5 py-3 bg-gray-50">
-                <span className="text-sm font-semibold text-gray-700">{groupName}</span>
+        {structure.noIssuesFound && structure.groups.length === 0 ? (
+          <div className="px-4 md:px-5 py-4 flex items-center gap-2 text-green-600">
+            <CheckCircle2 className="w-5 h-5" />
+            <span className="text-sm font-medium">No issues found!</span>
+          </div>
+        ) : filteredGroups.length === 0 ? (
+          <div className="px-4 md:px-5 py-8 text-center text-sm text-gray-400">
+            {filtersActive ? "No issues match the selected filters." : "No issues to display."}
+          </div>
+        ) : (
+          filteredGroups.map((g, gi) => (
+            <div key={gi}>
+              <div className="px-4 md:px-5 py-3 bg-gray-50">
+                <span className="text-sm font-semibold text-gray-700">{g.name}</span>
+                {filtersActive && (
+                  <span className="ml-2 text-xs font-normal text-gray-400">({g.items.length})</span>
+                )}
               </div>
-            );
-          }
-
-          if (section.type === "issue") {
-            // Parse: @telegramUser (instaUser) [optional streak].: issue1, issue2
-            const match = section.content.match(/^(@\S+)\s*\(([^)]+)\)\s*(?:(\d+)\.\s*)?:\s*(.+)$/);
-            if (match) {
-              const [, telegram, instagram, streakStr, issuesStr] = match;
-              const streak = streakStr ? parseInt(streakStr) : 0;
-              const issues = issuesStr.split(", ");
-              return (
-                <div key={i} className="px-4 md:px-5 py-2.5 flex items-start gap-3">
-                  <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-sm font-medium text-gray-900 break-all">{instagram}</span>
-                      <a
-                        href={`https://www.instagram.com/${instagram}/`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-gray-300 hover:text-brand-500 transition-colors"
-                        title="Open on Instagram"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                      <span className="text-xs text-gray-400">{telegram}</span>
-                      {streak >= 2 && (
-                        <span className={cn(
-                          "text-xs font-bold px-1.5 py-0.5 rounded",
-                          streak >= 5 ? "bg-red-100 text-red-700 border border-red-200" :
-                          streak >= 3 ? "bg-orange-100 text-orange-700 border border-orange-200" :
-                          "bg-yellow-100 text-yellow-700 border border-yellow-200"
-                        )}>
-                          {streak} days
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {issues.map((issue, j) => {
-                        let color = "bg-red-50 text-red-700 border-red-100";
-                        if (issue.includes("screenshot")) color = "bg-yellow-50 text-yellow-700 border-yellow-100";
-                        if (issue.includes("trackable") || issue.includes("restriction")) color = "bg-orange-50 text-orange-700 border-orange-100";
-                        if (issue.includes("set up")) color = "bg-blue-50 text-blue-700 border-blue-100";
-                        return (
-                          <span key={j} className={`text-xs px-2 py-0.5 rounded-full border ${color}`}>
-                            {issue}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-            return (
-              <div key={i} className="px-4 md:px-5 py-2.5 text-sm text-gray-700">{section.content}</div>
-            );
-          }
-
-          if (section.type === "summary") {
-            if (section.content.includes("No issues found")) {
-              return (
-                <div key={i} className="px-4 md:px-5 py-4 flex items-center gap-2 text-green-600">
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span className="text-sm font-medium">No issues found!</span>
-                </div>
-              );
-            }
-            // Skip summary lines already shown in cards
-            if (section.content.match(/^(Total |Accounts |📈)/)) return null;
-            return (
-              <div key={i} className="px-4 md:px-5 py-2 text-sm text-gray-600">{section.content}</div>
-            );
-          }
-
-          return null;
-        })}
+              <div className="divide-y divide-gray-50">
+                {g.items.map((it, ii) => renderIssueRow(it, `${gi}-${ii}`))}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

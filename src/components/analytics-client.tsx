@@ -528,18 +528,18 @@ function DonutCard({
   }, [data]);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 md:p-5 overflow-hidden">
       <h3 className="text-sm font-semibold text-gray-900 mb-3">{title}</h3>
-      <div className="flex items-start gap-5">
-        <div className="w-36 h-36 flex-shrink-0 relative">
+      <div className="flex items-start gap-3 md:gap-5">
+        <div className="w-24 h-24 md:w-36 md:h-36 flex-shrink-0 relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={chartData.length > 0 ? chartData : [{ name: "empty", value: 1, color: "#e5e7eb" }]}
                 cx="50%"
                 cy="50%"
-                innerRadius={40}
-                outerRadius={65}
+                innerRadius="60%"
+                outerRadius="98%"
                 dataKey="value"
                 strokeWidth={2}
                 stroke="#fff"
@@ -556,14 +556,14 @@ function DonutCard({
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <div className="text-xl font-bold text-gray-900">{total}</div>
+            <div className="text-sm md:text-xl font-bold text-gray-900">{total}</div>
           </div>
         </div>
-        <div className="flex-1 space-y-2.5 pt-1">
+        <div className="flex-1 min-w-0 space-y-1.5 md:space-y-2.5 pt-1">
           {top5.map((d, i) => (
-            <div key={i} className="flex items-center justify-between">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+            <div key={i} className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-1">
+                <span className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
                 <span className="text-gray-600 truncate text-xs">{d.name}</span>
                 {d.profileId && (
                   <a
@@ -576,7 +576,7 @@ function DonutCard({
                   </a>
                 )}
               </div>
-              <span className="font-semibold text-gray-900 ml-2 text-xs tabular-nums">{formatNumber(d.value)}</span>
+              <span className="font-semibold text-gray-900 text-xs tabular-nums flex-shrink-0">{formatNumber(d.value)}</span>
             </div>
           ))}
           {data.length === 0 && <div className="text-xs text-gray-400">No data</div>}
