@@ -235,9 +235,9 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
 
   if (reports.length === 0) {
     return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold text-gray-900">Reposter Overview</h1>
-        <p className="text-gray-500 text-sm mt-1">Daily Reports from Lavora Reposter Controller Bot</p>
+      <div className="p-4 md:p-6">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Reposter Overview</h1>
+        <p className="text-gray-500 text-xs md:text-sm mt-1">Daily Reports from Lavora Reposter Controller Bot</p>
         <div className="mt-8 text-center text-gray-400 py-12">
           No reports available yet. Reports will appear after the next daily workflow run.
         </div>
@@ -256,11 +256,11 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
   });
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reposter Overview</h1>
-          <p className="text-gray-500 text-sm mt-1">Daily Reports from Lavora Reposter Controller Bot</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Reposter Overview</h1>
+          <p className="text-gray-500 text-xs md:text-sm mt-1">Daily Reports from Lavora Reposter Controller Bot</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -289,7 +289,7 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
           <div className="text-xs text-gray-500 uppercase tracking-wide">Total Accounts</div>
           <div className="text-2xl font-bold text-gray-900 mt-1">{summary.total}</div>
@@ -321,7 +321,7 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
           if (section.type === "group") {
             const groupName = section.content.replace(/\uD83D\uDCC1\s*/, "").replace(/:$/, "");
             return (
-              <div key={i} className="px-5 py-3 bg-gray-50">
+              <div key={i} className="px-4 md:px-5 py-3 bg-gray-50">
                 <span className="text-sm font-semibold text-gray-700">{groupName}</span>
               </div>
             );
@@ -335,11 +335,11 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
               const streak = streakStr ? parseInt(streakStr) : 0;
               const issues = issuesStr.split(", ");
               return (
-                <div key={i} className="px-5 py-2.5 flex items-start gap-3">
+                <div key={i} className="px-4 md:px-5 py-2.5 flex items-start gap-3">
                   <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900">{instagram}</span>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-sm font-medium text-gray-900 break-all">{instagram}</span>
                       <a
                         href={`https://www.instagram.com/${instagram}/`}
                         target="_blank"
@@ -379,14 +379,14 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
               );
             }
             return (
-              <div key={i} className="px-5 py-2.5 text-sm text-gray-700">{section.content}</div>
+              <div key={i} className="px-4 md:px-5 py-2.5 text-sm text-gray-700">{section.content}</div>
             );
           }
 
           if (section.type === "summary") {
             if (section.content.includes("No issues found")) {
               return (
-                <div key={i} className="px-5 py-4 flex items-center gap-2 text-green-600">
+                <div key={i} className="px-4 md:px-5 py-4 flex items-center gap-2 text-green-600">
                   <CheckCircle2 className="w-5 h-5" />
                   <span className="text-sm font-medium">No issues found!</span>
                 </div>
@@ -395,7 +395,7 @@ export function ReposterClient({ reports }: { reports: Report[] }) {
             // Skip summary lines already shown in cards
             if (section.content.match(/^(Total |Accounts |📈)/)) return null;
             return (
-              <div key={i} className="px-5 py-2 text-sm text-gray-600">{section.content}</div>
+              <div key={i} className="px-4 md:px-5 py-2 text-sm text-gray-600">{section.content}</div>
             );
           }
 

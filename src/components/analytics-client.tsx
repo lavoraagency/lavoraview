@@ -1279,11 +1279,11 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
   }, [stats.perProfile, dateRange]);
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-        <p className="text-gray-500 text-sm mt-1">Performance overview across all profiles</p>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Analytics</h1>
+        <p className="text-gray-500 text-xs md:text-sm mt-1">Performance overview across all profiles</p>
       </div>
 
       {/* Filters Row */}
@@ -1344,7 +1344,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
         </button>
 
         {/* Date Navigation */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="md:ml-auto flex items-center gap-2">
 
           <button
             onClick={() => {
@@ -1389,7 +1389,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
       {/* Stats Row 1 - Derived */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-200">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-gray-200">
           <StatCard label="Average Views" value={formatNumber(stats.avgViews)} sub />
           <StatCard label="New Likes" value={formatNumber(stats.deltaLikes)} sub />
           <StatCard label="New Comments" value={formatNumber(stats.deltaComments)} sub />
@@ -1399,13 +1399,13 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
       {/* Stats Row 3 - Conversions */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="grid grid-cols-4 divide-x divide-gray-200">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-gray-200">
           <StatCard label="Total New Subs" value={formatNumber(stats.totalNewSubsDisplay)} sub />
           <StatCard label="Link Clicks" value={formatNumber(stats.totalLinkClicks)} sub />
           <StatCard label="Conversion Rate (Total)" value={stats.totalLinkClicks > 0 && stats.totalNewSubsDisplay > 0 ? `${((stats.totalNewSubsDisplay / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
           <StatCard label="Total Subs / 100K Views" value={stats.deltaViews > 0 && stats.totalNewSubsDisplay > 0 ? `${Math.round(stats.totalNewSubsDisplay / (stats.deltaViews / 100000))}` : "—"} sub />
         </div>
-        <div className="grid grid-cols-4 divide-x divide-gray-200 border-t border-gray-200">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-gray-200 border-t border-gray-200">
           <StatCard label="Tracked New Subs" value={formatNumber(stats.totalNewSubs)} sub />
           <StatCard label="Views to Click Rate" value={stats.deltaViews > 0 ? `${((stats.totalLinkClicks / stats.deltaViews) * 100).toFixed(2)}%` : "—"} sub />
           <StatCard label="Conversion Rate (Tracked)" value={stats.totalLinkClicks > 0 ? `${((stats.totalNewSubs / stats.totalLinkClicks) * 100).toFixed(1)}%` : "—"} sub />
@@ -1478,8 +1478,8 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
       {/* Conversion Section */}
       <div>
-        <h2 className="text-lg font-bold text-gray-900">Conversions</h2>
-        <p className="text-gray-500 text-sm mt-1">Link clicks &amp; subscriber tracking</p>
+        <h2 className="text-base md:text-lg font-bold text-gray-900">Conversions</h2>
+        <p className="text-gray-500 text-xs md:text-sm mt-1">Link clicks &amp; subscriber tracking</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
