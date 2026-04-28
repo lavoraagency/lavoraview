@@ -1,21 +1,13 @@
-// CRUD: get, update, delete a single link page.
+// CRUD: get, update, delete a single link page. Auth intentionally off
+// to match the dashboard's no-login behaviour.
 
 import { NextResponse } from "next/server";
-import { createClient as createAuthClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function requireUser() {
-  const auth = createAuthClient();
-  const { data: { user } } = await auth.auth.getUser();
-  return user;
-}
-
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const user = await requireUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("link_pages")
@@ -28,9 +20,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const user = await requireUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "bad json" }, { status: 400 }); }
 
@@ -75,9 +64,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
-  const user = await requireUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
   const supabase = createServiceClient();
   const { error } = await supabase.from("link_pages").delete().eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

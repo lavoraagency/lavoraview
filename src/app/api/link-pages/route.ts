@@ -1,24 +1,15 @@
-// CRUD: list + create link pages.
-// Auth: any logged-in dashboard user (matches existing dashboard policy).
+// CRUD: list + create link pages. Auth gate intentionally off for now
+// to match the prior dashboard behaviour (no login was ever enforced).
 
 import { NextResponse } from "next/server";
-import { createClient as createAuthClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { newBlockId } from "@/lib/link-pages/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function requireUser() {
-  const auth = createAuthClient();
-  const { data: { user } } = await auth.auth.getUser();
-  return user;
-}
-
 // GET /api/link-pages — list all pages for the dashboard
 export async function GET() {
-  const user = await requireUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("link_pages")
@@ -30,9 +21,6 @@ export async function GET() {
 
 // POST /api/link-pages — create a new page
 export async function POST(req: Request) {
-  const user = await requireUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "bad json" }, { status: 400 }); }
   const { slug, display_name, bio } = body || {};
@@ -91,7 +79,6 @@ export async function POST(req: Request) {
       blocks: defaultBlocks,
       theme: { buttonStyle: "glass" },
       is_published: true,
-      created_by: user.id,
     })
     .select("*")
     .single();

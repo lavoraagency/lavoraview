@@ -1,8 +1,9 @@
 // Image upload to the link-page-assets bucket. Returns the public URL.
 // The editor calls this when the user picks a file in any image picker.
+// Auth intentionally off to match the dashboard's no-login behaviour.
 
 import { NextResponse } from "next/server";
-import { createClient as createAuthClient, createServiceClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,10 +13,6 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10MB
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export async function POST(req: Request) {
-  const auth = createAuthClient();
-  const { data: { user } } = await auth.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
   const form = await req.formData().catch(() => null);
   if (!form) return NextResponse.json({ error: "expected multipart/form-data" }, { status: 400 });
 
