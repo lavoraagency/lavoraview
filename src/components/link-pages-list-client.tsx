@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, ExternalLink, Eye, Edit3, Trash2, Link as LinkIcon } from "lucide-react";
+import { Plus, ExternalLink, Eye, Edit3, Trash2, Link as LinkIcon, Copy, Check } from "lucide-react";
+import { PUBLIC_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
 
 interface PageRow {
   id: string;
@@ -26,6 +27,13 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
   const [newSlug, setNewSlug] = useState("");
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function copyUrl(slug: string, id: string) {
+    navigator.clipboard.writeText(publicUrlForSlug(slug));
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(c => c === id ? null : c), 1500);
+  }
 
   async function createPage() {
     setCreating(true);
@@ -103,14 +111,21 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
               </Link>
               <div className="p-3 flex items-center justify-between">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-gray-900 truncate">/{p.slug}</div>
+                  <div className="text-sm font-semibold text-gray-900 truncate">{publicDisplayForSlug(p.slug)}</div>
                   <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
                     <Eye className="w-3 h-3" /> {p.view_count}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => copyUrl(p.slug, p.id)}
+                    className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                    title="Copy URL"
+                  >
+                    {copiedId === p.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                  </button>
                   <a
-                    href={`/p/${p.slug}`}
+                    href={publicUrlForSlug(p.slug)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
@@ -149,7 +164,7 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
               <label className="block">
                 <span className="text-xs font-medium text-gray-700">Slug</span>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm text-gray-400">domain.com /</span>
+                  <span className="text-sm text-gray-400">{PUBLIC_LINK_DOMAIN} /</span>
                   <input
                     autoFocus
                     value={newSlug}

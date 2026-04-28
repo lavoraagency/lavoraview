@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import {
   ArrowUp, ArrowDown, Trash2, Plus, Image as ImageIcon, Upload, ExternalLink,
   ChevronDown, ChevronRight, Save, Loader2, Eye, EyeOff, Type, MousePointerClick, ImagePlus,
+  Copy, Check,
 } from "lucide-react";
+import { PUBLIC_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
 import { LinkPageRender } from "@/components/link-page-render";
 import {
   Block, ImageCardBlock, LinkButtonBlock, LinkPage, ProfileHeaderBlock,
@@ -316,6 +318,13 @@ export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  function copyUrl() {
+    navigator.clipboard.writeText(publicUrlForSlug(page.slug));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
 
   // Mark dirty on any page mutation
   function update<K extends keyof LinkPage>(patch: Partial<LinkPage>) {
@@ -379,7 +388,10 @@ export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
           <div className="flex items-center gap-2 text-xs text-gray-400">
             <button onClick={() => router.push("/dashboard/links")} className="hover:text-gray-700">Link Pages</button>
             <span>/</span>
-            <span className="text-gray-700 font-medium">/{page.slug}</span>
+            <span className="text-gray-700 font-medium">{publicDisplayForSlug(page.slug)}</span>
+            <button onClick={copyUrl} className="text-gray-400 hover:text-gray-700 transition-colors" title="Copy public URL">
+              {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
           </div>
           <h1 className="text-lg font-bold text-gray-900 truncate">{page.display_name || page.slug}</h1>
         </div>
@@ -395,7 +407,7 @@ export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
             {page.is_published ? "Published" : "Draft"}
           </button>
           <a
-            href={`/p/${page.slug}`}
+            href={publicUrlForSlug(page.slug)}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50"
