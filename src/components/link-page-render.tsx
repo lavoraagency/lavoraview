@@ -208,14 +208,18 @@ export function LinkPageRender({
     return page.blocks;
   }, [page.blocks]);
 
-  const overlay = page.theme?.overlay || "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.6) 70%, rgba(0,0,0,0.85) 100%)";
-  const bgStyle: React.CSSProperties = page.background_url
-    ? {
-        backgroundImage: `${overlay}, url("${page.background_url}")`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }
-    : { backgroundColor: page.theme?.bgColor || "#0f0f1a" };
+  // Solid background color for the lower half of the page (where buttons live).
+  // Bouncy-style: photo only at the top, smooth fade into a single solid color.
+  const solidColor = page.theme?.bgColor || "#0f0f1a";
+
+  // Pull the FIRST header block to the top photo zone; everything else
+  // renders underneath on the solid color. Order of non-header blocks
+  // is preserved exactly as authored in the editor.
+  const headerIdx = blocks.findIndex((b) => b.type === "header");
+  const headerBlock = headerIdx >= 0 ? (blocks[headerIdx] as ProfileHeaderBlock) : null;
+  const otherBlocks: Block[] = headerIdx >= 0
+    ? [...blocks.slice(0, headerIdx), ...blocks.slice(headerIdx + 1)]
+    : blocks;
 
   // Bump view_count once on real (non-preview) page mount
   useEffect(() => {
@@ -230,33 +234,68 @@ export function LinkPageRender({
     } catch { /* ignore */ }
   }, [isPreview, page.id]);
 
-  return (
-    <div className="min-h-screen w-full text-white" style={bgStyle}>
-      <div className="mx-auto max-w-[480px] min-h-screen px-4 py-6 flex flex-col gap-3">
-        {blocks.map((b, i) => {
-          const interceptClick = isPreview;
-          const wrap = (node: React.ReactNode) =>
-            interceptClick ? (
-              <div
-                key={b.id || i}
-                onClickCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                style={{ pointerEvents: "auto" }}
-              >
-                {node}
-              </div>
-            ) : (
-              <div key={b.id || i}>{node}</div>
-            );
+  // Wrap any block in a click-eating div when rendered inside the editor preview
+  const wrapPreview = (node: React.ReactNode, key: string | number) =>
+    isPreview ? (
+      <div
+        key={key}
+        onClickCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        style={{ pointerEvents: "auto" }}
+      >
+        {node}
+      </div>
+    ) : (
+      <div key={key}>{node}</div>
+    );
 
-          switch (b.type) {
-            case "header":      return wrap(<HeaderBlock block={b} page={page} />);
-            case "link":        return wrap(<LinkButton block={b} pageId={page.id} />);
-            case "image-card":  return wrap(<ImageCard block={b} pageId={page.id} />);
-            case "socials":     return wrap(<SocialsRow block={b} pageId={page.id} />);
-            case "spacer":      return wrap(<Spacer block={b} />);
-            default:            return null;
-          }
-        })}
+  function renderBlock(b: Block, key: string | number) {
+    switch (b.type) {
+      case "header":      return wrapPreview(<HeaderBlock block={b} page={page} />, key);
+      case "link":        return wrapPreview(<LinkButton block={b} pageId={page.id} />, key);
+      case "image-card":  return wrapPreview(<ImageCard block={b} pageId={page.id} />, key);
+      case "socials":     return wrapPreview(<SocialsRow block={b} pageId={page.id} />, key);
+      case "spacer":      return wrapPreview(<Spacer block={b} />, key);
+      default:            return null;
+    }
+  }
+
+  // Photo zone: anchored at top, fades from full image to solid color.
+  // The 50% / 95% gradient stops mean: top half is fully photo, bottom
+  // ~5% is fully solid color, so when the content area below starts
+  // there's no visible seam.
+  const photoZoneStyle: React.CSSProperties | undefined = page.background_url
+    ? {
+        backgroundImage: `linear-gradient(to bottom, transparent 0%, transparent 50%, ${solidColor} 95%), url("${page.background_url}")`,
+        backgroundSize: "cover",
+        backgroundPosition: "center top",
+        backgroundRepeat: "no-repeat",
+      }
+    : undefined;
+
+  return (
+    <div className="min-h-screen w-full text-white" style={{ backgroundColor: solidColor }}>
+      <div className="mx-auto max-w-[480px] min-h-screen flex flex-col">
+        {/* ── Photo zone (top) — only when a background image is set ── */}
+        {page.background_url && (
+          <div
+            className="relative w-full flex flex-col justify-end px-4 pb-2"
+            style={{ ...photoZoneStyle, minHeight: "60vh" }}
+          >
+            {headerBlock && renderBlock(headerBlock, "hdr")}
+          </div>
+        )}
+
+        {/* ── Header without photo ── */}
+        {!page.background_url && headerBlock && (
+          <div className="px-4 pt-8 pb-2">
+            {renderBlock(headerBlock, "hdr")}
+          </div>
+        )}
+
+        {/* ── Solid-color content zone (everything below the photo) ── */}
+        <div className="px-4 pt-3 pb-6 flex flex-col gap-3 flex-1">
+          {otherBlocks.map((b, i) => renderBlock(b, b.id || i))}
+        </div>
       </div>
     </div>
   );

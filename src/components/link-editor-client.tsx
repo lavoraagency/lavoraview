@@ -273,12 +273,37 @@ function blockIcon(type: Block["type"]) {
 function AddBlockMenu({ onAdd }: { onAdd: (b: Block) => void }) {
   const [open, setOpen] = useState(false);
 
-  const options: { type: Block["type"]; label: string; create: () => Block }[] = [
-    { type: "link",       label: "Link Button",  create: () => ({ id: newBlockId(), type: "link",       title: "Neuer Link", url: "", icon: "of" }) },
-    { type: "image-card", label: "Image Card",   create: () => ({ id: newBlockId(), type: "image-card", title: "Klick mich", url: "", imageUrl: "" }) },
-    { type: "socials",    label: "Socials Row",  create: () => ({ id: newBlockId(), type: "socials",    items: [{ platform: "instagram", url: "" }] }) },
-    { type: "spacer",     label: "Spacer",       create: () => ({ id: newBlockId(), type: "spacer",     height: 16 }) },
-    { type: "header",     label: "Header",       create: () => ({ id: newBlockId(), type: "header" }) },
+  const options: { type: Block["type"]; label: string; sub: string; create: () => Block }[] = [
+    {
+      type: "link",
+      label: "Text Button",
+      sub: "Icon + Titel + URL (klein)",
+      create: () => ({ id: newBlockId(), type: "link", title: "Neuer Link", url: "", icon: "of" }),
+    },
+    {
+      type: "image-card",
+      label: "Bild Button",
+      sub: "Großer Button mit Hintergrundbild",
+      create: () => ({ id: newBlockId(), type: "image-card", title: "Klick mich", url: "", imageUrl: "" }),
+    },
+    {
+      type: "socials",
+      label: "Socials Row",
+      sub: "Reihe kleiner Icons",
+      create: () => ({ id: newBlockId(), type: "socials", items: [{ platform: "instagram", url: "" }] }),
+    },
+    {
+      type: "spacer",
+      label: "Spacer",
+      sub: "Vertikaler Abstand",
+      create: () => ({ id: newBlockId(), type: "spacer", height: 16 }),
+    },
+    {
+      type: "header",
+      label: "Header",
+      sub: "Name + Bio über dem Bild",
+      create: () => ({ id: newBlockId(), type: "header" }),
+    },
   ];
 
   return (
@@ -292,15 +317,18 @@ function AddBlockMenu({ onAdd }: { onAdd: (b: Block) => void }) {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 left-1/2 -translate-x-1/2 mt-1 w-56 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+          <div className="absolute z-20 left-1/2 -translate-x-1/2 mt-1 w-72 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
             {options.map(o => (
               <button
                 key={o.type}
                 onClick={() => { onAdd(o.create()); setOpen(false); }}
-                className="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                className="w-full px-3 py-2.5 text-left hover:bg-gray-50 flex items-start gap-3"
               >
-                {(() => { const I = blockIcon(o.type); return <I className="w-4 h-4 text-gray-500" />; })()}
-                {o.label}
+                {(() => { const I = blockIcon(o.type); return <I className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />; })()}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-gray-900">{o.label}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{o.sub}</div>
+                </div>
               </button>
             ))}
           </div>
