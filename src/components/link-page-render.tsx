@@ -278,8 +278,8 @@ export function LinkPageRender({
         {/* ── Photo zone (top) — only when a background image is set ── */}
         {page.background_url && (
           <div
-            className="relative w-full flex flex-col justify-end px-4 pb-2"
-            style={{ ...photoZoneStyle, minHeight: "60vh" }}
+            className="relative w-full aspect-[4/3] flex flex-col justify-end px-4 pb-2"
+            style={photoZoneStyle}
           >
             {headerBlock && renderBlock(headerBlock, "hdr")}
           </div>
