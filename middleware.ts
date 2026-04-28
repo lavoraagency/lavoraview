@@ -60,15 +60,25 @@ function publicLinkPlane(request: NextRequest): NextResponse | null {
 export async function middleware(request: NextRequest) {
   const host = (request.headers.get("host") || "").toLowerCase().split(":")[0];
 
+  // Debug header so we can curl and see what middleware saw.
+  // Remove after multi-host routing is confirmed working.
+  const debugHeader = `host=${host} matched=${PUBLIC_LINK_HOSTS.has(host)} ts=${Date.now()}`;
+
   // ── Public-link plane wins first; never reaches Supabase auth ──
   if (PUBLIC_LINK_HOSTS.has(host)) {
     const r = publicLinkPlane(request);
-    if (r) return r;
-    return NextResponse.next();
+    if (r) {
+      r.headers.set("x-mw-debug", debugHeader);
+      return r;
+    }
+    const next = NextResponse.next();
+    next.headers.set("x-mw-debug", debugHeader);
+    return next;
   }
 
   // ── Default: existing auth-gated dashboard plane ──
   let supabaseResponse = NextResponse.next({ request });
+  supabaseResponse.headers.set("x-mw-debug", debugHeader);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
