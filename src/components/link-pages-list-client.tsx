@@ -56,7 +56,7 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
   }
 
   async function deletePage(id: string) {
-    if (!confirm("Diese Page wirklich löschen?")) return;
+    if (!confirm("Delete this page?")) return;
     const r = await fetch(`/api/link-pages/${id}`, { method: "DELETE" });
     if (r.ok) setPages(p => p.filter(x => x.id !== id));
   }
@@ -67,7 +67,7 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">Link Pages</h1>
           <p className="text-gray-500 text-xs md:text-sm mt-1">
-            Mobile-first Bio-Pages für Instagram-Funnel
+            Mobile-first bio pages for Instagram funnels
           </p>
         </div>
         <button
@@ -82,7 +82,7 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
       {pages.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-white p-10 text-center">
           <LinkIcon className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-          <div className="text-sm text-gray-500">Noch keine Pages. Klick auf <b>New Page</b> um die erste anzulegen.</div>
+          <div className="text-sm text-gray-500">No pages yet. Click <b>New Page</b> to create your first one.</div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -158,7 +158,7 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !creating && setShowCreate(false)}>
           <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-5" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-gray-900">New Page</h2>
-            <p className="text-xs text-gray-500 mt-1">Wird mit einem Bouncy-Style Default-Layout angelegt.</p>
+            <p className="text-xs text-gray-500 mt-1">Comes pre-filled with a default Bouncy-style layout.</p>
 
             <div className="mt-4 space-y-3">
               <label className="block">

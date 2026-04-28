@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowUp, ArrowDown, Trash2, Plus, Image as ImageIcon, Upload, ExternalLink,
   ChevronDown, ChevronRight, Save, Loader2, Eye, EyeOff, Type, MousePointerClick, ImagePlus,
-  Copy, Check,
+  Copy, Check, X,
 } from "lucide-react";
 import { PUBLIC_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
 import { LinkPageRender } from "@/components/link-page-render";
@@ -68,7 +68,7 @@ function ImageInput({
         ) : (
           <input
             value=""
-            placeholder="Bild-URL oder Datei hochladen"
+            placeholder="Image URL or upload a file"
             onChange={e => onChange(e.target.value || null)}
             className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-brand-400"
           />
@@ -77,7 +77,7 @@ function ImageInput({
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
           className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
-          title="Datei hochladen"
+          title="Upload a file"
         >
           {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 text-gray-500" />}
         </button>
@@ -186,7 +186,7 @@ function SocialsInspector({ block, onChange }: { block: SocialsRowBlock; onChang
 
 function SpacerInspector({ block, onChange }: { block: SpacerBlock; onChange: (b: SpacerBlock) => void }) {
   return (
-    <Field label="Höhe (px)">
+    <Field label="Height (px)">
       <input type="number" min={4} max={120} value={block.height || 12} onChange={e => onChange({ ...block, height: parseInt(e.target.value) || 12 })} className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-400" />
     </Field>
   );
@@ -273,68 +273,93 @@ function blockIcon(type: Block["type"]) {
 function AddBlockMenu({ onAdd }: { onAdd: (b: Block) => void }) {
   const [open, setOpen] = useState(false);
 
+  // Close drawer on Escape
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   const options: { type: Block["type"]; label: string; sub: string; create: () => Block }[] = [
     {
       type: "link",
       label: "Text Button",
-      sub: "Icon + Titel + URL (klein)",
-      create: () => ({ id: newBlockId(), type: "link", title: "Neuer Link", url: "", icon: "of" }),
+      sub: "Icon + title + URL (compact)",
+      create: () => ({ id: newBlockId(), type: "link", title: "New link", url: "", icon: "of" }),
     },
     {
       type: "image-card",
-      label: "Bild Button",
-      sub: "Großer Button mit Hintergrundbild",
-      create: () => ({ id: newBlockId(), type: "image-card", title: "Klick mich", url: "", imageUrl: "" }),
+      label: "Image Button",
+      sub: "Large button with background image",
+      create: () => ({ id: newBlockId(), type: "image-card", title: "Click me", url: "", imageUrl: "" }),
     },
     {
       type: "socials",
       label: "Socials Row",
-      sub: "Reihe kleiner Icons",
+      sub: "Row of small icons",
       create: () => ({ id: newBlockId(), type: "socials", items: [{ platform: "instagram", url: "" }] }),
     },
     {
       type: "spacer",
       label: "Spacer",
-      sub: "Vertikaler Abstand",
+      sub: "Vertical spacing",
       create: () => ({ id: newBlockId(), type: "spacer", height: 16 }),
     },
     {
       type: "header",
       label: "Header",
-      sub: "Name + Bio über dem Bild",
+      sub: "Name + bio over the photo",
       create: () => ({ id: newBlockId(), type: "header" }),
     },
   ];
 
   return (
-    <div className="relative">
+    <>
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen(true)}
         className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-gray-300 hover:border-brand-400 hover:text-brand-600 text-gray-500 text-sm font-medium transition-colors"
       >
-        <Plus className="w-4 h-4" /> Block hinzufügen
+        <Plus className="w-4 h-4" /> Add block
       </button>
       {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 left-1/2 -translate-x-1/2 mt-1 w-72 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
-            {options.map(o => (
+        <div
+          className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/40"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full md:w-96 max-h-[80vh] bg-white rounded-t-2xl md:rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <h3 className="text-sm font-bold text-gray-900">Add block</h3>
               <button
-                key={o.type}
-                onClick={() => { onAdd(o.create()); setOpen(false); }}
-                className="w-full px-3 py-2.5 text-left hover:bg-gray-50 flex items-start gap-3"
+                onClick={() => setOpen(false)}
+                className="p-1 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                aria-label="Close"
               >
-                {(() => { const I = blockIcon(o.type); return <I className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />; })()}
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-gray-900">{o.label}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{o.sub}</div>
-                </div>
+                <X className="w-4 h-4" />
               </button>
-            ))}
+            </div>
+            <div className="overflow-y-auto">
+              {options.map(o => (
+                <button
+                  key={o.type}
+                  onClick={() => { onAdd(o.create()); setOpen(false); }}
+                  className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-start gap-3 border-b border-gray-50 last:border-b-0"
+                >
+                  {(() => { const I = blockIcon(o.type); return <I className="w-5 h-5 text-gray-500 mt-0.5 flex-shrink-0" />; })()}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-gray-900">{o.label}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{o.sub}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-        </>
+        </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -490,13 +515,13 @@ export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
 
             <Section title="Background">
               <ImageInput
-                label="Vollflächiges Hintergrundbild (Bouncy-Style)"
+                label="Background image (full-bleed photo at the top)"
                 value={page.background_url}
                 onChange={url => update({ background_url: url })}
                 pageId={page.id}
               />
               <div className="text-xs text-gray-500 mt-2 leading-relaxed">
-                Tipp: Ein hochformatiges Foto funktioniert am besten — wird automatisch mit dunklem Verlauf nach unten überlagert für Lesbarkeit.
+                Tip: portrait or landscape photos both work — the bottom edge fades into the page background automatically.
               </div>
             </Section>
 
