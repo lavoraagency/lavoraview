@@ -98,8 +98,17 @@ export interface LinkPage {
   is_published: boolean;
   view_count: number;
   created_by: string | null;
+  /** Optional informational link to a tracked Instagram profile. */
+  profile_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ── Profile (subset used by the link-page editor for auto-suggest) ─
+export interface ProfileLite {
+  id: string;
+  instagram_username: string;
+  model_name?: string | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────

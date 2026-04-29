@@ -12,8 +12,9 @@ import { LinkPageRender } from "@/components/link-page-render";
 import { CropModal, AspectKey } from "@/components/link-pages/crop-modal";
 import {
   Block, ImageCardBlock, LinkButtonBlock, LinkPage, PhotoAspectKey, ProfileHeaderBlock,
-  SocialsRowBlock, SpacerBlock, newBlockId,
+  ProfileLite, SocialsRowBlock, SpacerBlock, newBlockId,
 } from "@/lib/link-pages/types";
+import { suggestProfile } from "@/lib/link-pages/profile-match";
 import { cn } from "@/lib/utils";
 
 const ICON_OPTIONS = [
@@ -420,8 +421,160 @@ function AddBlockMenu({ onAdd }: { onAdd: (b: Block) => void }) {
   );
 }
 
+// ── Profile picker ─────────────────────────────────────────────────
+function ProfilePicker({
+  profiles,
+  value,
+  slug,
+  suggested,
+  onChange,
+}: {
+  profiles: ProfileLite[];
+  value: string | null;
+  slug: string;
+  suggested: { profile: ProfileLite; score: number } | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const selected = profiles.find(p => p.id === value) || null;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return profiles.slice(0, 100);
+    return profiles
+      .filter(p =>
+        p.instagram_username.toLowerCase().includes(q) ||
+        (p.model_name || "").toLowerCase().includes(q),
+      )
+      .slice(0, 100);
+  }, [profiles, search]);
+
+  const showSuggestion = !value && suggested && slug.length > 0;
+
+  return (
+    <div className="space-y-2">
+      <div className="relative" ref={ref}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          className={cn(
+            "w-full flex items-center justify-between gap-2 px-3 py-2 border rounded-lg text-sm transition-colors",
+            selected ? "border-gray-200 bg-white" : "border-dashed border-gray-300 bg-gray-50 text-gray-500",
+          )}
+        >
+          {selected ? (
+            <span className="flex items-center gap-2 min-w-0">
+              <span className="font-medium text-gray-900 truncate">{selected.instagram_username}</span>
+              {selected.model_name && (
+                <span className="text-xs text-gray-400 truncate">— {selected.model_name}</span>
+              )}
+            </span>
+          ) : (
+            <span className="truncate">No profile linked — pick one to assign</span>
+          )}
+          <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+        </button>
+
+        {open && (
+          <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl">
+            <div className="p-2 border-b border-gray-100">
+              <input
+                autoFocus
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search profiles…"
+                className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-brand-400"
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              <button
+                onClick={() => { onChange(null); setOpen(false); }}
+                className={cn(
+                  "w-full px-3 py-2 text-left text-sm flex items-center gap-2 border-b border-gray-50",
+                  !value ? "bg-brand-50 text-brand-700" : "hover:bg-gray-50 text-gray-500",
+                )}
+              >
+                <span className="italic">No profile</span>
+              </button>
+              {filtered.length === 0 && (
+                <div className="px-3 py-4 text-sm text-gray-400 text-center">No matches</div>
+              )}
+              {filtered.map(p => {
+                const isSelected = p.id === value;
+                const isSuggested = suggested?.profile.id === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => { onChange(p.id); setOpen(false); setSearch(""); }}
+                    className={cn(
+                      "w-full px-3 py-2 text-left text-sm flex items-center gap-2 border-b border-gray-50 last:border-b-0",
+                      isSelected ? "bg-brand-50 text-brand-700" : "hover:bg-gray-50",
+                    )}
+                  >
+                    <span className="font-medium text-gray-900 truncate flex-1">{p.instagram_username}</span>
+                    {p.model_name && (
+                      <span className="text-xs text-gray-400 truncate">{p.model_name}</span>
+                    )}
+                    {isSuggested && !isSelected && (
+                      <span className="text-[10px] uppercase tracking-wide font-bold text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded">
+                        match
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showSuggestion && suggested && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-50 border border-brand-100">
+          <div className="flex-1 min-w-0 text-xs text-gray-700">
+            Looks like <span className="font-medium text-gray-900">{suggested.profile.instagram_username}</span> matches this slug.
+          </div>
+          <button
+            onClick={() => onChange(suggested.profile.id)}
+            className="px-3 py-1 rounded-md bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
+          >
+            Assign
+          </button>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-400 leading-relaxed">
+        Linking a page to a profile is informational only — used to keep things organised across the dashboard, no functional behaviour attached.
+      </p>
+    </div>
+  );
+}
+
 // ── Main editor ────────────────────────────────────────────────────
-export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
+interface OtherPageRow {
+  id: string;
+  slug: string;
+  display_name: string | null;
+  profile_id: string | null;
+}
+
+export function LinkEditorClient({
+  initialPage,
+  otherPages = [],
+  profiles = [],
+}: {
+  initialPage: LinkPage;
+  otherPages?: OtherPageRow[];
+  profiles?: ProfileLite[];
+}) {
   const router = useRouter();
   const [page, setPage] = useState<LinkPage>(initialPage);
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
@@ -429,6 +582,23 @@ export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
   const [dirty, setDirty] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Bulk-edit modal state
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkChangedFields, setBulkChangedFields] = useState<{ background: boolean; bio: boolean }>({ background: false, bio: false });
+  const [bulkApplyFields, setBulkApplyFields] = useState<{ background: boolean; bio: boolean }>({ background: true, bio: true });
+  const [bulkTargetIds, setBulkTargetIds] = useState<Set<string>>(new Set());
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Auto-suggested profile based on slug similarity
+  const suggested = useMemo(() => suggestProfile(page.slug, profiles), [page.slug, profiles]);
+
+  // Auto-link an unassigned page to its strong-match profile on first edit
+  useEffect(() => {
+    if (!page.profile_id && suggested && suggested.score >= 0.85) {
+      // Don't auto-apply silently — only suggest. User confirms via the picker.
+    }
+  }, [page.profile_id, suggested]);
 
   function copyUrl() {
     navigator.clipboard.writeText(publicUrlForSlug(page.slug));
@@ -452,28 +622,88 @@ export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
     updateBlocks(next);
   }
 
-  async function save() {
+  async function patchPage(id: string, patch: Record<string, any>): Promise<{ ok: boolean; error?: string; page?: LinkPage }> {
+    const r = await fetch(`/api/link-pages/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    const j = await r.json();
+    if (!r.ok) return { ok: false, error: j.error };
+    return { ok: true, page: j.page };
+  }
+
+  function fullPagePatch() {
+    return {
+      slug: page.slug,
+      display_name: page.display_name,
+      bio: page.bio,
+      avatar_url: page.avatar_url,
+      background_url: page.background_url,
+      blocks: page.blocks,
+      theme: page.theme,
+      is_published: page.is_published,
+      profile_id: page.profile_id,
+    };
+  }
+
+  async function saveCurrentOnly() {
     setSaving(true);
     setSaveError(null);
     try {
-      const r = await fetch(`/api/link-pages/${page.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug: page.slug,
-          display_name: page.display_name,
-          bio: page.bio,
-          avatar_url: page.avatar_url,
-          background_url: page.background_url,
-          blocks: page.blocks,
-          theme: page.theme,
-          is_published: page.is_published,
-        }),
-      });
-      const j = await r.json();
-      if (!r.ok) { setSaveError(j.error || "Fehler beim Speichern"); return; }
-      setPage(j.page);
+      const res = await patchPage(page.id, fullPagePatch());
+      if (!res.ok) { setSaveError(res.error || "Save failed"); return; }
+      if (res.page) setPage(res.page);
       setDirty(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleSaveClick() {
+    // Did background_url or bio change vs the server-side initial state?
+    const bgChanged = page.background_url !== initialPage.background_url;
+    const bioChanged = (page.bio || "") !== (initialPage.bio || "");
+
+    if ((bgChanged || bioChanged) && otherPages.length > 0) {
+      setBulkChangedFields({ background: bgChanged, bio: bioChanged });
+      setBulkApplyFields({ background: bgChanged, bio: bioChanged });
+      setBulkTargetIds(new Set());
+      setBulkOpen(true);
+    } else {
+      saveCurrentOnly();
+    }
+  }
+
+  async function confirmBulkSave() {
+    setBulkOpen(false);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      // 1) Save the current page first
+      const ownRes = await patchPage(page.id, fullPagePatch());
+      if (!ownRes.ok) { setSaveError(ownRes.error || "Save failed"); return; }
+      if (ownRes.page) setPage(ownRes.page);
+      setDirty(false);
+
+      // 2) Apply bio/background to selected target pages
+      const targets = Array.from(bulkTargetIds);
+      if (targets.length === 0) return;
+
+      const fieldPatch: Record<string, any> = {};
+      if (bulkApplyFields.background) fieldPatch.background_url = page.background_url;
+      if (bulkApplyFields.bio)        fieldPatch.bio = page.bio;
+      if (Object.keys(fieldPatch).length === 0) return;
+
+      setBulkProgress({ done: 0, total: targets.length });
+      let failed = 0;
+      for (let i = 0; i < targets.length; i++) {
+        const r = await patchPage(targets[i], fieldPatch);
+        if (!r.ok) failed++;
+        setBulkProgress({ done: i + 1, total: targets.length });
+      }
+      setBulkProgress(null);
+      if (failed > 0) setSaveError(`${failed} of ${targets.length} pages failed to update`);
     } finally {
       setSaving(false);
     }
@@ -525,12 +755,12 @@ export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
             <ExternalLink className="w-3.5 h-3.5" /> Public
           </a>
           <button
-            onClick={save}
+            onClick={handleSaveClick}
             disabled={!dirty || saving}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {dirty ? "Save" : "Saved"}
+            {saving && bulkProgress ? `Saving ${bulkProgress.done}/${bulkProgress.total}` : dirty ? "Save" : "Saved"}
           </button>
         </div>
       </div>
@@ -568,6 +798,16 @@ export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
                   className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-400 resize-none"
                 />
               </Field>
+            </Section>
+
+            <Section title="Linked Profile">
+              <ProfilePicker
+                profiles={profiles}
+                value={page.profile_id}
+                slug={page.slug}
+                suggested={suggested}
+                onChange={(id) => update({ profile_id: id })}
+              />
             </Section>
 
             <Section title="Background">
@@ -636,6 +876,194 @@ export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      {bulkOpen && (
+        <BulkApplyModal
+          changedFields={bulkChangedFields}
+          applyFields={bulkApplyFields}
+          onApplyFieldsChange={setBulkApplyFields}
+          targetIds={bulkTargetIds}
+          onTargetIdsChange={setBulkTargetIds}
+          otherPages={otherPages}
+          profiles={profiles}
+          onCancel={() => setBulkOpen(false)}
+          onSkip={() => { setBulkOpen(false); saveCurrentOnly(); }}
+          onConfirm={confirmBulkSave}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Bulk-apply modal ───────────────────────────────────────────────
+// Shown after Save when bio/background changed AND other pages exist.
+// User opts in to which fields propagate and which target pages get them.
+function BulkApplyModal({
+  changedFields,
+  applyFields,
+  onApplyFieldsChange,
+  targetIds,
+  onTargetIdsChange,
+  otherPages,
+  profiles,
+  onCancel,
+  onSkip,
+  onConfirm,
+}: {
+  changedFields: { background: boolean; bio: boolean };
+  applyFields: { background: boolean; bio: boolean };
+  onApplyFieldsChange: (f: { background: boolean; bio: boolean }) => void;
+  targetIds: Set<string>;
+  onTargetIdsChange: (s: Set<string>) => void;
+  otherPages: OtherPageRow[];
+  profiles: ProfileLite[];
+  onCancel: () => void;
+  onSkip: () => void;
+  onConfirm: () => void;
+}) {
+  // Lock body scroll
+  useEffect(() => {
+    const o = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = o; };
+  }, []);
+
+  const profileById = useMemo(() => {
+    const m: Record<string, ProfileLite> = {};
+    for (const p of profiles) m[p.id] = p;
+    return m;
+  }, [profiles]);
+
+  function toggle(id: string) {
+    const next = new Set(targetIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onTargetIdsChange(next);
+  }
+
+  function selectAll() {
+    onTargetIdsChange(new Set(otherPages.map(p => p.id)));
+  }
+
+  function clearAll() {
+    onTargetIdsChange(new Set());
+  }
+
+  const willApplyAnything = (applyFields.background && changedFields.background)
+                         || (applyFields.bio && changedFields.bio);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onCancel}>
+      <div
+        className="w-full max-w-xl bg-white rounded-2xl shadow-xl flex flex-col max-h-[85vh]"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-bold text-gray-900">Apply changes to other pages?</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Pick which fields and which pages should also receive these updates. Skip to save only this page.
+          </p>
+        </div>
+
+        {/* Field toggles */}
+        <div className="px-5 py-3 border-b border-gray-100 space-y-2">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fields</div>
+          {changedFields.background && (
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <input
+                type="checkbox"
+                checked={applyFields.background}
+                onChange={e => onApplyFieldsChange({ ...applyFields, background: e.target.checked })}
+                className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+              />
+              <span className="text-gray-900">Background image</span>
+            </label>
+          )}
+          {changedFields.bio && (
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <input
+                type="checkbox"
+                checked={applyFields.bio}
+                onChange={e => onApplyFieldsChange({ ...applyFields, bio: e.target.checked })}
+                className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+              />
+              <span className="text-gray-900">Bio</span>
+            </label>
+          )}
+        </div>
+
+        {/* Target pages */}
+        <div className="flex items-center justify-between px-5 py-2 border-b border-gray-100 bg-gray-50">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Target pages ({targetIds.size}/{otherPages.length})
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={selectAll} className="text-xs text-brand-600 hover:text-brand-700 font-medium">All</button>
+            <span className="text-xs text-gray-300">·</span>
+            <button onClick={clearAll} className="text-xs text-gray-500 hover:text-gray-700 font-medium">None</button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {otherPages.length === 0 ? (
+            <div className="p-6 text-sm text-gray-400 text-center">No other pages yet.</div>
+          ) : (
+            otherPages.map(p => {
+              const checked = targetIds.has(p.id);
+              const linkedProfile = p.profile_id ? profileById[p.profile_id] : null;
+              return (
+                <label
+                  key={p.id}
+                  className={cn(
+                    "flex items-center gap-3 px-5 py-2.5 cursor-pointer border-b border-gray-50 last:border-b-0",
+                    checked ? "bg-brand-50/50" : "hover:bg-gray-50",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(p.id)}
+                    className="rounded border-gray-300 text-brand-500 focus:ring-brand-500 flex-shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-gray-900 truncate">/{p.slug}</div>
+                    <div className="text-xs text-gray-400 truncate">
+                      {p.display_name || "—"}
+                      {linkedProfile && (
+                        <span className="ml-2">
+                          · linked to <span className="text-gray-600">{linkedProfile.instagram_username}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </label>
+              );
+            })
+          )}
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-100 flex flex-wrap items-center justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSkip}
+            className="px-4 py-2 rounded-lg text-sm text-gray-700 border border-gray-200 hover:bg-gray-50"
+          >
+            Save only this page
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!willApplyAnything || targetIds.size === 0}
+            className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Apply to {targetIds.size} page{targetIds.size === 1 ? "" : "s"}
+          </button>
         </div>
       </div>
     </div>

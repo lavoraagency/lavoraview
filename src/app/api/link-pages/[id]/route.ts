@@ -27,7 +27,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const patch: Record<string, any> = {};
   for (const k of [
     "slug", "display_name", "bio", "avatar_url", "background_url",
-    "blocks", "theme", "is_published",
+    "blocks", "theme", "is_published", "profile_id",
   ]) {
     if (k in body) patch[k] = body[k];
   }
