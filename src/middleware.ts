@@ -49,7 +49,7 @@ function publicLinkPlane(request: NextRequest): NextResponse | null {
 
   // /slug -> /p/slug (rewrite, not redirect — URL stays clean)
   const slug = pathname.replace(/^\/+|\/+$/g, "");
-  if (/^[a-z0-9_-]{1,40}$/.test(slug)) {
+  if (/^[a-z0-9._-]{1,40}$/.test(slug)) {
     const rewrite = url.clone();
     rewrite.pathname = `/p/${slug}`;
     return NextResponse.rewrite(rewrite);

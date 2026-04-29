@@ -34,7 +34,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   if ("slug" in patch) {
     const s = patch.slug;
-    if (typeof s !== "string" || !/^[a-z0-9_-]{1,40}$/.test(s)) {
+    if (typeof s !== "string" || !/^[a-z0-9._-]{1,40}$/.test(s)) {
       return NextResponse.json({ error: "invalid slug" }, { status: 400 });
     }
   }

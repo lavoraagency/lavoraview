@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, ExternalLink, Eye, Edit3, Trash2, Link as LinkIcon, Copy, Check } from "lucide-react";
+import { Plus, ExternalLink, Eye, Edit3, Trash2, Link as LinkIcon, Copy, Check, Files } from "lucide-react";
 import { PUBLIC_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
 
 interface PageRow {
@@ -28,6 +28,44 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Duplicate flow state
+  const [dupSource, setDupSource] = useState<PageRow | null>(null);
+  const [dupSlug, setDupSlug] = useState("");
+  const [dupBusy, setDupBusy] = useState(false);
+  const [dupError, setDupError] = useState<string | null>(null);
+
+  function startDuplicate(p: PageRow) {
+    // Suggest a fresh slug: append "-copy", or "-copy-2", "-copy-3", … if taken.
+    const taken = new Set(pages.map(x => x.slug));
+    let candidate = `${p.slug}-copy`;
+    let n = 2;
+    while (taken.has(candidate)) {
+      candidate = `${p.slug}-copy-${n}`;
+      n++;
+    }
+    setDupSource(p);
+    setDupSlug(candidate);
+    setDupError(null);
+  }
+
+  async function confirmDuplicate() {
+    if (!dupSource) return;
+    setDupBusy(true);
+    setDupError(null);
+    try {
+      const r = await fetch("/api/link-pages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: dupSlug.trim().toLowerCase(), from: dupSource.id }),
+      });
+      const j = await r.json();
+      if (!r.ok) { setDupError(j.error || "Duplicate failed"); return; }
+      router.push(`/dashboard/links/${j.page.id}`);
+    } finally {
+      setDupBusy(false);
+    }
+  }
 
   function copyUrl(slug: string, id: string) {
     navigator.clipboard.writeText(publicUrlForSlug(slug));
@@ -124,6 +162,13 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
                   >
                     {copiedId === p.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                   </button>
+                  <button
+                    onClick={() => startDuplicate(p)}
+                    className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                    title="Duplicate"
+                  >
+                    <Files className="w-4 h-4" />
+                  </button>
                   <a
                     href={publicUrlForSlug(p.slug)}
                     target="_blank"
@@ -168,13 +213,13 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
                   <input
                     autoFocus
                     value={newSlug}
-                    onChange={e => setNewSlug(e.target.value.replace(/[^a-z0-9_-]/gi, "").toLowerCase())}
+                    onChange={e => setNewSlug(e.target.value.replace(/[^a-z0-9._-]/gi, "").toLowerCase())}
                     placeholder="stephii"
                     className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-400"
                     maxLength={40}
                   />
                 </div>
-                <span className="text-xs text-gray-400 mt-1 block">a-z, 0-9, -, _, max 40</span>
+                <span className="text-xs text-gray-400 mt-1 block">a-z, 0-9, ., -, _, max 40</span>
               </label>
 
               <label className="block">
@@ -204,6 +249,57 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
                 className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
               >
                 {creating ? "Creating…" : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {dupSource && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => !dupBusy && setDupSource(null)}
+        >
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-5" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-gray-900">Duplicate page</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Copy of <span className="font-medium text-gray-700">/{dupSource.slug}</span> — same blocks, theme and images, fresh slug. The linked profile is not copied.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <label className="block">
+                <span className="text-xs font-medium text-gray-700">New slug</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm text-gray-400">{PUBLIC_LINK_DOMAIN} /</span>
+                  <input
+                    autoFocus
+                    value={dupSlug}
+                    onChange={e => setDupSlug(e.target.value.replace(/[^a-z0-9._-]/gi, "").toLowerCase())}
+                    placeholder="new-slug"
+                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-400"
+                    maxLength={40}
+                  />
+                </div>
+                <span className="text-xs text-gray-400 mt-1 block">a-z, 0-9, ., -, _, max 40</span>
+              </label>
+
+              {dupError && <div className="text-sm text-red-600">{dupError}</div>}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setDupSource(null)}
+                disabled={dupBusy}
+                className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDuplicate}
+                disabled={dupBusy || !dupSlug.trim()}
+                className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+              >
+                {dupBusy ? "Duplicating…" : "Duplicate"}
               </button>
             </div>
           </div>

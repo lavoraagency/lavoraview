@@ -843,7 +843,7 @@ export function LinkEditorClient({
                 <Field label="Slug">
                   <input
                     value={page.slug}
-                    onChange={e => update({ slug: e.target.value.replace(/[^a-z0-9_-]/gi, "").toLowerCase() })}
+                    onChange={e => update({ slug: e.target.value.replace(/[^a-z0-9._-]/gi, "").toLowerCase() })}
                     className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-400"
                     maxLength={40}
                   />
