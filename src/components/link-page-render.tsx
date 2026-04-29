@@ -90,7 +90,7 @@ function HeaderBlock({ block, page }: { block: ProfileHeaderBlock; page: LinkPag
   return (
     <div className="text-center px-2 pt-2 pb-1">
       {title && (
-        <h1 className="text-3xl md:text-4xl font-extrabold text-white drop-shadow-md leading-tight">
+        <h1 className="text-2xl md:text-3xl font-extrabold text-white drop-shadow-md leading-tight">
           {title}
         </h1>
       )}
