@@ -93,6 +93,9 @@ export interface LinkPage {
   bio: string | null;
   avatar_url: string | null;
   background_url: string | null;
+  /** Full un-cropped source. Re-crop loads from here so previously discarded
+   * pixels stay reachable. Falls back to background_url if absent. */
+  background_original_url: string | null;
   blocks: Block[];
   theme: PageTheme;
   is_published: boolean;

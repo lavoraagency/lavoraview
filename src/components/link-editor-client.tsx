@@ -29,11 +29,14 @@ const ICON_OPTIONS = [
 ];
 
 // ── Image upload widget ────────────────────────────────────────────
-// When `cropAspect` is provided, uploaded files (and the existing image
-// via the Re-crop button) go through the CropModal first. The cropped
-// blob is uploaded; the original is discarded.
+// When `cropAspect` is provided, uploads go through the CropModal
+// first. The full source is uploaded as the original (so re-crop later
+// can work with every pixel) and a separate cropped JPEG is uploaded
+// for rendering. `originalValue` / `onOriginalChange` are paired with
+// `value` / `onChange` for that case.
 function ImageInput({
   value, onChange, pageId, label, cropAspect, onAspectChange, allowAspectChange,
+  originalValue, onOriginalChange,
 }: {
   value: string | null | undefined;
   onChange: (url: string | null) => void;
@@ -43,48 +46,84 @@ function ImageInput({
   /** Called when the user changes the aspect inside the cropper. */
   onAspectChange?: (a: AspectKey) => void;
   allowAspectChange?: boolean;
+  /** Full un-cropped original. When present, Re-crop loads from here. */
+  originalValue?: string | null;
+  onOriginalChange?: (url: string | null) => void;
 }) {
   const [uploading, setUploading] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
+  // The File object the user picked, kept in memory until the cropper
+  // confirms — so we can upload it as the "original" alongside the crop.
+  const pendingFileRef = useRef<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function uploadBlob(blob: Blob | File) {
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      const file = blob instanceof File ? blob : new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
-      fd.append("file", file);
-      fd.append("page_id", pageId);
-      const r = await fetch("/api/link-pages/upload", { method: "POST", body: fd });
-      const j = await r.json();
-      if (r.ok && j.url) onChange(j.url);
-      else alert(j.error || "Upload failed");
-    } finally {
-      setUploading(false);
-    }
+  async function uploadBlob(blob: Blob | File): Promise<string | null> {
+    const fd = new FormData();
+    const file = blob instanceof File ? blob : new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
+    fd.append("file", file);
+    fd.append("page_id", pageId);
+    const r = await fetch("/api/link-pages/upload", { method: "POST", body: fd });
+    const j = await r.json();
+    if (r.ok && j.url) return j.url as string;
+    alert(j.error || "Upload failed");
+    return null;
   }
 
   function handleFile(file: File) {
     if (cropAspect) {
-      // Open the cropper with a local object URL — no upload yet.
+      // Hold on to the File so we can upload it as the original on confirm.
+      pendingFileRef.current = file;
       const url = URL.createObjectURL(file);
       setCropSrc(url);
     } else {
-      uploadBlob(file);
+      setUploading(true);
+      uploadBlob(file).then((url) => {
+        if (url) onChange(url);
+        setUploading(false);
+      });
     }
   }
 
   async function handleCropConfirm(blob: Blob, aspect: AspectKey) {
-    // Free the object URL we created on file pick
-    if (cropSrc?.startsWith("blob:")) URL.revokeObjectURL(cropSrc);
-    setCropSrc(null);
-    onAspectChange?.(aspect);
-    await uploadBlob(blob);
+    setUploading(true);
+    try {
+      onAspectChange?.(aspect);
+
+      const pending = pendingFileRef.current;
+      if (pending) {
+        // Fresh upload: persist BOTH the pristine source and the cropped
+        // version so re-cropping later starts from the full original.
+        const [origUrl, cropUrl] = await Promise.all([
+          uploadBlob(pending),
+          uploadBlob(blob),
+        ]);
+        if (origUrl) onOriginalChange?.(origUrl);
+        if (cropUrl) onChange(cropUrl);
+      } else {
+        // Re-crop of an existing image — only the cropped version is
+        // re-uploaded; the original on Storage stays as-is.
+        const cropUrl = await uploadBlob(blob);
+        if (cropUrl) onChange(cropUrl);
+      }
+    } finally {
+      pendingFileRef.current = null;
+      if (cropSrc?.startsWith("blob:")) URL.revokeObjectURL(cropSrc);
+      setCropSrc(null);
+      setUploading(false);
+    }
   }
 
   function handleCropCancel() {
+    pendingFileRef.current = null;
     if (cropSrc?.startsWith("blob:")) URL.revokeObjectURL(cropSrc);
     setCropSrc(null);
+  }
+
+  function handleRecrop() {
+    // Prefer the pristine source; fall back to the cropped URL for legacy
+    // pages that were uploaded before the original was tracked.
+    const src = originalValue || value;
+    if (src) setCropSrc(src);
   }
 
   return (
@@ -102,14 +141,18 @@ function ImageInput({
             />
             {cropAspect && (
               <button
-                onClick={() => setCropSrc(value)}
+                onClick={handleRecrop}
                 className="text-gray-400 hover:text-brand-500 transition-colors"
                 title="Re-crop"
               >
                 <Crop className="w-3.5 h-3.5" />
               </button>
             )}
-            <button onClick={() => onChange(null)} className="text-gray-400 hover:text-red-500" title="Remove">
+            <button
+              onClick={() => { onChange(null); onOriginalChange?.(null); }}
+              className="text-gray-400 hover:text-red-500"
+              title="Remove"
+            >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -640,6 +683,7 @@ export function LinkEditorClient({
       bio: page.bio,
       avatar_url: page.avatar_url,
       background_url: page.background_url,
+      background_original_url: page.background_original_url,
       blocks: page.blocks,
       theme: page.theme,
       is_published: page.is_published,
@@ -691,8 +735,11 @@ export function LinkEditorClient({
       if (targets.length === 0) return;
 
       const fieldPatch: Record<string, any> = {};
-      if (bulkApplyFields.background) fieldPatch.background_url = page.background_url;
-      if (bulkApplyFields.bio)        fieldPatch.bio = page.bio;
+      if (bulkApplyFields.background) {
+        fieldPatch.background_url = page.background_url;
+        fieldPatch.background_original_url = page.background_original_url;
+      }
+      if (bulkApplyFields.bio) fieldPatch.bio = page.bio;
       if (Object.keys(fieldPatch).length === 0) return;
 
       setBulkProgress({ done: 0, total: targets.length });
@@ -834,13 +881,15 @@ export function LinkEditorClient({
                 label="Background image (full-bleed photo at the top)"
                 value={page.background_url}
                 onChange={url => update({ background_url: url })}
+                originalValue={page.background_original_url}
+                onOriginalChange={url => update({ background_original_url: url })}
                 pageId={page.id}
                 cropAspect={(page.theme?.photoAspect || "4:3") as AspectKey}
                 onAspectChange={(a) => update({ theme: { ...page.theme, photoAspect: a as PhotoAspectKey } })}
                 allowAspectChange
               />
               <div className="text-xs text-gray-500 mt-2 leading-relaxed">
-                After upload you can drag and zoom to choose which part of the photo is shown. The aspect ratio above controls the size of the photo zone — switching it lets you re-crop with the new ratio.
+                The original is kept around so you can re-crop later — switch the aspect, drag, zoom; you always have every pixel back.
               </div>
             </Section>
 
