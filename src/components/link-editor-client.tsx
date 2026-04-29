@@ -30,25 +30,28 @@ const ICON_OPTIONS = [
 
 // ── Image upload widget ────────────────────────────────────────────
 // When `cropAspect` is provided, uploads go through the CropModal
-// first. The full source is uploaded as the original (so re-crop later
-// can work with every pixel) and a separate cropped JPEG is uploaded
-// for rendering. `originalValue` / `onOriginalChange` are paired with
-// `value` / `onChange` for that case.
+// first. The pristine source is uploaded as the original (so re-crop
+// later can work with every pixel) and a separate cropped JPEG is
+// uploaded for rendering.
+//
+// onChange receives a single update object. Either field can be
+// undefined (= unchanged) so the parent can apply both mutations in
+// one render pass — important for nested state like blocks where two
+// successive setState calls would race against the same stale block.
+type ImageInputUpdate = { url?: string | null; originalUrl?: string | null };
+
 function ImageInput({
-  value, onChange, pageId, label, cropAspect, onAspectChange, allowAspectChange,
-  originalValue, onOriginalChange,
+  value, originalValue, onChange, pageId, label, cropAspect, onAspectChange, allowAspectChange,
 }: {
   value: string | null | undefined;
-  onChange: (url: string | null) => void;
+  originalValue?: string | null;
+  onChange: (u: ImageInputUpdate) => void;
   pageId: string;
   label?: string;
   cropAspect?: AspectKey;
   /** Called when the user changes the aspect inside the cropper. */
   onAspectChange?: (a: AspectKey) => void;
   allowAspectChange?: boolean;
-  /** Full un-cropped original. When present, Re-crop loads from here. */
-  originalValue?: string | null;
-  onOriginalChange?: (url: string | null) => void;
 }) {
   const [uploading, setUploading] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -78,7 +81,7 @@ function ImageInput({
     } else {
       setUploading(true);
       uploadBlob(file).then((url) => {
-        if (url) onChange(url);
+        if (url) onChange({ url });
         setUploading(false);
       });
     }
@@ -93,17 +96,20 @@ function ImageInput({
       if (pending) {
         // Fresh upload: persist BOTH the pristine source and the cropped
         // version so re-cropping later starts from the full original.
+        // Single onChange so the parent applies both URLs atomically.
         const [origUrl, cropUrl] = await Promise.all([
           uploadBlob(pending),
           uploadBlob(blob),
         ]);
-        if (origUrl) onOriginalChange?.(origUrl);
-        if (cropUrl) onChange(cropUrl);
+        const update: ImageInputUpdate = {};
+        if (cropUrl) update.url = cropUrl;
+        if (origUrl) update.originalUrl = origUrl;
+        if (Object.keys(update).length > 0) onChange(update);
       } else {
         // Re-crop of an existing image — only the cropped version is
         // re-uploaded; the original on Storage stays as-is.
         const cropUrl = await uploadBlob(blob);
-        if (cropUrl) onChange(cropUrl);
+        if (cropUrl) onChange({ url: cropUrl });
       }
     } finally {
       pendingFileRef.current = null;
@@ -136,7 +142,7 @@ function ImageInput({
             <img src={value} alt="" className="w-8 h-8 rounded object-cover" />
             <input
               value={value}
-              onChange={e => onChange(e.target.value)}
+              onChange={e => onChange({ url: e.target.value })}
               className="flex-1 bg-transparent text-xs text-gray-700 focus:outline-none truncate"
             />
             {cropAspect && (
@@ -149,7 +155,7 @@ function ImageInput({
               </button>
             )}
             <button
-              onClick={() => { onChange(null); onOriginalChange?.(null); }}
+              onClick={() => onChange({ url: null, originalUrl: null })}
               className="text-gray-400 hover:text-red-500"
               title="Remove"
             >
@@ -160,7 +166,7 @@ function ImageInput({
           <input
             value=""
             placeholder="Image URL or upload a file"
-            onChange={e => onChange(e.target.value || null)}
+            onChange={e => onChange({ url: e.target.value || null })}
             className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-brand-400"
           />
         )}
@@ -229,7 +235,9 @@ function LinkInspector({ block, onChange, pageId }: { block: LinkButtonBlock; on
         <ImageInput
           label="Custom Icon"
           value={block.iconUrl}
-          onChange={url => onChange({ ...block, iconUrl: url || undefined })}
+          onChange={({ url }) => {
+            if (url !== undefined) onChange({ ...block, iconUrl: url || undefined });
+          }}
           pageId={pageId}
         />
       )}
@@ -249,9 +257,16 @@ function ImageCardInspector({ block, onChange, pageId }: { block: ImageCardBlock
       <ImageInput
         label="Background Image"
         value={block.imageUrl}
-        onChange={url => onChange({ ...block, imageUrl: url || "" })}
         originalValue={block.imageOriginalUrl || null}
-        onOriginalChange={url => onChange({ ...block, imageOriginalUrl: url || undefined })}
+        onChange={({ url, originalUrl }) => {
+          // Apply both fields in a single block update so the trash
+          // button (which clears both at once) doesn't race against a
+          // stale `block` closure on the second setState.
+          const next = { ...block };
+          if (url !== undefined) next.imageUrl = url || "";
+          if (originalUrl !== undefined) next.imageOriginalUrl = originalUrl || undefined;
+          onChange(next);
+        }}
         pageId={pageId}
         cropAspect="4:3"
         allowAspectChange={false}
@@ -884,9 +899,13 @@ export function LinkEditorClient({
               <ImageInput
                 label="Background image (full-bleed photo at the top)"
                 value={page.background_url}
-                onChange={url => update({ background_url: url })}
                 originalValue={page.background_original_url}
-                onOriginalChange={url => update({ background_original_url: url })}
+                onChange={({ url, originalUrl }) => {
+                  const patch: Partial<LinkPage> = {};
+                  if (url !== undefined) patch.background_url = url;
+                  if (originalUrl !== undefined) patch.background_original_url = originalUrl;
+                  update(patch);
+                }}
                 pageId={page.id}
                 cropAspect={(page.theme?.photoAspect || "4:3") as AspectKey}
                 onAspectChange={(a) => update({ theme: { ...page.theme, photoAspect: a as PhotoAspectKey } })}
