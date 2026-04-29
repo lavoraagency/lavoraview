@@ -6,7 +6,13 @@ import { ProfilesClient } from "@/components/profiles-client";
 export default async function ProfilesPage() {
   const supabase = createClient();
 
-  const [{ data: profiles }, { data: models }, { data: groups }, { data: tags }] = await Promise.all([
+  const [
+    { data: profiles },
+    { data: models },
+    { data: groups },
+    { data: tags },
+    { data: linkPages },
+  ] = await Promise.all([
     supabase
       .from("profiles")
       .select(`
@@ -19,9 +25,25 @@ export default async function ProfilesPage() {
     supabase.from("models").select("id, name, nickname").order("name"),
     supabase.from("account_groups").select("id, name, model_id, group_type").order("name"),
     supabase.from("tags").select("id, name, color").order("name"),
+    // Link pages assigned to a profile — only published ones, used for the
+    // "Link" column rendered next to the Profile column on the profiles tab.
+    supabase
+      .from("link_pages")
+      .select("slug, profile_id")
+      .not("profile_id", "is", null)
+      .eq("is_published", true),
   ]);
 
-  // Attach latest snapshot to each profile
+  // Group slugs by profile_id so we can render all assigned link slugs per
+  // profile without an extra round-trip in the client.
+  const linksByProfile = new Map<string, string[]>();
+  for (const row of (linkPages || []) as { slug: string; profile_id: string }[]) {
+    const arr = linksByProfile.get(row.profile_id) || [];
+    arr.push(row.slug);
+    linksByProfile.set(row.profile_id, arr);
+  }
+
+  // Attach latest snapshot + linked-page slugs to each profile
   const profilesWithLatest = (profiles || []).map(p => {
     const snaps = ((p.profile_snapshots as any[]) || []).sort((a: any, b: any) =>
       new Date(b.scraped_at).getTime() - new Date(a.scraped_at).getTime()
@@ -32,6 +54,7 @@ export default async function ProfilesPage() {
       latestViews: snaps[0]?.total_reel_views ?? null,
       latestPosts: snaps[0]?.media_count ?? null,
       latestScrapedAt: snaps[0]?.scraped_at ?? null,
+      linkSlugs: linksByProfile.get(p.id) || [],
     };
   });
 

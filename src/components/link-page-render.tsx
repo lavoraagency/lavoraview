@@ -29,19 +29,24 @@ function BrandIcon({ kind, customUrl }: { kind?: string; customUrl?: string }) {
   }
   switch (kind) {
     case "of":
-      // OnlyFans-style mark
+      // Official OnlyFans mark via Simple Icons CDN (CC0).
+      // eslint-disable-next-line @next/next/no-img-element
       return (
-        <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden>
-          <circle cx="12" cy="12" r="10" fill="#00AFF0" />
-          <circle cx="9" cy="12" r="2.6" fill="#fff" />
-          <path d="M14 7.5c.7 0 1.4.3 1.9.8s.8 1.2.8 1.9c0 .7-.3 1.4-.8 1.9s-1.2.8-1.9.8" stroke="#fff" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-        </svg>
+        <img
+          src="https://cdn.simpleicons.org/onlyfans/00AFF0"
+          alt="OnlyFans"
+          className="w-5 h-5"
+        />
       );
     case "fansly":
+      // Official Fansly mark from their own asset host.
+      // eslint-disable-next-line @next/next/no-img-element
       return (
-        <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden>
-          <path d="M12 21s-7-4.5-7-10a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 5.5-7 10-7 10h-4z" fill="#1d9bf0" />
-        </svg>
+        <img
+          src="https://fansly.com/assets/images/icons/apple-touch-icon.png?v=12"
+          alt="Fansly"
+          className="w-5 h-5 rounded"
+        />
       );
     case "telegram":
       return <TelegramIcon className="w-5 h-5 text-sky-400" />;

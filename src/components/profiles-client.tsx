@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { TagBadge } from "@/components/tag-badge";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { PUBLIC_LINK_DOMAIN } from "@/lib/link-pages/config";
 
 interface ProfilesClientProps {
   initialProfiles: any[];
@@ -228,6 +229,7 @@ function GroupTable({
             <tr>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profile</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
               <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Followers</th>
               <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Posts</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>
@@ -265,6 +267,26 @@ function GroupTable({
                     </a>
                   </div>
                 </td>
+                <td className="px-5 py-3.5">
+                  {p.linkSlugs && p.linkSlugs.length > 0 ? (
+                    <div className="flex flex-col gap-0.5">
+                      {(p.linkSlugs as string[]).map((slug: string) => (
+                        <a
+                          key={slug}
+                          href={`https://${PUBLIC_LINK_DOMAIN}/${slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-gray-600 hover:text-brand-600 transition-colors truncate"
+                          title={`Open ${PUBLIC_LINK_DOMAIN}/${slug}`}
+                        >
+                          {PUBLIC_LINK_DOMAIN}/{slug}
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-gray-300 text-xs">—</span>
+                  )}
+                </td>
                 <td className="px-5 py-3.5 text-right font-medium text-gray-700">
                   {p.latestFollowers != null ? formatNumber(p.latestFollowers) : <span className="text-gray-300">-</span>}
                 </td>
@@ -287,7 +309,7 @@ function GroupTable({
             ))}
             {profiles.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-gray-400">
+                <td colSpan={7} className="px-5 py-8 text-center text-gray-400">
                   Keine Profile in dieser Gruppe
                 </td>
               </tr>
