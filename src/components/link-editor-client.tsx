@@ -250,11 +250,15 @@ function ImageCardInspector({ block, onChange, pageId }: { block: ImageCardBlock
         label="Background Image"
         value={block.imageUrl}
         onChange={url => onChange({ ...block, imageUrl: url || "" })}
+        originalValue={block.imageOriginalUrl || null}
+        onOriginalChange={url => onChange({ ...block, imageOriginalUrl: url || undefined })}
         pageId={pageId}
+        cropAspect="4:3"
+        allowAspectChange={false}
       />
-      <Field label="Overlay-Icon (oben rechts)">
+      <Field label="Overlay icon (top right)">
         <select value={block.overlayIcon || ""} onChange={e => onChange({ ...block, overlayIcon: e.target.value || undefined })} className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-400 bg-white">
-          <option value="">Kein Icon</option>
+          <option value="">No icon</option>
           {ICON_OPTIONS.filter(o => o.value && o.value !== "custom").map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </Field>

@@ -35,8 +35,10 @@ export interface LinkButtonBlock {
 export interface ImageCardBlock {
   id: BlockId;
   type: "image-card";
-  /** Big image as background. */
+  /** Big image as background (the cropped 4:3 version that gets rendered). */
   imageUrl: string;
+  /** Pristine source kept around so Re-crop works without pixel loss. */
+  imageOriginalUrl?: string;
   /** Title overlaid at the bottom of the image. */
   title: string;
   /** Click destination. */
