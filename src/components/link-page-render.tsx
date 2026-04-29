@@ -272,14 +272,20 @@ export function LinkPageRender({
       }
     : undefined;
 
+  // Photo zone aspect ratio — driven by theme; defaults to 4:3.
+  const photoAspect = page.theme?.photoAspect || "4:3";
+  const aspectStyle: React.CSSProperties = {
+    aspectRatio: photoAspect.replace(":", "/"),
+  };
+
   return (
     <div className="min-h-screen w-full text-white" style={{ backgroundColor: solidColor }}>
       <div className="mx-auto max-w-[480px] min-h-screen flex flex-col">
         {/* ── Photo zone (top) — only when a background image is set ── */}
         {page.background_url && (
           <div
-            className="relative w-full aspect-[4/3] flex flex-col justify-end px-4 pb-2"
-            style={photoZoneStyle}
+            className="relative w-full flex flex-col justify-end px-4 pb-2"
+            style={{ ...photoZoneStyle, ...aspectStyle }}
           >
             {headerBlock && renderBlock(headerBlock, "hdr")}
           </div>

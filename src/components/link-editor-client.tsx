@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import {
   ArrowUp, ArrowDown, Trash2, Plus, Image as ImageIcon, Upload, ExternalLink,
   ChevronDown, ChevronRight, Save, Loader2, Eye, EyeOff, Type, MousePointerClick, ImagePlus,
-  Copy, Check, X,
+  Copy, Check, X, Crop,
 } from "lucide-react";
 import { PUBLIC_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
 import { LinkPageRender } from "@/components/link-page-render";
+import { CropModal, AspectKey } from "@/components/link-pages/crop-modal";
 import {
-  Block, ImageCardBlock, LinkButtonBlock, LinkPage, ProfileHeaderBlock,
+  Block, ImageCardBlock, LinkButtonBlock, LinkPage, PhotoAspectKey, ProfileHeaderBlock,
   SocialsRowBlock, SpacerBlock, newBlockId,
 } from "@/lib/link-pages/types";
 import { cn } from "@/lib/utils";
@@ -27,25 +28,62 @@ const ICON_OPTIONS = [
 ];
 
 // ── Image upload widget ────────────────────────────────────────────
+// When `cropAspect` is provided, uploaded files (and the existing image
+// via the Re-crop button) go through the CropModal first. The cropped
+// blob is uploaded; the original is discarded.
 function ImageInput({
-  value, onChange, pageId, label,
-}: { value: string | null | undefined; onChange: (url: string | null) => void; pageId: string; label?: string }) {
+  value, onChange, pageId, label, cropAspect, onAspectChange, allowAspectChange,
+}: {
+  value: string | null | undefined;
+  onChange: (url: string | null) => void;
+  pageId: string;
+  label?: string;
+  cropAspect?: AspectKey;
+  /** Called when the user changes the aspect inside the cropper. */
+  onAspectChange?: (a: AspectKey) => void;
+  allowAspectChange?: boolean;
+}) {
   const [uploading, setUploading] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function upload(file: File) {
+  async function uploadBlob(blob: Blob | File) {
     setUploading(true);
     try {
       const fd = new FormData();
+      const file = blob instanceof File ? blob : new File([blob], "image.jpg", { type: blob.type || "image/jpeg" });
       fd.append("file", file);
       fd.append("page_id", pageId);
       const r = await fetch("/api/link-pages/upload", { method: "POST", body: fd });
       const j = await r.json();
       if (r.ok && j.url) onChange(j.url);
-      else alert(j.error || "Upload fehlgeschlagen");
+      else alert(j.error || "Upload failed");
     } finally {
       setUploading(false);
     }
+  }
+
+  function handleFile(file: File) {
+    if (cropAspect) {
+      // Open the cropper with a local object URL — no upload yet.
+      const url = URL.createObjectURL(file);
+      setCropSrc(url);
+    } else {
+      uploadBlob(file);
+    }
+  }
+
+  async function handleCropConfirm(blob: Blob, aspect: AspectKey) {
+    // Free the object URL we created on file pick
+    if (cropSrc?.startsWith("blob:")) URL.revokeObjectURL(cropSrc);
+    setCropSrc(null);
+    onAspectChange?.(aspect);
+    await uploadBlob(blob);
+  }
+
+  function handleCropCancel() {
+    if (cropSrc?.startsWith("blob:")) URL.revokeObjectURL(cropSrc);
+    setCropSrc(null);
   }
 
   return (
@@ -61,7 +99,16 @@ function ImageInput({
               onChange={e => onChange(e.target.value)}
               className="flex-1 bg-transparent text-xs text-gray-700 focus:outline-none truncate"
             />
-            <button onClick={() => onChange(null)} className="text-gray-400 hover:text-red-500">
+            {cropAspect && (
+              <button
+                onClick={() => setCropSrc(value)}
+                className="text-gray-400 hover:text-brand-500 transition-colors"
+                title="Re-crop"
+              >
+                <Crop className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button onClick={() => onChange(null)} className="text-gray-400 hover:text-red-500" title="Remove">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -86,9 +133,19 @@ function ImageInput({
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
         />
       </div>
+
+      {cropSrc && (
+        <CropModal
+          imageSrc={cropSrc}
+          defaultAspect={cropAspect || "4:3"}
+          allowAspectChange={allowAspectChange ?? true}
+          onCancel={handleCropCancel}
+          onConfirm={handleCropConfirm}
+        />
+      )}
     </div>
   );
 }
@@ -103,7 +160,7 @@ function HeaderInspector({ block, onChange }: { block: ProfileHeaderBlock; onCha
       <Field label="Subtitle">
         <input value={block.subtitle || ""} onChange={e => onChange({ ...block, subtitle: e.target.value })} className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-400" placeholder="@stephaniesteward" />
       </Field>
-      <Field label="Meta-Zeile (optional)">
+      <Field label="Meta line (optional)">
         <input value={block.meta || ""} onChange={e => onChange({ ...block, meta: e.target.value })} className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-400" placeholder="19y/o 📍 Houston | texas 🌴" />
       </Field>
     </div>
@@ -514,14 +571,36 @@ export function LinkEditorClient({ initialPage }: { initialPage: LinkPage }) {
             </Section>
 
             <Section title="Background">
+              <Field label="Photo zone aspect ratio">
+                <div className="flex flex-wrap gap-1.5">
+                  {(["4:3", "1:1", "16:9", "4:5", "9:16"] as PhotoAspectKey[]).map(a => {
+                    const active = (page.theme?.photoAspect || "4:3") === a;
+                    return (
+                      <button
+                        key={a}
+                        onClick={() => update({ theme: { ...page.theme, photoAspect: a } })}
+                        className={cn(
+                          "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                          active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200",
+                        )}
+                      >
+                        {a}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
               <ImageInput
                 label="Background image (full-bleed photo at the top)"
                 value={page.background_url}
                 onChange={url => update({ background_url: url })}
                 pageId={page.id}
+                cropAspect={(page.theme?.photoAspect || "4:3") as AspectKey}
+                onAspectChange={(a) => update({ theme: { ...page.theme, photoAspect: a as PhotoAspectKey } })}
+                allowAspectChange
               />
               <div className="text-xs text-gray-500 mt-2 leading-relaxed">
-                Tip: portrait or landscape photos both work — the bottom edge fades into the page background automatically.
+                After upload you can drag and zoom to choose which part of the photo is shown. The aspect ratio above controls the size of the photo zone — switching it lets you re-crop with the new ratio.
               </div>
             </Section>
 

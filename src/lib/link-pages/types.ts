@@ -67,6 +67,8 @@ export type Block =
   | SpacerBlock;
 
 // ── Theme ──────────────────────────────────────────────────────────
+export type PhotoAspectKey = "4:3" | "1:1" | "16:9" | "4:5" | "9:16";
+
 export interface PageTheme {
   /** Solid background color (used when no background_url set). */
   bgColor?: string;
@@ -78,6 +80,8 @@ export interface PageTheme {
   accent?: string;
   /** "light" forces dark text — default "dark" assumes white text on dark bg. */
   textTone?: "light" | "dark";
+  /** Aspect ratio of the top photo zone. Defaults to "4:3". */
+  photoAspect?: PhotoAspectKey;
 }
 
 // ── Page ───────────────────────────────────────────────────────────
