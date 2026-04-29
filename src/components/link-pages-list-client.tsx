@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, ExternalLink, Eye, Edit3, Trash2, Link as LinkIcon, Copy, Check, Files } from "lucide-react";
+import { Plus, ExternalLink, Eye, Edit3, Trash2, Link as LinkIcon, Files } from "lucide-react";
 import { PUBLIC_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
 
 interface PageRow {
@@ -27,7 +27,6 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
   const [newSlug, setNewSlug] = useState("");
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Duplicate flow state
   const [dupSource, setDupSource] = useState<PageRow | null>(null);
@@ -65,12 +64,6 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
     } finally {
       setDupBusy(false);
     }
-  }
-
-  function copyUrl(slug: string, id: string) {
-    navigator.clipboard.writeText(publicUrlForSlug(slug));
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(c => c === id ? null : c), 1500);
   }
 
   async function createPage() {
@@ -155,13 +148,6 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => copyUrl(p.slug, p.id)}
-                    className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                    title="Copy URL"
-                  >
-                    {copiedId === p.id ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                  </button>
                   <button
                     onClick={() => startDuplicate(p)}
                     className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
