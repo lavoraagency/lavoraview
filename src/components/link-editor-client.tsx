@@ -241,6 +241,10 @@ function LinkInspector({ block, onChange, pageId }: { block: LinkButtonBlock; on
           pageId={pageId}
         />
       )}
+      <AgeGateToggle
+        value={!!block.requireAgeConfirmation}
+        onChange={(v) => onChange({ ...block, requireAgeConfirmation: v })}
+      />
     </div>
   );
 }
@@ -277,6 +281,10 @@ function ImageCardInspector({ block, onChange, pageId }: { block: ImageCardBlock
           {ICON_OPTIONS.filter(o => o.value && o.value !== "custom").map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </Field>
+      <AgeGateToggle
+        value={!!block.requireAgeConfirmation}
+        onChange={(v) => onChange({ ...block, requireAgeConfirmation: v })}
+      />
     </div>
   );
 }
@@ -309,6 +317,41 @@ function SpacerInspector({ block, onChange }: { block: SpacerBlock; onChange: (b
     <Field label="Height (px)">
       <input type="number" min={4} max={120} value={block.height || 12} onChange={e => onChange({ ...block, height: parseInt(e.target.value) || 12 })} className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-400" />
     </Field>
+  );
+}
+
+// 18+ confirmation toggle reused by Link Button + Image Card inspectors.
+function AgeGateToggle({
+  value, onChange,
+}: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/60">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        onClick={() => onChange(!value)}
+        className={cn(
+          "relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1",
+          value ? "bg-brand-500" : "bg-gray-300",
+        )}
+      >
+        <span
+          className={cn(
+            "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+            value ? "translate-x-5" : "translate-x-1",
+          )}
+        />
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+          <span aria-hidden>🔞</span> Enable 18+ content warning
+        </div>
+        <div className="text-xs text-gray-500 mt-0.5">
+          Users must confirm age before viewing
+        </div>
+      </div>
+    </div>
   );
 }
 

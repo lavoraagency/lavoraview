@@ -30,6 +30,8 @@ export interface LinkButtonBlock {
   iconUrl?: string;
   /** Force breaking out of the in-app browser on click (Phase 1: always on). */
   breakoutIab?: boolean;
+  /** Show an 18+ confirmation gate before navigating away. */
+  requireAgeConfirmation?: boolean;
 }
 
 export interface ImageCardBlock {
@@ -46,6 +48,8 @@ export interface ImageCardBlock {
   /** Optional small overlay icon top-right (e.g. OF logo on the photo). */
   overlayIcon?: string;
   breakoutIab?: boolean;
+  /** Show an 18+ confirmation gate before navigating away. */
+  requireAgeConfirmation?: boolean;
 }
 
 export interface SocialsRowBlock {

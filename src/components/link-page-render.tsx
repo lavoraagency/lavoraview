@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronRight,
   Instagram,
@@ -113,16 +113,44 @@ function HeaderBlock({ block, page }: { block: ProfileHeaderBlock; page: LinkPag
   );
 }
 
-function LinkButton({ block, pageId }: { block: LinkButtonBlock; pageId: string }) {
-  const onClick = (e: React.MouseEvent) => {
+// Outbound-click intent — used both for "navigate immediately" and for
+// "wait for age confirmation, then navigate".
+interface OutboundIntent {
+  url: string;
+  /** Whether the destination should be opened via the IAB-breakout cascade. */
+  breakout: boolean;
+}
+
+function makeOutboundClickHandler({
+  block, pageId, isPreview, onAgeGate,
+}: {
+  block: LinkButtonBlock | ImageCardBlock;
+  pageId: string;
+  isPreview?: boolean;
+  onAgeGate: (intent: OutboundIntent) => void;
+}) {
+  return (e: React.MouseEvent) => {
     e.preventDefault();
+    if (isPreview) return;
+    if (!block.url) return;
     track(pageId, block.id, block.url);
-    if (block.breakoutIab !== false) openExternal(block.url);
+    const breakout = block.breakoutIab !== false;
+    if (block.requireAgeConfirmation) {
+      onAgeGate({ url: block.url, breakout });
+      return;
+    }
+    if (breakout) openExternal(block.url);
     else window.location.href = block.url;
   };
+}
+
+function LinkButton({
+  block, pageId, isPreview, onAgeGate,
+}: { block: LinkButtonBlock; pageId: string; isPreview?: boolean; onAgeGate: (intent: OutboundIntent) => void }) {
+  const onClick = makeOutboundClickHandler({ block, pageId, isPreview, onAgeGate });
   return (
     <a
-      href={block.url}
+      href={block.url || "#"}
       onClick={onClick}
       className="group flex items-center gap-3 w-full px-4 py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 backdrop-blur-md transition-colors"
     >
@@ -137,16 +165,13 @@ function LinkButton({ block, pageId }: { block: LinkButtonBlock; pageId: string 
   );
 }
 
-function ImageCard({ block, pageId }: { block: ImageCardBlock; pageId: string }) {
-  const onClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    track(pageId, block.id, block.url);
-    if (block.breakoutIab !== false) openExternal(block.url);
-    else window.location.href = block.url;
-  };
+function ImageCard({
+  block, pageId, isPreview, onAgeGate,
+}: { block: ImageCardBlock; pageId: string; isPreview?: boolean; onAgeGate: (intent: OutboundIntent) => void }) {
+  const onClick = makeOutboundClickHandler({ block, pageId, isPreview, onAgeGate });
   return (
     <a
-      href={block.url}
+      href={block.url || "#"}
       onClick={onClick}
       className="relative block w-full rounded-2xl overflow-hidden aspect-[4/3] bg-black/30"
     >
@@ -168,6 +193,59 @@ function ImageCard({ block, pageId }: { block: ImageCardBlock; pageId: string })
         {block.title}
       </div>
     </a>
+  );
+}
+
+// Modal shown before opening any block tagged requireAgeConfirmation.
+function AgeGateModal({
+  onCancel, onConfirm,
+}: { onCancel: () => void; onConfirm: () => void }) {
+  // Lock body scroll while the modal is open
+  useEffect(() => {
+    const o = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = o; };
+  }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onCancel(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-5"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-gray-900/95 border border-white/10 shadow-2xl p-6 text-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-3xl mb-2" aria-hidden>🔞</div>
+        <h2 className="text-white font-bold text-lg">Adult content warning</h2>
+        <p className="text-white/70 text-sm mt-1">
+          This content is for adults only (18+).
+        </p>
+        <div className="flex items-center gap-2 mt-5">
+          <button
+            onClick={onCancel}
+            className="flex-1 px-3 py-2.5 rounded-xl border border-white/15 text-white/80 text-sm font-medium hover:bg-white/5 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 px-3 py-2.5 rounded-xl bg-white text-gray-900 text-sm font-semibold hover:bg-gray-100 transition-colors"
+          >
+            I&apos;m 18+, continue
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -205,6 +283,18 @@ export function LinkPageRender({
   /** When true (used inside the editor), clicks are no-ops and tracking is disabled. */
   isPreview?: boolean;
 }) {
+  // Pending outbound intent — set when the user clicks an 18+-gated block;
+  // confirming the modal opens it, cancelling clears it.
+  const [ageGate, setAgeGate] = useState<OutboundIntent | null>(null);
+
+  function confirmAgeGate() {
+    if (!ageGate) return;
+    const { url, breakout } = ageGate;
+    setAgeGate(null);
+    if (breakout) openExternal(url);
+    else window.location.href = url;
+  }
+
   // Guarantee a header block exists so the Bouncy-style title always renders.
   const blocks = useMemo<Block[]>(() => {
     if (!page.blocks || page.blocks.length === 0) {
@@ -256,8 +346,8 @@ export function LinkPageRender({
   function renderBlock(b: Block, key: string | number) {
     switch (b.type) {
       case "header":      return wrapPreview(<HeaderBlock block={b} page={page} />, key);
-      case "link":        return wrapPreview(<LinkButton block={b} pageId={page.id} />, key);
-      case "image-card":  return wrapPreview(<ImageCard block={b} pageId={page.id} />, key);
+      case "link":        return wrapPreview(<LinkButton block={b} pageId={page.id} isPreview={isPreview} onAgeGate={setAgeGate} />, key);
+      case "image-card":  return wrapPreview(<ImageCard block={b} pageId={page.id} isPreview={isPreview} onAgeGate={setAgeGate} />, key);
       case "socials":     return wrapPreview(<SocialsRow block={b} pageId={page.id} />, key);
       case "spacer":      return wrapPreview(<Spacer block={b} />, key);
       default:            return null;
@@ -308,6 +398,13 @@ export function LinkPageRender({
           {otherBlocks.map((b, i) => renderBlock(b, b.id || i))}
         </div>
       </div>
+
+      {ageGate && !isPreview && (
+        <AgeGateModal
+          onCancel={() => setAgeGate(null)}
+          onConfirm={confirmAgeGate}
+        />
+      )}
     </div>
   );
 }
