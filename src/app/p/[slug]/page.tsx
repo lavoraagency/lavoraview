@@ -83,5 +83,17 @@ export default async function PublicLinkPage({ params }: { params: { slug: strin
     console.log(`[link-page] bot visit slug=${page.slug} bot=${bot.name} cloaked=${cloak} ua=${(ua || "").slice(0, 200)}`);
   }
 
-  return <LinkPageRender page={page} cloaked={cloak} />;
+  // When cloaked, strip outbound-link blocks server-side so they don't leak
+  // through React's hydration payload (props get serialised into the HTML
+  // even when not rendered visually). The bot literally never sees the URLs.
+  const pageToRender = cloak
+    ? {
+        ...page,
+        blocks: (page.blocks || []).filter(
+          (b) => b.type !== "link" && b.type !== "image-card",
+        ),
+      }
+    : page;
+
+  return <LinkPageRender page={pageToRender} cloaked={cloak} />;
 }
