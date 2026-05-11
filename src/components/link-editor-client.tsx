@@ -355,6 +355,41 @@ function AgeGateToggle({
   );
 }
 
+// Page-level toggle: hide outbound funnel buttons from social-media crawlers.
+function CloakToggle({
+  value, onChange,
+}: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/60">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        onClick={() => onChange(!value)}
+        className={cn(
+          "relative inline-flex h-5 w-9 mt-0.5 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1",
+          value ? "bg-brand-500" : "bg-gray-300",
+        )}
+      >
+        <span
+          className={cn(
+            "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+            value ? "translate-x-5" : "translate-x-1",
+          )}
+        />
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+          <span aria-hidden>🕵️</span> Cloak from social media crawlers
+        </div>
+        <div className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+          When enabled, Instagram, Facebook, WhatsApp and similar bots see a stripped-down version of this page without any funnel buttons. Recommended for adult-content funnels.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
@@ -978,6 +1013,13 @@ export function LinkEditorClient({
                 ))}
                 <AddBlockMenu onAdd={(b) => { updateBlocks([...page.blocks, b]); setExpandedBlock(b.id); }} />
               </div>
+            </Section>
+
+            <Section title="Privacy">
+              <CloakToggle
+                value={page.theme?.cloakFromBots !== false}
+                onChange={(v) => update({ theme: { ...page.theme, cloakFromBots: v } })}
+              />
             </Section>
           </div>
 

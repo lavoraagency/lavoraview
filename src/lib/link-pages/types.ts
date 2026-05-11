@@ -88,6 +88,10 @@ export interface PageTheme {
   textTone?: "light" | "dark";
   /** Aspect ratio of the top photo zone. Defaults to "4:3". */
   photoAspect?: PhotoAspectKey;
+  /** When undefined or true, social-media crawlers (Instagram, Facebook,
+   * WhatsApp link previews, …) see a stripped-down version of the page
+   * with no outbound funnel buttons. Set to false explicitly to opt out. */
+  cloakFromBots?: boolean;
 }
 
 // ── Page ───────────────────────────────────────────────────────────

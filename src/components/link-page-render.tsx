@@ -278,10 +278,15 @@ function Spacer({ block }: { block: SpacerBlock }) {
 export function LinkPageRender({
   page,
   isPreview,
+  cloaked,
 }: {
   page: LinkPage;
   /** When true (used inside the editor), clicks are no-ops and tracking is disabled. */
   isPreview?: boolean;
+  /** When true (server-side, on bot requests), render a stripped-down variant
+   * with no outbound funnel buttons. Lets social-media crawlers see a clean
+   * personal page so they can't fingerprint adult-content destinations. */
+  cloaked?: boolean;
 }) {
   // Pending outbound intent — set when the user clicks an 18+-gated block;
   // confirming the modal opens it, cancelling clears it.
@@ -344,6 +349,9 @@ export function LinkPageRender({
     );
 
   function renderBlock(b: Block, key: string | number) {
+    // Cloaked mode (bot visit): strip every outbound-link surface so the
+    // crawler can't see which funnel platforms this page leads to.
+    if (cloaked && (b.type === "link" || b.type === "image-card")) return null;
     switch (b.type) {
       case "header":      return wrapPreview(<HeaderBlock block={b} page={page} />, key);
       case "link":        return wrapPreview(<LinkButton block={b} pageId={page.id} isPreview={isPreview} onAgeGate={setAgeGate} />, key);
