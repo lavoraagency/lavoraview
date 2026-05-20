@@ -4,9 +4,11 @@ import { useState, useEffect } from "react";
 import { Save, Plus, Trash2, Sparkles, FileText, Database } from "lucide-react";
 import { updateModel as updateModelAction, createTag as createTagAction, deleteTag as deleteTagAction, saveSystemDescription, saveAiDataSources } from "@/app/dashboard/settings/actions";
 import { AI_DATA_SOURCES, DEFAULT_AI_DATA_SOURCES, type AiDataSourceKey } from "@/lib/ai-data-sources";
+import { UserManagement, type DashboardUser } from "@/components/user-management";
 
-export function SettingsClient({ initialModels, initialTags, initialSystemDescription = "", initialAiDataSources }: {
+export function SettingsClient({ initialModels, initialTags, initialSystemDescription = "", initialAiDataSources, isOwner = false, initialUsers = [] }: {
   initialModels: any[]; initialTags: any[]; initialSystemDescription?: string; initialAiDataSources?: AiDataSourceKey[];
+  isOwner?: boolean; initialUsers?: DashboardUser[];
 }) {
   const [systemDescription, setSystemDescription] = useState(initialSystemDescription);
   const [systemDescSaving, setSystemDescSaving] = useState(false);
@@ -373,26 +375,13 @@ export function SettingsClient({ initialModels, initialTags, initialSystemDescri
         </div>
       </section>
 
-      {/* User Management */}
-      <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">User-Verwaltung</h2>
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <p className="text-sm text-gray-600 mb-4">
-            Neue User über das Supabase Dashboard einladen:
-          </p>
-          <a
-            href="https://supabase.com/dashboard/project/tzixaixkexxgdiyecire/auth/users"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            Supabase Auth → User einladen
-          </a>
-          <p className="text-xs text-gray-400 mt-2">
-            Im Supabase Dashboard kannst du unter Authentication → Users neue User per Email einladen.
-          </p>
-        </div>
-      </section>
+      {/* User Management — owner only */}
+      {isOwner && (
+        <section>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">User Management</h2>
+          <UserManagement initialUsers={initialUsers} />
+        </section>
+      )}
     </div>
   );
 }

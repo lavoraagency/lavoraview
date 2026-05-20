@@ -8,23 +8,36 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/dashboard/analytics", label: "Analytics", icon: PieChart },
-  { href: "/dashboard/posts", label: "Posts", icon: LayoutGrid },
-  { href: "/dashboard/top-reels", label: "Top Reels", icon: TrendingUp },
-  { href: "/dashboard/research", label: "Research", icon: Search },
-  { href: "/dashboard/pattern-analysis", label: "Pattern Analysis", icon: TableProperties },
-  { href: "/dashboard/profiles", label: "Profiles", icon: Users },
-  { href: "/dashboard/reposter", label: "Reposter Overview", icon: ClipboardList },
-  { href: "/dashboard/links", label: "Link Pages", icon: LinkIcon },
-  { href: "/dashboard/changelog", label: "Changelog", icon: History },
-  { href: "/dashboard/ai-assistant", label: "AI Analysis Assistant", icon: Bot },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { key: "analytics", href: "/dashboard/analytics", label: "Analytics", icon: PieChart },
+  { key: "posts", href: "/dashboard/posts", label: "Posts", icon: LayoutGrid },
+  { key: "top-reels", href: "/dashboard/top-reels", label: "Top Reels", icon: TrendingUp },
+  { key: "research", href: "/dashboard/research", label: "Research", icon: Search },
+  { key: "pattern-analysis", href: "/dashboard/pattern-analysis", label: "Pattern Analysis", icon: TableProperties },
+  { key: "profiles", href: "/dashboard/profiles", label: "Profiles", icon: Users },
+  { key: "reposter", href: "/dashboard/reposter", label: "Reposter Overview", icon: ClipboardList },
+  { key: "links", href: "/dashboard/links", label: "Link Pages", icon: LinkIcon },
+  { key: "changelog", href: "/dashboard/changelog", label: "Changelog", icon: History },
+  { key: "ai-assistant", href: "/dashboard/ai-assistant", label: "AI Analysis Assistant", icon: Bot },
+  { key: "settings", href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+export function Sidebar({
+  allowedTabs,
+  isOwner = false,
+  email = "",
+}: {
+  allowedTabs?: string[];
+  isOwner?: boolean;
+  email?: string;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Owners see everything; everyone else only their granted tabs.
+  const visibleNav = isOwner
+    ? navItems
+    : navItems.filter((n) => (allowedTabs || []).includes(n.key));
 
   // Close drawer on route change
   useEffect(() => {
@@ -59,7 +72,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {visibleNav.map(({ href, label, icon: Icon }) => {
           const isActive = href === "/dashboard" ? pathname === href : pathname.startsWith(href);
           return (
             <Link
@@ -81,6 +94,11 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-sidebar-border">
+        {email && (
+          <div className="px-3 pb-2 text-xs text-slate-500 truncate" title={email}>
+            {email}{isOwner ? " · Owner" : ""}
+          </div>
+        )}
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-sidebar-accent hover:text-white transition-colors w-full"

@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 import { PUBLIC_LINK_HOSTS } from "@/lib/link-pages/config";
+import { pathToTabKey } from "@/lib/auth/tabs";
 
 // ── Multi-host routing ────────────────────────────────────────
 // The Lavora deployment serves two planes from one Next.js app:
@@ -58,7 +60,7 @@ function publicLinkPlane(request: NextRequest): NextResponse | null {
   return new NextResponse("Not found", { status: 404 });
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const host = (request.headers.get("host") || "").toLowerCase().split(":")[0];
 
   // Public-link plane on vibez.bio
@@ -68,8 +70,70 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Dashboard plane: pass-through, no auth gate.
-  return NextResponse.next();
+  // ── Dashboard plane: auth-gated + per-tab access control ──
+  const pathname = request.nextUrl.pathname;
+
+  // Wire up Supabase so it can read + refresh the session cookie.
+  let response = NextResponse.next({ request });
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        },
+      },
+    }
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Not logged in → only /login is reachable
+  if (!user) {
+    if (pathname.startsWith("/login")) return response;
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  // Logged in but on /login → bounce into the app
+  if (pathname.startsWith("/login")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
+  }
+
+  // Permissions from the session JWT (set via admin API on create/update)
+  const meta = (user.app_metadata || {}) as Record<string, unknown>;
+  const role = meta.role === "owner" ? "owner" : "employee";
+  const allowedTabs = Array.isArray(meta.allowed_tabs) ? (meta.allowed_tabs as string[]) : [];
+
+  // Bare /dashboard → send to first allowed tab
+  if (pathname === "/dashboard" || pathname === "/dashboard/") {
+    const first = role === "owner" ? "analytics" : (allowedTabs[0] || "settings");
+    const url = request.nextUrl.clone();
+    url.pathname = `/dashboard/${first}`;
+    return NextResponse.redirect(url);
+  }
+
+  // Tab-level gate for employees
+  if (role !== "owner") {
+    const tab = pathToTabKey(pathname);
+    if (tab && !allowedTabs.includes(tab)) {
+      const first = allowedTabs[0] || "settings";
+      const url = request.nextUrl.clone();
+      url.pathname = `/dashboard/${first}`;
+      return NextResponse.redirect(url);
+    }
+  }
+
+  return response;
 }
 
 export const config = {
