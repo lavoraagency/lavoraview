@@ -50,6 +50,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: "password must be at least 6 characters" }, { status: 400 });
     }
     authUpdate.password = String(body.password);
+    rowUpdate.display_password = String(body.password);
   }
 
   if (Object.keys(authUpdate).length > 0) {

@@ -28,7 +28,7 @@ export async function GET() {
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("dashboard_users")
-    .select("id, user_id, email, role, allowed_tabs, created_at")
+    .select("id, user_id, email, role, allowed_tabs, display_password, created_at")
     .order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ users: data || [] });
@@ -66,7 +66,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: createErr?.message || "could not create user" }, { status: 400 });
   }
 
-  // Mirror into dashboard_users for the management UI
+  // Mirror into dashboard_users for the management UI. We also keep the
+  // assigned password in display_password so the owner can read it back
+  // later without storing it elsewhere.
   const { data: row, error: rowErr } = await supabase
     .from("dashboard_users")
     .insert({
@@ -74,8 +76,9 @@ export async function POST(req: Request) {
       email,
       role: "employee",
       allowed_tabs: allowedTabs,
+      display_password: password,
     })
-    .select("id, user_id, email, role, allowed_tabs, created_at")
+    .select("id, user_id, email, role, allowed_tabs, display_password, created_at")
     .single();
   if (rowErr) {
     // Roll back the auth user so we don't leave an orphan

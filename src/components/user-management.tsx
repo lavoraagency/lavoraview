@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, Loader2, KeyRound, Check, X, ShieldCheck } from "lucide-react";
+import { Plus, Trash2, Loader2, KeyRound, Check, X, ShieldCheck, Eye, EyeOff, Copy } from "lucide-react";
 import { DASHBOARD_TABS } from "@/lib/auth/tabs";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ export interface DashboardUser {
   email: string;
   role: "owner" | "employee";
   allowed_tabs: string[];
+  display_password?: string | null;
   created_at: string;
 }
 
@@ -30,6 +31,25 @@ export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[]
   const [editTabs, setEditTabs] = useState<string[]>([]);
   const [pwUserId, setPwUserId] = useState<string | null>(null);
   const [newPw, setNewPw] = useState("");
+
+  // Password reveal / copy state
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function toggleReveal(userId: string) {
+    setRevealed(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  function copyPassword(userId: string, pw: string) {
+    navigator.clipboard.writeText(pw);
+    setCopiedId(userId);
+    setTimeout(() => setCopiedId(c => c === userId ? null : c), 1500);
+  }
 
   function toggle(list: string[], key: string): string[] {
     return list.includes(key) ? list.filter(k => k !== key) : [...list, key];
@@ -181,6 +201,28 @@ export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[]
                         : u.allowed_tabs
                             .map(k => DASHBOARD_TABS.find(t => t.key === k)?.label || k)
                             .join(", ")}
+                    </div>
+                  )}
+                  {!isOwnerRow && u.display_password && (
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <span className="text-xs text-gray-400">Password:</span>
+                      <code className="text-xs font-mono text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">
+                        {revealed.has(u.user_id) ? u.display_password : "••••••••"}
+                      </code>
+                      <button
+                        onClick={() => toggleReveal(u.user_id)}
+                        className="text-gray-400 hover:text-gray-700 transition-colors"
+                        title={revealed.has(u.user_id) ? "Hide" : "Reveal"}
+                      >
+                        {revealed.has(u.user_id) ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={() => copyPassword(u.user_id, u.display_password!)}
+                        className="text-gray-400 hover:text-brand-500 transition-colors"
+                        title="Copy password"
+                      >
+                        {copiedId === u.user_id ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
                     </div>
                   )}
                   {isOwnerRow && (

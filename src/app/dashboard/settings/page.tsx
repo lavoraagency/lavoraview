@@ -23,7 +23,7 @@ export default async function SettingsPage() {
   if (isOwner) {
     const { data } = await supabase
       .from("dashboard_users")
-      .select("id, user_id, email, role, allowed_tabs, created_at")
+      .select("id, user_id, email, role, allowed_tabs, display_password, created_at")
       .order("created_at", { ascending: true });
     users = data || [];
   }
