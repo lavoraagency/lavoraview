@@ -3,6 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { AVAILABLE_DOMAINS } from "@/lib/link-pages/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const patch: Record<string, any> = {};
   for (const k of [
     "slug", "display_name", "bio", "avatar_url", "background_url", "background_original_url",
-    "blocks", "theme", "is_published", "profile_id",
+    "blocks", "theme", "is_published", "profile_id", "domain",
   ]) {
     if (k in body) patch[k] = body[k];
   }
@@ -39,15 +40,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
+  if ("domain" in patch) {
+    const d = (patch.domain || "").toLowerCase().trim();
+    if (!AVAILABLE_DOMAINS.includes(d)) {
+      return NextResponse.json({ error: "unknown domain" }, { status: 400 });
+    }
+    patch.domain = d;
+  }
+
   const supabase = createServiceClient();
 
-  // If slug is changing, ensure no collision
+  // If slug is changing, ensure no collision (slugs are globally unique)
   if ("slug" in patch) {
     const { data: clash } = await supabase
       .from("link_pages")
       .select("id")
       .eq("slug", patch.slug)
-      .is("domain_id", null)
       .neq("id", params.id)
       .maybeSingle();
     if (clash) return NextResponse.json({ error: "slug already taken" }, { status: 409 });

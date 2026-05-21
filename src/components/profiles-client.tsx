@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { TagBadge } from "@/components/tag-badge";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { PUBLIC_LINK_DOMAIN } from "@/lib/link-pages/config";
+import { publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
 
 interface ProfilesClientProps {
   initialProfiles: any[];
@@ -268,18 +268,18 @@ function GroupTable({
                   </div>
                 </td>
                 <td className="px-5 py-3.5">
-                  {p.linkSlugs && p.linkSlugs.length > 0 ? (
+                  {p.links && p.links.length > 0 ? (
                     <div className="flex flex-col gap-0.5">
-                      {(p.linkSlugs as string[]).map((slug: string) => (
+                      {(p.links as { slug: string; domain: string | null }[]).map((lnk) => (
                         <a
-                          key={slug}
-                          href={`https://${PUBLIC_LINK_DOMAIN}/${slug}`}
+                          key={lnk.slug}
+                          href={publicUrlForSlug(lnk.slug, lnk.domain)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-xs text-gray-600 hover:text-brand-600 transition-colors truncate"
-                          title={`Open ${PUBLIC_LINK_DOMAIN}/${slug}`}
+                          title={`Open ${publicDisplayForSlug(lnk.slug, lnk.domain)}`}
                         >
-                          {PUBLIC_LINK_DOMAIN}/{slug}
+                          {publicDisplayForSlug(lnk.slug, lnk.domain)}
                         </a>
                       ))}
                     </div>

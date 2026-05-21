@@ -29,17 +29,17 @@ export default async function ProfilesPage() {
     // "Link" column rendered next to the Profile column on the profiles tab.
     supabase
       .from("link_pages")
-      .select("slug, profile_id")
+      .select("slug, domain, profile_id")
       .not("profile_id", "is", null)
       .eq("is_published", true),
   ]);
 
-  // Group slugs by profile_id so we can render all assigned link slugs per
-  // profile without an extra round-trip in the client.
-  const linksByProfile = new Map<string, string[]>();
-  for (const row of (linkPages || []) as { slug: string; profile_id: string }[]) {
+  // Group {slug, domain} by profile_id so the client can render each link on
+  // its own domain without an extra round-trip.
+  const linksByProfile = new Map<string, { slug: string; domain: string | null }[]>();
+  for (const row of (linkPages || []) as { slug: string; domain: string | null; profile_id: string }[]) {
     const arr = linksByProfile.get(row.profile_id) || [];
-    arr.push(row.slug);
+    arr.push({ slug: row.slug, domain: row.domain });
     linksByProfile.set(row.profile_id, arr);
   }
 
@@ -54,7 +54,7 @@ export default async function ProfilesPage() {
       latestViews: snaps[0]?.total_reel_views ?? null,
       latestPosts: snaps[0]?.media_count ?? null,
       latestScrapedAt: snaps[0]?.scraped_at ?? null,
-      linkSlugs: linksByProfile.get(p.id) || [],
+      links: linksByProfile.get(p.id) || [],
     };
   });
 

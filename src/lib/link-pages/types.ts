@@ -98,6 +98,8 @@ export interface PageTheme {
 export interface LinkPage {
   id: string;
   slug: string;
+  /** Hostname this page is served on. Null = default domain (vibez.bio). */
+  domain: string | null;
   domain_id: string | null;
   display_name: string | null;
   bio: string | null;

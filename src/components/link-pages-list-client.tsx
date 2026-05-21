@@ -4,11 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, ExternalLink, Eye, Edit3, Trash2, Link as LinkIcon, Files } from "lucide-react";
-import { PUBLIC_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
+import { AVAILABLE_DOMAINS, DEFAULT_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
 
 interface PageRow {
   id: string;
   slug: string;
+  domain: string | null;
   display_name: string | null;
   bio: string | null;
   avatar_url: string | null;
@@ -26,6 +27,7 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
   const [creating, setCreating] = useState(false);
   const [newSlug, setNewSlug] = useState("");
   const [newName, setNewName] = useState("");
+  const [newDomain, setNewDomain] = useState(DEFAULT_LINK_DOMAIN);
   const [error, setError] = useState<string | null>(null);
 
   // Duplicate flow state
@@ -76,6 +78,7 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
         body: JSON.stringify({
           slug: newSlug.trim().toLowerCase(),
           display_name: newName.trim() || newSlug.trim(),
+          domain: newDomain,
         }),
       });
       const j = await r.json();
@@ -142,7 +145,7 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
               </Link>
               <div className="p-3 flex items-center justify-between">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-gray-900 truncate">{publicDisplayForSlug(p.slug)}</div>
+                  <div className="text-sm font-semibold text-gray-900 truncate">{publicDisplayForSlug(p.slug, p.domain)}</div>
                   <div className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
                     <Eye className="w-3 h-3" /> {p.view_count}
                   </div>
@@ -156,7 +159,7 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
                     <Files className="w-4 h-4" />
                   </button>
                   <a
-                    href={publicUrlForSlug(p.slug)}
+                    href={publicUrlForSlug(p.slug, p.domain)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
@@ -192,10 +195,23 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
             <p className="text-xs text-gray-500 mt-1">Comes pre-filled with a default Bouncy-style layout.</p>
 
             <div className="mt-4 space-y-3">
+              {AVAILABLE_DOMAINS.length > 1 && (
+                <label className="block">
+                  <span className="text-xs font-medium text-gray-700">Domain</span>
+                  <select
+                    value={newDomain}
+                    onChange={e => setNewDomain(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-400"
+                  >
+                    {AVAILABLE_DOMAINS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </label>
+              )}
+
               <label className="block">
                 <span className="text-xs font-medium text-gray-700">Slug</span>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm text-gray-400">{PUBLIC_LINK_DOMAIN} /</span>
+                  <span className="text-sm text-gray-400">{newDomain} /</span>
                   <input
                     autoFocus
                     value={newSlug}
@@ -256,7 +272,7 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
               <label className="block">
                 <span className="text-xs font-medium text-gray-700">New slug</span>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm text-gray-400">{PUBLIC_LINK_DOMAIN} /</span>
+                  <span className="text-sm text-gray-400">{(dupSource?.domain || DEFAULT_LINK_DOMAIN)} /</span>
                   <input
                     autoFocus
                     value={dupSlug}

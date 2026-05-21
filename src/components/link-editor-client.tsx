@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronRight, Save, Loader2, Eye, EyeOff, Type, MousePointerClick, ImagePlus,
   Copy, Check, X, Crop,
 } from "lucide-react";
-import { PUBLIC_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
+import { AVAILABLE_DOMAINS, DEFAULT_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
 import { LinkPageRender } from "@/components/link-page-render";
 import { CropModal, AspectKey } from "@/components/link-pages/crop-modal";
 import {
@@ -741,7 +741,7 @@ export function LinkEditorClient({
   }, [page.profile_id, suggested]);
 
   function copyUrl() {
-    navigator.clipboard.writeText(publicUrlForSlug(page.slug));
+    navigator.clipboard.writeText(publicUrlForSlug(page.slug, page.domain));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -776,6 +776,7 @@ export function LinkEditorClient({
   function fullPagePatch() {
     return {
       slug: page.slug,
+      domain: page.domain || DEFAULT_LINK_DOMAIN,
       display_name: page.display_name,
       bio: page.bio,
       avatar_url: page.avatar_url,
@@ -872,7 +873,7 @@ export function LinkEditorClient({
           <div className="flex items-center gap-2 text-xs text-gray-400">
             <button onClick={() => router.push("/dashboard/links")} className="hover:text-gray-700">Link Pages</button>
             <span>/</span>
-            <span className="text-gray-700 font-medium">{publicDisplayForSlug(page.slug)}</span>
+            <span className="text-gray-700 font-medium">{publicDisplayForSlug(page.slug, page.domain)}</span>
             <button onClick={copyUrl} className="text-gray-400 hover:text-gray-700 transition-colors" title="Copy public URL">
               {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
@@ -891,7 +892,7 @@ export function LinkEditorClient({
             {page.is_published ? "Published" : "Draft"}
           </button>
           <a
-            href={publicUrlForSlug(page.slug)}
+            href={publicUrlForSlug(page.slug, page.domain)}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50"
@@ -917,6 +918,17 @@ export function LinkEditorClient({
           {/* Left: form */}
           <div className="space-y-5 min-w-0">
             <Section title="Page">
+              {AVAILABLE_DOMAINS.length > 1 && (
+                <Field label="Domain">
+                  <select
+                    value={page.domain || DEFAULT_LINK_DOMAIN}
+                    onChange={e => update({ domain: e.target.value })}
+                    className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-400"
+                  >
+                    {AVAILABLE_DOMAINS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </Field>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Field label="Slug">
                   <input

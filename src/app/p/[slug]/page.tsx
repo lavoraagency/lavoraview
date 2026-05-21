@@ -11,6 +11,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { LinkPageRender } from "@/components/link-page-render";
 import type { LinkPage } from "@/lib/link-pages/types";
 import { detectBot } from "@/lib/link-pages/bot-detect";
+import { normalizeHost, resolveDomain, PUBLIC_LINK_HOSTS } from "@/lib/link-pages/config";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -73,6 +74,16 @@ export async function generateMetadata(
 export default async function PublicLinkPage({ params }: { params: { slug: string } }) {
   const page = await loadPage(params.slug);
   if (!page) notFound();
+
+  // Domain isolation: a page only serves on its assigned domain. If the
+  // request comes in on a different public link host, 404 — this stops a
+  // page leaking onto every domain just because the slug exists. Direct
+  // /p/[slug] previews on the dashboard host (not a public link host) skip
+  // the check so the editor "Public" button still works there.
+  const reqHost = normalizeHost(headers().get("host"));
+  if (PUBLIC_LINK_HOSTS.has(reqHost) || PUBLIC_LINK_HOSTS.has(`www.${reqHost}`)) {
+    if (reqHost !== resolveDomain(page.domain)) notFound();
+  }
 
   const ua = headers().get("user-agent");
   const bot = detectBot(ua);
