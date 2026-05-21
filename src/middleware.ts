@@ -73,6 +73,15 @@ export async function middleware(request: NextRequest) {
   // ── Dashboard plane: auth-gated + per-tab access control ──
   const pathname = request.nextUrl.pathname;
 
+  // API routes authenticate themselves inside the route handler — either a
+  // Bearer token (server-to-server callers like n8n hitting
+  // /api/sync-conversions) or a session-based owner check. They must never
+  // be 307-redirected to the HTML /login page: a POST that follows the
+  // redirect lands on /login (GET-only) and fails with 405. Let them through.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   // Wire up Supabase so it can read + refresh the session cookie.
   let response = NextResponse.next({ request });
   const supabase = createServerClient(
