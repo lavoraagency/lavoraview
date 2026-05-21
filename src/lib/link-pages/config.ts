@@ -15,7 +15,7 @@ export interface LinkDomain {
 
 export const LINK_DOMAINS: LinkDomain[] = [
   { hostname: "vibez.bio", isDefault: true },
-  // { hostname: "yourseconddomain.com" },   ← add domain #2 here once it's live
+  { hostname: "julialangpage.de" },
 ];
 
 /** Selectable domains for the editor dropdown (bare hostnames). */
