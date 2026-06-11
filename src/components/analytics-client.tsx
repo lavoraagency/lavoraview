@@ -892,7 +892,11 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
         const name = profileNameMap[profileId] || "unknown";
 
-        const dF = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : 0;
+        // First-ever snapshot for this profile: count the full follower base as
+        // that day's growth (mirrors the reel logic). From day 2 it's the real
+        // daily delta. This way a profile that goes viral on day 1 still has its
+        // follower gain tracked instead of being lost.
+        const dF = prev ? Math.max(0, (today.followers || 0) - (prev.followers || 0)) : (today.followers || 0);
         // Priority: 1) reel-level deltas from reel_snapshots (most accurate)
         //           2) daily_views from profile_snapshot (fallback for profiles without reel_snapshots)
         //           3) fall back to profile snapshot total diff (legacy)
@@ -1195,7 +1199,9 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
             if (prev) {
               row[p.name] = Math.max(0, (today[field] || 0) - (prev[field] || 0));
             } else {
-              row[p.name] = 0;
+              // First-ever snapshot: followers count the full base as growth
+              // (like reels); the other metrics have no first-day total diff.
+              row[p.name] = field === "followers" ? (today[field] || 0) : 0;
             }
           } else {
             row[p.name] = 0;
