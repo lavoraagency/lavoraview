@@ -708,6 +708,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
   const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [filterPlatform, setFilterPlatform] = useState<"" | "instagram" | "facebook">("");
   const [showCount, setShowCount] = useState(5);
 
   // Build profile color map (keyed by display name from profileNameMap)
@@ -725,6 +726,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
   // Filter profiles
   const filteredProfiles = useMemo(() => {
     return profiles.filter(p => {
+      if (filterPlatform && p.platform !== filterPlatform) return false;
       if (selectedModels !== null && !selectedModels.includes(p.models?.id)) return false;
       if (selectedGroups !== null && !selectedGroups.includes(p.account_groups?.id)) return false;
       if (selectedProfiles !== null && !selectedProfiles.includes(p.id)) return false;
@@ -735,7 +737,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       }
       return true;
     });
-  }, [profiles, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags]);
+  }, [profiles, filterPlatform, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags]);
 
   const filteredProfileIds = useMemo(() => new Set(filteredProfiles.map(p => p.id)), [filteredProfiles]);
 
@@ -1288,6 +1290,21 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
       {/* Filters Row */}
       <div className="flex flex-wrap items-center gap-3">
+        {/* Platform filter */}
+        <div className="flex items-center gap-1 border border-gray-200 rounded-lg bg-white overflow-hidden">
+          {(["", "instagram", "facebook"] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => setFilterPlatform(p)}
+              className={cn(
+                "px-3 py-2 text-xs font-medium transition-colors",
+                filterPlatform === p ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-50"
+              )}
+            >
+              {p === "" ? "All Platforms" : p === "instagram" ? "Instagram" : "Facebook"}
+            </button>
+          ))}
+        </div>
         <MultiSelect
           label="Creators"
           options={models.map(m => ({ id: m.id, name: m.nickname || m.name }))}

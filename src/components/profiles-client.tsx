@@ -250,21 +250,39 @@ function GroupTable({
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
-                    <Link
-                      href={`/dashboard/profiles/${p.id}`}
-                      className="font-medium text-gray-900 hover:text-brand-600 transition-colors"
-                    >
-                      @{p.instagram_username}
-                    </Link>
-                    <a
-                      href={`https://www.instagram.com/${p.instagram_username}/`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gray-300 hover:text-brand-500 transition-colors"
-                      title="Auf Instagram öffnen"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
+                    {p.platform === 'facebook' ? (
+                      <>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">FB</span>
+                        <span className="font-medium text-gray-900">{p.instagram_username}</span>
+                        <a
+                          href={p.facebook_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-300 hover:text-blue-500 transition-colors"
+                          title="Auf Facebook öffnen"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </>
+                    ) : (
+                      <>
+                        <Link
+                          href={`/dashboard/profiles/${p.id}`}
+                          className="font-medium text-gray-900 hover:text-brand-600 transition-colors"
+                        >
+                          @{p.instagram_username}
+                        </Link>
+                        <a
+                          href={`https://www.instagram.com/${p.instagram_username}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-300 hover:text-brand-500 transition-colors"
+                          title="Auf Instagram öffnen"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </>
+                    )}
                   </div>
                 </td>
                 <td className="px-5 py-3.5">
@@ -365,6 +383,7 @@ function GroupTable({
 export function ProfilesClient({ initialProfiles, models, groups, tags }: ProfilesClientProps) {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterPlatform, setFilterPlatform] = useState("");
   const [profilesState, setProfilesState] = useState(initialProfiles);
   const [tagsState, setTagsState] = useState(tags);
 
@@ -384,9 +403,10 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
     return profilesState.filter(p => {
       if (search && !p.instagram_username.toLowerCase().includes(search.toLowerCase())) return false;
       if (filterStatus && p.status !== filterStatus) return false;
+      if (filterPlatform && p.platform !== filterPlatform) return false;
       return true;
     });
-  }, [profilesState, search, filterStatus]);
+  }, [profilesState, search, filterStatus, filterPlatform]);
 
   // Group by account_groups
   const grouped = useMemo(() => {
@@ -429,7 +449,7 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Profiles</h1>
-        <p className="text-gray-500 text-sm mt-1">{profilesState.length} profiles across {groups.length} groups</p>
+        <p className="text-gray-500 text-sm mt-1">{profilesState.filter((p: any) => p.platform !== 'facebook').length} Instagram · {profilesState.filter((p: any) => p.platform === 'facebook').length} Facebook</p>
       </div>
 
       {/* Search & Filters */}
@@ -438,12 +458,21 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search username..."
+            placeholder="Search profile..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
+        <select
+          value={filterPlatform}
+          onChange={e => setFilterPlatform(e.target.value)}
+          className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          <option value="">All Platforms</option>
+          <option value="instagram">Instagram</option>
+          <option value="facebook">Facebook</option>
+        </select>
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}

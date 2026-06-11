@@ -17,6 +17,7 @@ export default async function AnalyticsPage({
 
   const [
     { data: profiles },
+    { data: fbProfiles },
     { data: models },
     { data: groups },
     { data: tags },
@@ -29,13 +30,27 @@ export default async function AnalyticsPage({
         account_groups(id, name)
       `)
       .order("instagram_username"),
+    supabase
+      .from("facebook_profiles")
+      .select(`id, name, model_id, account_group_id, status, is_active, tags, models(id, name, nickname), account_groups(id, name)`)
+      .eq("is_active", true)
+      .order("name"),
     supabase.from("models").select("id, name, nickname").order("name"),
     supabase.from("account_groups").select("id, name, model_id").order("name"),
     supabase.from("tags").select("id, name, color").order("name"),
   ]);
 
+  // Normalize FB profiles to same shape as IG profiles
+  const fbProfilesNorm = (fbProfiles || []).map((p: any) => ({
+    ...p,
+    instagram_username: p.name,
+    platform: 'facebook',
+  }));
+
+  const allProfiles = [...(profiles || []).map((p: any) => ({ ...p, platform: 'instagram' })), ...fbProfilesNorm];
+
   // Filter models to only those with at least one profile
-  const usedModelIds = new Set((profiles || []).map((p: any) => p.model_id).filter(Boolean));
+  const usedModelIds = new Set(allProfiles.map((p: any) => p.model_id || p.models?.id).filter(Boolean));
   const filteredModels = (models || []).filter((m: any) => usedModelIds.has(m.id));
 
   // Fetch snapshots with pagination to bypass 1000 row limit
@@ -152,6 +167,64 @@ export default async function AnalyticsPage({
     reelDailyDeltas = await fetchReelDeltasFromView();
   }
 
+  // Fetch Facebook profile snapshots
+  let allFbSnapshots: any[] = [];
+  let fbSnapOffset = 0;
+  while (true) {
+    const { data: batch } = await supabase
+      .from("facebook_profile_snapshots")
+      .select("profile_id, followers, total_reel_views, reels_tracked, scraped_at")
+      .gte("scraped_at", sixtyDaysAgo.toISOString())
+      .order("scraped_at", { ascending: true })
+      .range(fbSnapOffset, fbSnapOffset + pageSize - 1);
+    if (!batch || batch.length === 0) break;
+    allFbSnapshots = allFbSnapshots.concat(batch);
+    if (batch.length < pageSize) break;
+    fbSnapOffset += pageSize;
+  }
+  // Normalize FB snapshots to same shape as IG snapshots
+  const fbSnapshots = allFbSnapshots.map((s: any) => ({
+    ...s,
+    media_count: null,
+    total_reel_likes: null,
+    total_reel_comments: null,
+    total_reel_shares: null,
+    daily_views: null,
+    daily_likes: null,
+    daily_comments: null,
+    daily_shares: null,
+  }));
+
+  // Fetch Facebook reel snapshot deltas
+  let allFbReelSnaps: any[] = [];
+  let fbReelOffset = 0;
+  while (true) {
+    const { data: batch } = await supabase
+      .from("facebook_reel_snapshots")
+      .select("reel_id, views_delta, reactions_delta, comments_delta, shares_delta, scraped_at, facebook_reels(profile_id)")
+      .gte("scraped_at", sixtyDaysAgo.toISOString())
+      .order("scraped_at", { ascending: true })
+      .range(fbReelOffset, fbReelOffset + pageSize - 1);
+    if (!batch || batch.length === 0) break;
+    allFbReelSnaps = allFbReelSnaps.concat(batch);
+    if (batch.length < pageSize) break;
+    fbReelOffset += pageSize;
+  }
+  // Aggregate FB reel deltas by (profile_id, date)
+  const fbReelDeltaMap: Record<string, { profile_id: string; date: string; views: number; likes: number; comments: number; shares: number }> = {};
+  for (const rs of allFbReelSnaps) {
+    const profileId = (rs.facebook_reels as any)?.profile_id;
+    if (!profileId) continue;
+    const date = rs.scraped_at.split("T")[0];
+    const key = `${date}|${profileId}`;
+    if (!fbReelDeltaMap[key]) fbReelDeltaMap[key] = { profile_id: profileId, date, views: 0, likes: 0, comments: 0, shares: 0 };
+    fbReelDeltaMap[key].views += rs.views_delta || 0;
+    fbReelDeltaMap[key].likes += rs.reactions_delta || 0;
+    fbReelDeltaMap[key].comments += rs.comments_delta || 0;
+    fbReelDeltaMap[key].shares += rs.shares_delta || 0;
+  }
+  const fbReelDailyDeltas = Object.values(fbReelDeltaMap);
+
   // Fetch conversion snapshots (link clicks + new subs)
   let allConversions: any[] = [];
   let convOffset = 0;
@@ -176,16 +249,19 @@ export default async function AnalyticsPage({
     .gte("date", sixtyDaysAgo.toISOString().split("T")[0])
     .order("date", { ascending: true });
 
+  const mergedSnapshots = [...snapshots, ...fbSnapshots];
+  const mergedReelDailyDeltas = [...reelDailyDeltas, ...fbReelDailyDeltas];
+
   return (
     <AnalyticsClient
-      profiles={profiles || []}
-      snapshots={snapshots || []}
+      profiles={allProfiles as any}
+      snapshots={mergedSnapshots}
       conversions={conversions || []}
       ofStats={ofStats || []}
       models={filteredModels}
       groups={groups || []}
       tags={tags || []}
-      reelDailyDeltas={reelDailyDeltas}
+      reelDailyDeltas={mergedReelDailyDeltas}
     />
   );
 }
