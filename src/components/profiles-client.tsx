@@ -473,7 +473,7 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Profiles</h1>
-        <p className="text-gray-500 text-sm mt-1">{profilesState.filter((p: any) => p.platform !== 'facebook').length} Instagram · {profilesState.filter((p: any) => p.platform === 'facebook').length} Facebook</p>
+        <p className="text-gray-500 text-sm mt-1">{filtered.filter((p: any) => p.platform !== 'facebook').length} Instagram · {filtered.filter((p: any) => p.platform === 'facebook').length} Facebook</p>
       </div>
 
       {/* Search & Filters */}
