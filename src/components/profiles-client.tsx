@@ -398,11 +398,35 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
     }
   }
 
+  // Effective status mirrors the badge: suspended > inactive > raw status.
+  const effectiveStatus = (p: any): string =>
+    p.status === "suspended" ? "suspended" : !p.is_active ? "inactive" : (p.status || "");
+
+  // Pretty label for a status key (reuses the known labels, title-cases unknowns)
+  const statusLabel = (key: string): string => {
+    const known: Record<string, string> = {
+      working: "Working", suspended: "Suspended", "48h_waiting": "48h Waiting",
+      account_status_problem: "Status Problem", inactive: "Inactive",
+    };
+    return known[key] || key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  // Dynamic status options: every status currently present in the data, so new
+  // ones show up automatically without code changes.
+  const statusOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of profilesState) {
+      const s = effectiveStatus(p);
+      if (s) set.add(s);
+    }
+    return Array.from(set).sort();
+  }, [profilesState]);
+
   // Apply global filters
   const filtered = useMemo(() => {
     return profilesState.filter(p => {
       if (search && !p.instagram_username.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filterStatus && p.status !== filterStatus) return false;
+      if (filterStatus && effectiveStatus(p) !== filterStatus) return false;
       if (filterPlatform && p.platform !== filterPlatform) return false;
       return true;
     });
@@ -479,10 +503,9 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
           className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">All Status</option>
-          <option value="working">Working</option>
-          <option value="suspended">Suspended</option>
-          <option value="48h_waiting">48h Waiting</option>
-          <option value="account_status_problem">Status Problem</option>
+          {statusOptions.map(s => (
+            <option key={s} value={s}>{statusLabel(s)}</option>
+          ))}
         </select>
       </div>
 
