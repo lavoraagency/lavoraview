@@ -10,6 +10,7 @@ const statusMap: Record<string, { label: string; className: string }> = {
   suspended: { label: "Suspended", className: "bg-red-100 text-red-700 border-red-200" },
   "48h_waiting": { label: "48h Waiting", className: "bg-blue-100 text-blue-700 border-blue-200" },
   account_status_problem: { label: "Status Problem", className: "bg-orange-100 text-orange-700 border-orange-200" },
+  inactive: { label: "Inactive", className: "bg-gray-100 text-gray-600 border-gray-300" },
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
@@ -22,7 +23,8 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
         key === "working" ? "bg-green-500" :
         key === "suspended" ? "bg-red-500" :
         key === "48h_waiting" ? "bg-blue-500" :
-        key === "account_status_problem" ? "bg-orange-500" : "bg-gray-500"
+        key === "account_status_problem" ? "bg-orange-500" :
+        key === "inactive" ? "bg-gray-400" : "bg-gray-500"
       )} />
       {config.label}
     </span>

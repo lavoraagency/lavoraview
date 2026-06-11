@@ -246,7 +246,7 @@ function GroupTable({
                 )}
               >
                 <td className="px-5 py-3.5">
-                  <StatusBadge status={p.status} />
+                  <StatusBadge status={p.status === "suspended" ? "suspended" : !p.is_active ? "inactive" : p.status} />
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
