@@ -32,7 +32,7 @@ export default async function AnalyticsPage({
       .order("instagram_username"),
     supabase
       .from("facebook_profiles")
-      .select(`id, name, model_id, account_group_id, status, is_active, tags, models(id, name, nickname), account_groups(id, name)`)
+      .select(`id, name, facebook_url, model_id, account_group_id, status, is_active, tags, models(id, name, nickname), account_groups(id, name)`)
       .eq("is_active", true)
       .order("name"),
     supabase.from("models").select("id, name, nickname").order("name"),
