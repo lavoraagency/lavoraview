@@ -406,7 +406,7 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
   const statusLabel = (key: string): string => {
     const known: Record<string, string> = {
       working: "Working", suspended: "Suspended", "48h_waiting": "48h Waiting",
-      account_status_problem: "Status Problem", inactive: "Inactive",
+      account_status_problem: "Status Problem", inactive: "Inactive", "facebook_48h_waiting": "Facebook 48h Waiting",
     };
     return known[key] || key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   };
