@@ -76,27 +76,19 @@ export async function POST(req: NextRequest) {
       skipped.push(r.username);
     }
 
-    const upserts: Promise<any>[] = [];
-
     if (igRows.length > 0) {
-      upserts.push(
-        supabase
-          .from("conversion_snapshots")
-          .upsert(igRows, { onConflict: "profile_id,date" })
-          .then(({ error }) => { if (error) throw error; })
-      );
+      const { error } = await supabase
+        .from("conversion_snapshots")
+        .upsert(igRows, { onConflict: "profile_id,date" });
+      if (error) throw error;
     }
 
     if (fbRows.length > 0) {
-      upserts.push(
-        supabase
-          .from("conversion_snapshots")
-          .upsert(fbRows, { onConflict: "facebook_profile_id,date" })
-          .then(({ error }) => { if (error) throw error; })
-      );
+      const { error } = await supabase
+        .from("conversion_snapshots")
+        .upsert(fbRows, { onConflict: "facebook_profile_id,date" });
+      if (error) throw error;
     }
-
-    await Promise.all(upserts);
 
     return NextResponse.json({
       ok: true,
