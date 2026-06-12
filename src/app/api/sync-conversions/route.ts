@@ -25,9 +25,9 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Fetch all IG profiles and FB profiles in parallel
+    // Fetch all IG profiles (active only) and FB profiles in parallel
     const [{ data: igProfiles, error: igError }, { data: fbProfiles, error: fbError }] = await Promise.all([
-      supabase.from("profiles").select("id, instagram_username"),
+      supabase.from("profiles").select("id, instagram_username").eq("is_active", true),
       supabase.from("facebook_profiles").select("id, name"),
     ]);
 
