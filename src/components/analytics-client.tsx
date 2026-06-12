@@ -510,7 +510,7 @@ function DonutCard({
 }: {
   title: string;
   total: string;
-  data: { name: string; value: number; color: string; profileId?: string }[];
+  data: { name: string; value: number; color: string; profileId?: string; url?: string }[];
 }) {
   const top5 = data.slice(0, 5);
 
@@ -567,7 +567,7 @@ function DonutCard({
                 <span className="text-gray-600 truncate text-xs">{d.name}</span>
                 {d.profileId && (
                   <a
-                    href={`https://www.instagram.com/${d.name}/`}
+                    href={d.url || `https://www.instagram.com/${d.name}/`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-gray-300 hover:text-brand-500 flex-shrink-0"
@@ -596,11 +596,13 @@ function MetricRankList({
   data,
   showCount,
   suffix,
+  urlMap,
 }: {
   title: string;
   data: { name: string; value: number }[];
   showCount: number;
   suffix?: string;
+  urlMap?: Record<string, string>;
 }) {
   const visibleData = showCount === 0 ? data : data.slice(0, showCount);
 
@@ -613,17 +615,18 @@ function MetricRankList({
         <div className="space-y-2">
           {visibleData.map((d, i) => {
             const username = stripStatusPrefix(d.name);
+            const href = urlMap?.[d.name] || `https://www.instagram.com/${username}/`;
             return (
               <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-b-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-xs text-gray-400 w-5 text-right flex-shrink-0">{i + 1}.</span>
                   <span className="text-sm text-gray-700 truncate">{d.name}</span>
                   <a
-                    href={`https://www.instagram.com/${username}/`}
+                    href={href}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-gray-300 hover:text-brand-500 transition-colors flex-shrink-0"
-                    title={`Open @${username} on Instagram`}
+                    title={href}
                   >
                     <ExternalLink className="w-3 h-3" />
                   </a>
@@ -638,23 +641,24 @@ function MetricRankList({
   );
 }
 
-// Custom SVG tick that renders the username as a clickable link opening Instagram.
+// Custom SVG tick that renders the username as a clickable link opening the profile page.
 function ClickableProfileTick(props: any) {
-  const { x, y, payload } = props;
+  const { x, y, payload, urlMap } = props;
   const label: string = payload?.value || "";
   const username = stripStatusPrefix(label);
+  const href = urlMap?.[label] || `https://www.instagram.com/${username}/`;
   // Truncate long labels so they fit in the fixed width
   const maxChars = 18;
   const shown = label.length > maxChars ? label.slice(0, maxChars - 1) + "…" : label;
   return (
     <g transform={`translate(${x},${y})`}>
       <a
-        href={`https://www.instagram.com/${username}/`}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
         style={{ cursor: "pointer" }}
       >
-        <title>{`Open @${username} on Instagram`}</title>
+        <title>{href}</title>
         <text x={-4} y={0} dy={4} textAnchor="end" fontSize={11} fill="#475569">
           {shown}
         </text>
@@ -669,10 +673,12 @@ function MetricBarChart({
   title,
   data,
   showCount,
+  urlMap,
 }: {
   title: string;
   data: { name: string; value: number; fill: string }[];
   showCount: number;
+  urlMap?: Record<string, string>;
 }) {
   const visibleData = showCount === 0 ? data : data.slice(0, showCount);
   const barHeight = 32;
@@ -688,7 +694,7 @@ function MetricBarChart({
           <BarChart data={visibleData} layout="vertical" margin={{ left: 10, right: 20, top: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
             <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => formatNumber(v)} />
-            <YAxis type="category" dataKey="name" tick={<ClickableProfileTick />} tickLine={false} axisLine={false} width={140} interval={0} />
+            <YAxis type="category" dataKey="name" tick={<ClickableProfileTick urlMap={urlMap} />} tickLine={false} axisLine={false} width={140} interval={0} />
             <Tooltip formatter={(value: number) => formatNumber(value)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e5e7eb" }} />
             <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={barHeight}>
               {visibleData.map((entry, i) => (
@@ -750,6 +756,22 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       map[p.id] = name;
     });
     return map;
+  }, [profiles]);
+
+  const profileUrlMap = useMemo(() => {
+    const byId: Record<string, string> = {};
+    const byName: Record<string, string> = {};
+    profiles.forEach(p => {
+      const url = (p as any).platform === 'facebook'
+        ? ((p as any).facebook_url || '')
+        : `https://www.instagram.com/${p.instagram_username}/`;
+      byId[p.id] = url;
+      let name = p.instagram_username;
+      if (p.status === "suspended") name = `(S) ${name}`;
+      else if (!p.is_active) name = `(I) ${name}`;
+      byName[name] = url;
+    });
+    return { byId, byName };
   }, [profiles]);
 
   // Group snapshots by date and profile (use UTC date from scraped_at)
@@ -1081,6 +1103,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
           value: (d as any)[field] as number,
           color: profileColorMap[d.name] || "#C9A227",
           profileId: id,
+          url: profileUrlMap.byId[id] || '',
         }))
         .filter(d => d.value > 0)
         .sort((a, b) => b.value - a.value);
@@ -1446,10 +1469,10 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
 
       {/* Bar Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <MetricBarChart title="Views" data={barData.views} showCount={showCount} />
-        <MetricBarChart title="New Followers" data={barData.followers} showCount={showCount} />
-        <MetricBarChart title="Likes" data={barData.likes} showCount={showCount} />
-        <MetricBarChart title="Comments" data={barData.comments} showCount={showCount} />
+        <MetricBarChart title="Views" data={barData.views} showCount={showCount} urlMap={profileUrlMap.byName} />
+        <MetricBarChart title="New Followers" data={barData.followers} showCount={showCount} urlMap={profileUrlMap.byName} />
+        <MetricBarChart title="Likes" data={barData.likes} showCount={showCount} urlMap={profileUrlMap.byName} />
+        <MetricBarChart title="Comments" data={barData.comments} showCount={showCount} urlMap={profileUrlMap.byName} />
       </div>
 
       {/* Trend Line Charts — only when multiple days selected */}
@@ -1511,14 +1534,14 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <MetricRankList title="Total New Subs" data={barData.estimatedTotalSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
-        <MetricRankList title="Link Clicks" data={barData.linkClicks.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
-        <MetricRankList title="Conversion Rate (Total)" data={barData.conversionRateTotal} showCount={showCount} suffix="%" />
-        <MetricRankList title="Total Subs / 100K Views" data={barData.totalSubsPer100k} showCount={showCount} />
-        <MetricRankList title="Tracked New Subs" data={barData.newSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} />
-        <MetricRankList title="Views to Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" />
-        <MetricRankList title="Conversion Rate (Tracked)" data={barData.conversionRate} showCount={showCount} suffix="%" />
-        <MetricRankList title="Tracked Subs / 100K Views" data={barData.trackedSubsPer100k} showCount={showCount} />
+        <MetricRankList title="Total New Subs" data={barData.estimatedTotalSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} urlMap={profileUrlMap.byName} />
+        <MetricRankList title="Link Clicks" data={barData.linkClicks.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} urlMap={profileUrlMap.byName} />
+        <MetricRankList title="Conversion Rate (Total)" data={barData.conversionRateTotal} showCount={showCount} suffix="%" urlMap={profileUrlMap.byName} />
+        <MetricRankList title="Total Subs / 100K Views" data={barData.totalSubsPer100k} showCount={showCount} urlMap={profileUrlMap.byName} />
+        <MetricRankList title="Tracked New Subs" data={barData.newSubs.map(d => ({ name: d.name, value: d.value }))} showCount={showCount} urlMap={profileUrlMap.byName} />
+        <MetricRankList title="Views to Click Rate" data={barData.clickRate} showCount={showCount} suffix="%" urlMap={profileUrlMap.byName} />
+        <MetricRankList title="Conversion Rate (Tracked)" data={barData.conversionRate} showCount={showCount} suffix="%" urlMap={profileUrlMap.byName} />
+        <MetricRankList title="Tracked Subs / 100K Views" data={barData.trackedSubsPer100k} showCount={showCount} urlMap={profileUrlMap.byName} />
       </div>
     </div>
   );
