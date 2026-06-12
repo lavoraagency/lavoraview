@@ -225,13 +225,13 @@ export default async function AnalyticsPage({
   }
   const fbReelDailyDeltas = Object.values(fbReelDeltaMap);
 
-  // Fetch conversion snapshots (link clicks + new subs)
+  // Fetch conversion snapshots (link clicks + new subs) — includes both IG and FB profile conversions
   let allConversions: any[] = [];
   let convOffset = 0;
   while (true) {
     const { data: batch } = await supabase
       .from("conversion_snapshots")
-      .select("profile_id, date, link_clicks, new_subs")
+      .select("profile_id, facebook_profile_id, date, link_clicks, new_subs")
       .gte("date", sixtyDaysAgo.toISOString().split("T")[0])
       .order("date", { ascending: true })
       .range(convOffset, convOffset + pageSize - 1);
@@ -240,7 +240,13 @@ export default async function AnalyticsPage({
     if (batch.length < pageSize) break;
     convOffset += pageSize;
   }
-  const conversions = allConversions;
+  // Normalize: FB conversion rows use facebook_profile_id — map to profile_id so analytics can match them
+  const conversions = allConversions.map((c: any) => {
+    if (!c.profile_id && c.facebook_profile_id) {
+      return { ...c, profile_id: c.facebook_profile_id };
+    }
+    return c;
+  });
 
   // Fetch OF daily stats (total new subs per model)
   const { data: ofStats } = await supabase

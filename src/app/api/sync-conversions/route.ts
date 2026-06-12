@@ -3,7 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 
 // POST /api/sync-conversions
 // Accepts array of { username, date, link_clicks, new_subs }
-// Matches username to profile_id and upserts into conversion_snapshots
+// Matches username to profile_id (IG) or facebook_profile_id (FB) and upserts into conversion_snapshots
 //
 // n8n should POST to this endpoint with the Authorization header:
 // Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY>
@@ -25,48 +25,86 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Fetch all profiles to build username → id map
-    const { data: profiles, error: profilesError } = await supabase
-      .from("profiles")
-      .select("id, instagram_username");
+    // Fetch all IG profiles and FB profiles in parallel
+    const [{ data: igProfiles, error: igError }, { data: fbProfiles, error: fbError }] = await Promise.all([
+      supabase.from("profiles").select("id, instagram_username"),
+      supabase.from("facebook_profiles").select("id, name"),
+    ]);
 
-    if (profilesError) throw profilesError;
+    if (igError) throw igError;
+    if (fbError) throw fbError;
 
-    const usernameToId: Record<string, string> = {};
-    for (const p of profiles || []) {
-      usernameToId[p.instagram_username.toLowerCase()] = p.id;
+    const igUsernameToId: Record<string, string> = {};
+    for (const p of igProfiles || []) {
+      igUsernameToId[p.instagram_username.toLowerCase()] = p.id;
     }
 
-    // Build upsert rows, skip unknown usernames
-    const rows: { profile_id: string; date: string; link_clicks: number; new_subs: number }[] = [];
+    const fbNameToId: Record<string, string> = {};
+    for (const p of fbProfiles || []) {
+      fbNameToId[p.name.toLowerCase()] = p.id;
+    }
+
+    const igRows: { profile_id: string; date: string; link_clicks: number; new_subs: number }[] = [];
+    const fbRows: { facebook_profile_id: string; date: string; link_clicks: number; new_subs: number }[] = [];
     const skipped: string[] = [];
 
     for (const r of records) {
-      const profileId = usernameToId[r.username.toLowerCase()];
-      if (!profileId) {
-        skipped.push(r.username);
+      if (!r.date || r.date === "Start" || r.date === "Week ⬆") continue;
+
+      const igId = igUsernameToId[r.username.toLowerCase()];
+      if (igId) {
+        igRows.push({
+          profile_id: igId,
+          date: r.date,
+          link_clicks: Number(r.link_clicks) || 0,
+          new_subs: Number(r.new_subs) || 0,
+        });
         continue;
       }
-      if (!r.date || r.date === "Start" || r.date === "Week ⬆") continue;
-      rows.push({
-        profile_id: profileId,
-        date: r.date,
-        link_clicks: Number(r.link_clicks) || 0,
-        new_subs: Number(r.new_subs) || 0,
-      });
+
+      const fbId = fbNameToId[r.username.toLowerCase()];
+      if (fbId) {
+        fbRows.push({
+          facebook_profile_id: fbId,
+          date: r.date,
+          link_clicks: Number(r.link_clicks) || 0,
+          new_subs: Number(r.new_subs) || 0,
+        });
+        continue;
+      }
+
+      skipped.push(r.username);
     }
 
-    if (rows.length === 0) {
-      return NextResponse.json({ ok: true, inserted: 0, skipped });
+    const upserts: Promise<any>[] = [];
+
+    if (igRows.length > 0) {
+      upserts.push(
+        supabase
+          .from("conversion_snapshots")
+          .upsert(igRows, { onConflict: "profile_id,date" })
+          .then(({ error }) => { if (error) throw error; })
+      );
     }
 
-    const { error: upsertError } = await supabase
-      .from("conversion_snapshots")
-      .upsert(rows, { onConflict: "profile_id,date" });
+    if (fbRows.length > 0) {
+      upserts.push(
+        supabase
+          .from("conversion_snapshots")
+          .upsert(fbRows, { onConflict: "facebook_profile_id,date" })
+          .then(({ error }) => { if (error) throw error; })
+      );
+    }
 
-    if (upsertError) throw upsertError;
+    await Promise.all(upserts);
 
-    return NextResponse.json({ ok: true, inserted: rows.length, skipped });
+    return NextResponse.json({
+      ok: true,
+      inserted: igRows.length + fbRows.length,
+      ig: igRows.length,
+      fb: fbRows.length,
+      skipped,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
