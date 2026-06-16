@@ -459,7 +459,12 @@ export function ProfilesClient({ initialProfiles, models, groups, tags }: Profil
     }
     unassigned.sort((a: any, b: any) => (b.latestFollowers || 0) - (a.latestFollowers || 0));
 
-    const result = allGroups.filter(g => g.profiles.length > 0);
+    // Order groups by number of "working" + "Facebook account" profiles, descending
+    const activeCount = (g: { profiles: any[] }) =>
+      g.profiles.filter((p: any) => p.status === "working" || p.status === "Facebook account").length;
+    const result = allGroups
+      .filter(g => g.profiles.length > 0)
+      .sort((a, b) => activeCount(b) - activeCount(a));
 
     if (unassigned.length > 0) {
       result.push({ group: { id: "unassigned", name: "Unassigned" }, profiles: unassigned });
