@@ -993,12 +993,15 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     // Sum of proportionally distributed total subs across filtered profiles
     const totalEstimatedSubs = Object.values(perProfile).reduce((sum, p) => sum + p.estimatedTotalSubs, 0);
 
-    // When the user has a "full model" selection (no group/profile/tag narrowing),
-    // use the exact OF total sum directly from of_daily_stats instead of the
-    // lossy proportional sum. This avoids Math.round drift + missing-snapshot drift.
+    // When the user has a "full model" selection (no group/profile/tag/platform
+    // narrowing), use the exact OF total sum directly from of_daily_stats instead
+    // of the lossy proportional sum. This avoids Math.round drift + missing-snapshot
+    // drift. A platform filter narrows the profiles, so the exact full-model total no
+    // longer applies — fall back to the proportional projection in that case.
     const isFullModelSelection = selectedGroups === null
       && selectedProfiles === null
-      && selectedTags.length === 0;
+      && selectedTags.length === 0
+      && filterPlatform === "";
     let exactTotalNewSubs: number | null = null;
     if (isFullModelSelection) {
       // Only count models that have at least one profile in our tool.
@@ -1051,7 +1054,7 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
       perProfile, profileCount, totalEstimatedSubs,
       totalNewSubsDisplay, isFullModelSelection,
     };
-  }, [snapshotsByDateProfile, conversionsByDateProfile, reelDeltasByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap, ofStats, profiles, models, selectedModels, selectedGroups, selectedProfiles, selectedTags]);
+  }, [snapshotsByDateProfile, conversionsByDateProfile, reelDeltasByDateProfile, datesInRange, dateBeforeRange, filteredProfileIds, profileNameMap, ofStats, profiles, models, selectedModels, selectedGroups, selectedProfiles, selectedTags, filterPlatform]);
 
   // Total New Subs per model (aggregated from proportional per-profile data)
   const ofTotalNewSubsPerModel = useMemo(() => {
