@@ -164,8 +164,29 @@ export default async function AnalyticsPage({
     }));
   };
 
-  // facebook_reel_snapshots — paginated, aggregated per (profile, day)
-  const fetchFbReelDailyDeltas = async () => {
+  // ── FB reel daily deltas via aggregated DB view ─────────────────
+  // Mirrors reel_daily_deltas_v for Facebook: the view does the
+  // per-(profile,day) sum in Postgres, returning ~1.5k rows instead of
+  // paginating ~32k raw snapshot rows + aggregating in JS.
+  const fetchFbReelDeltasFromView = async () => {
+    const { data, error } = await supabase
+      .from("facebook_reel_daily_deltas_v")
+      .select("profile_id, date, views, likes, comments, shares")
+      .gte("date", sixtyDaysAgoDate);
+    if (error) throw error;
+    return (data || []).map((d: any) => ({
+      profile_id: d.profile_id,
+      date: d.date,
+      views: d.views || 0,
+      likes: d.likes || 0,
+      comments: d.comments || 0,
+      shares: d.shares || 0,
+    }));
+  };
+
+  // Legacy fallback: paginate facebook_reel_snapshots and aggregate in
+  // JS. Kept as a safety net in case the view is missing/dropped.
+  const fetchFbReelDeltasLegacy = async () => {
     let all: any[] = [];
     let offset = 0;
     while (true) {
@@ -193,6 +214,15 @@ export default async function AnalyticsPage({
       map[key].shares += rs.shares_delta || 0;
     }
     return Object.values(map);
+  };
+
+  const fetchFbReelDailyDeltas = async () => {
+    try {
+      return await fetchFbReelDeltasFromView();
+    } catch (e) {
+      console.error("[analytics] facebook_reel_daily_deltas_v query failed, falling back to pagination:", e);
+      return fetchFbReelDeltasLegacy();
+    }
   };
 
   // conversion_snapshots (link clicks + new subs) — IG + FB, normalized
