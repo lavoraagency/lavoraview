@@ -45,6 +45,24 @@ export async function fetchAnalyticsTimeSeries(
   const sinceDate = sinceIso.split("T")[0];
   const verify = !!opts.verify;
 
+  // PostgREST caps RPC results at 1000 rows, so the reel-delta functions
+  // (which return one row per profile/day, ~3.6k over 60 days) must be
+  // paginated — otherwise the history is silently truncated. The RPCs
+  // ORDER BY (profile_id, date) so offset paging is stable.
+  const rpcPaginated = async (fn: string, params: any) => {
+    let all: any[] = [];
+    let offset = 0;
+    while (true) {
+      const { data, error } = await supabase.rpc(fn, params).range(offset, offset + PAGE_SIZE - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
+    return all;
+  };
+
   // When loading only a short recent window, follower/interaction deltas
   // need each profile's most recent snapshot BEFORE the window as a
   // baseline — otherwise a profile whose prior snapshot predates the
@@ -100,8 +118,10 @@ export async function fetchAnalyticsTimeSeries(
   // IG reel daily deltas — parameterized RPC (filters scraped_at, then
   // aggregates per profile/day in Postgres). Never times out.
   const fetchReelDeltasFromRpc = async () => {
-    const { data, error } = await supabase.rpc("reel_daily_deltas", { p_since: sinceDate });
-    if (error) {
+    let data: any[];
+    try {
+      data = await rpcPaginated("reel_daily_deltas", { p_since: sinceDate });
+    } catch (error) {
       console.error("[analytics] reel_daily_deltas rpc failed:", error);
       return [] as any[];
     }
@@ -193,8 +213,7 @@ export async function fetchAnalyticsTimeSeries(
 
   // FB reel daily deltas — parameterized RPC, with pagination fallback.
   const fetchFbReelDeltasFromRpc = async () => {
-    const { data, error } = await supabase.rpc("fb_reel_daily_deltas", { p_since: sinceDate });
-    if (error) throw error;
+    const data = await rpcPaginated("fb_reel_daily_deltas", { p_since: sinceDate });
     return (data || []).map((d: any) => ({
       profile_id: d.profile_id,
       date: d.date,
