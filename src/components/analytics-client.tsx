@@ -64,6 +64,10 @@ interface AnalyticsClientProps {
   groups: any[];
   tags: any[];
   reelDailyDeltas: ReelDailyDelta[];
+  // Earliest date the picker should offer. The page hands us only a short
+  // recent window initially; the full history arrives via a background
+  // fetch, but the picker must allow the full range from the start.
+  minDate?: string;
 }
 
 // ── Date Range Picker ──────────────────────────────────────────────
@@ -709,7 +713,43 @@ function MetricBarChart({
 }
 
 // ── Main Component ─────────────────────────────────────────────────
-export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, models, groups, tags, reelDailyDeltas }: AnalyticsClientProps) {
+export function AnalyticsClient({
+  profiles,
+  snapshots: snapshotsInitial,
+  conversions: conversionsInitial,
+  ofStats: ofStatsInitial,
+  models,
+  groups,
+  tags,
+  reelDailyDeltas: reelDailyDeltasInitial,
+  minDate: minDateProp,
+}: AnalyticsClientProps) {
+  // Time-series data is state-backed: it starts as the short recent window
+  // the server passed, then gets replaced by the full 60-day history once
+  // the background fetch resolves. Everything downstream reads these vars,
+  // so the memos recompute automatically when the history lands.
+  const [snapshots, setSnapshots] = useState(snapshotsInitial);
+  const [conversions, setConversions] = useState(conversionsInitial);
+  const [ofStats, setOfStats] = useState(ofStatsInitial);
+  const [reelDailyDeltas, setReelDailyDeltas] = useState(reelDailyDeltasInitial);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/analytics/history")
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`history ${r.status}`))))
+      .then(d => {
+        if (cancelled) return;
+        setSnapshots(d.snapshots || []);
+        setConversions(d.conversions || []);
+        setOfStats(d.ofStats || []);
+        setReelDailyDeltas(d.reelDailyDeltas || []);
+      })
+      .catch(err => console.error("[analytics] history load failed:", err))
+      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const [selectedModels, setSelectedModels] = useState<string[] | null>(null);
   const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
@@ -811,7 +851,10 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     return Object.keys(snapshotsByDateProfile).sort();
   }, [snapshotsByDateProfile]);
 
-  const minDate = availableDates[0] || localToday();
+  // Prefer the server-provided floor so the picker offers the full range
+  // even before the background history (which populates availableDates)
+  // has loaded.
+  const minDate = minDateProp || availableDates[0] || localToday();
   const maxDate = localToday();
 
   // Date range state — default to yesterday
@@ -1316,7 +1359,15 @@ export function AnalyticsClient({ profiles, snapshots, conversions, ofStats, mod
     <div className="p-4 md:p-6 space-y-4 md:space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Analytics</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Analytics</h1>
+          {historyLoading && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+              Loading history…
+            </span>
+          )}
+        </div>
         <p className="text-gray-500 text-xs md:text-sm mt-1">Performance overview across all profiles</p>
       </div>
 
