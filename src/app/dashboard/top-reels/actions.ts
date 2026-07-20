@@ -28,6 +28,40 @@ export async function getReelVideoAnalysis(reelId: string) {
 }
 
 /**
+ * Return just the per-reel daily views for a specific date
+ * (reel_snapshots.views_delta, max per reel). The reels themselves and
+ * their baseline averages don't change per date, so the client keeps the
+ * reels it already has and only swaps in these daily views to recompute
+ * multipliers — no need to refetch ~19k reels per date.
+ */
+export async function getDailyViewsForDate(dateStr: string): Promise<Record<string, number>> {
+  const supabase = createServiceClient();
+
+  const nextDay = new Date(dateStr + "T00:00:00");
+  nextDay.setDate(nextDay.getDate() + 1);
+  const nextDayStr = nextDay.toISOString().split("T")[0];
+
+  const dailyViewsMap: Record<string, number> = {};
+  let from = 0;
+  const batchSize = 1000;
+  while (true) {
+    const { data: batch } = await supabase
+      .from("reel_snapshots")
+      .select("reel_id, views_delta")
+      .gte("scraped_at", dateStr + "T00:00:00")
+      .lt("scraped_at", nextDayStr + "T00:00:00")
+      .range(from, from + batchSize - 1);
+    if (!batch || batch.length === 0) break;
+    for (const s of batch) {
+      dailyViewsMap[s.reel_id] = Math.max(dailyViewsMap[s.reel_id] || 0, s.views_delta || 0);
+    }
+    if (batch.length < batchSize) break;
+    from += batchSize;
+  }
+  return dailyViewsMap;
+}
+
+/**
  * Load top reels data for a specific date.
  * Fetches reel_snapshots.views_delta for that date and computes multipliers.
  * Pass null for "yesterday" (uses last_daily_views from reels table).

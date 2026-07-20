@@ -6,7 +6,7 @@ import { ExternalLink, Eye, Heart, MessageCircle, Share2, ChevronDown, ChevronLe
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { getReelSnapshots, getReelVideoAnalysis, getTopReelsForDate } from "@/app/dashboard/top-reels/actions";
+import { getReelSnapshots, getReelVideoAnalysis, getDailyViewsForDate } from "@/app/dashboard/top-reels/actions";
 
 const REELS_PER_PAGE = 12;
 const MIN_MULTIPLIER = 2.0;
@@ -762,7 +762,19 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
   const [sortBy, setSortBy] = useState<SortOption>("best_performing");
   const [minMultiplier, setMinMultiplier] = useState(MIN_MULTIPLIER);
 
-  // Preload last 5 days on mount
+  // Reels + their baseline averages don't change per date — only the daily
+  // views do. So for any other date we keep the reels we already have and
+  // just recompute dailyViews/multiplier from that date's views map.
+  function recomputeForDate(map: Record<string, number>) {
+    return reels.map((r: any) => {
+      const dv = map[r.id] || 0;
+      const mult = r.avgViews > 0 ? Math.round((dv / r.avgViews) * 100) / 100 : 0;
+      return { ...r, dailyViews: dv, multiplier: mult };
+    });
+  }
+
+  // Preload last 5 days on mount — only the per-day views maps (light),
+  // not the full reels.
   useEffect(() => {
     async function preload() {
       const yesterday = getYesterdayStr();
@@ -771,21 +783,27 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
         const d = addDays(yesterday, -(i - 1));
         if (!dateCache.current[d]) datesToLoad.push(d);
       }
-      // Load in parallel
       const results = await Promise.all(
-        datesToLoad.map(d => getTopReelsForDate(d).then(data => ({ date: d, data })).catch(() => null))
+        datesToLoad.map(d => getDailyViewsForDate(d).then(map => ({ date: d, reels: recomputeForDate(map) })).catch(() => null))
       );
       for (const r of results) {
-        if (r) dateCache.current[r.date] = r.data;
+        if (r) dateCache.current[r.date] = r.reels;
       }
     }
     preload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load data for a specific date (uses cache if available)
   async function loadDate(dateStr: string) {
     setSelectedDate(dateStr);
     setPage(0);
+
+    // Yesterday is the initial payload — no fetch needed.
+    if (dateStr === getYesterdayStr()) {
+      setActiveReels(reels);
+      return;
+    }
 
     // Check cache first
     if (dateCache.current[dateStr]) {
@@ -795,9 +813,10 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
 
     setDateLoading(true);
     try {
-      const data = await getTopReelsForDate(dateStr);
-      dateCache.current[dateStr] = data;
-      setActiveReels(data);
+      const map = await getDailyViewsForDate(dateStr);
+      const recomputed = recomputeForDate(map);
+      dateCache.current[dateStr] = recomputed;
+      setActiveReels(recomputed);
     } catch (e) {
       console.error("Failed to load data for date", dateStr, e);
     } finally {
