@@ -47,7 +47,10 @@ export default async function AnalyticsPage() {
     supabase.from("models").select("id, name, nickname").order("name"),
     supabase.from("account_groups").select("id, name, model_id").order("name"),
     supabase.from("tags").select("id, name, color").order("name"),
-    fetchAnalyticsTimeSeries(supabase, initialSince),
+    // baselineSince lets the short window pull each profile's prior snapshot
+    // (up to 60 days back) so follower/interaction deltas are correct
+    // immediately and don't jump when the background history loads.
+    fetchAnalyticsTimeSeries(supabase, initialSince, { baselineSince: historyMin }),
   ]);
 
   // Normalize FB profiles to same shape as IG profiles

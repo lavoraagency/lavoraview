@@ -19,14 +19,63 @@ export interface AnalyticsTimeSeries {
 
 const PAGE_SIZE = 1000;
 
+// Normalize a FB profile snapshot to the same shape as an IG one.
+const normalizeFbSnap = (s: any) => ({
+  profile_id: s.profile_id,
+  followers: s.followers,
+  total_reel_views: s.total_reel_views,
+  reels_tracked: s.reels_tracked,
+  scraped_at: s.scraped_at,
+  media_count: null,
+  total_reel_likes: null,
+  total_reel_comments: null,
+  total_reel_shares: null,
+  daily_views: null,
+  daily_likes: null,
+  daily_comments: null,
+  daily_shares: null,
+});
+
 export async function fetchAnalyticsTimeSeries(
   supabase: any,
   since: Date,
-  opts: { verify?: boolean } = {}
+  opts: { verify?: boolean; baselineSince?: Date } = {}
 ): Promise<AnalyticsTimeSeries> {
   const sinceIso = since.toISOString();
   const sinceDate = sinceIso.split("T")[0];
   const verify = !!opts.verify;
+
+  // When loading only a short recent window, follower/interaction deltas
+  // need each profile's most recent snapshot BEFORE the window as a
+  // baseline — otherwise a profile whose prior snapshot predates the
+  // window is treated as brand-new and its full follower count is counted
+  // as growth. These RPCs return exactly one row per profile (the latest
+  // snapshot in [baselineSince, since)), so the short window matches the
+  // full-history result. Not needed for the full 60-day load.
+  const fetchIgBaselines = async () => {
+    if (!opts.baselineSince) return [] as any[];
+    const { data, error } = await supabase.rpc("profile_snapshot_baselines", {
+      p_before: sinceIso,
+      p_since: opts.baselineSince.toISOString(),
+    });
+    if (error) {
+      console.error("[analytics] profile_snapshot_baselines rpc failed:", error);
+      return [] as any[];
+    }
+    return data || [];
+  };
+  const fetchFbBaselines = async () => {
+    if (!opts.baselineSince) return [] as any[];
+    const { data, error } = await supabase.rpc("fb_profile_snapshot_baselines", {
+      p_before: sinceIso,
+      p_since: opts.baselineSince.toISOString(),
+    });
+    if (error) {
+      console.error("[analytics] fb_profile_snapshot_baselines rpc failed:", error);
+      return [] as any[];
+    }
+    return (data || []).map(normalizeFbSnap);
+  };
 
   // profile_snapshots — paginated to bypass the 1000-row limit
   const fetchProfileSnapshots = async () => {
@@ -139,17 +188,7 @@ export async function fetchAnalyticsTimeSeries(
       if (batch.length < PAGE_SIZE) break;
       offset += PAGE_SIZE;
     }
-    return all.map((s: any) => ({
-      ...s,
-      media_count: null,
-      total_reel_likes: null,
-      total_reel_comments: null,
-      total_reel_shares: null,
-      daily_views: null,
-      daily_likes: null,
-      daily_comments: null,
-      daily_shares: null,
-    }));
+    return all.map(normalizeFbSnap);
   };
 
   // FB reel daily deltas — parameterized RPC, with pagination fallback.
@@ -235,7 +274,7 @@ export async function fetchAnalyticsTimeSeries(
     return data || [];
   };
 
-  const [snapshots, reelDailyDeltas, fbSnapshots, fbReelDailyDeltas, conversions, ofStats] =
+  const [snapshots, reelDailyDeltas, fbSnapshots, fbReelDailyDeltas, conversions, ofStats, igBaselines, fbBaselines] =
     await Promise.all([
       fetchProfileSnapshots(),
       fetchReelDailyDeltas(),
@@ -243,10 +282,12 @@ export async function fetchAnalyticsTimeSeries(
       fetchFbReelDailyDeltas(),
       fetchConversions(),
       fetchOfStats(),
+      fetchIgBaselines(),
+      fetchFbBaselines(),
     ]);
 
   return {
-    snapshots: [...snapshots, ...fbSnapshots],
+    snapshots: [...igBaselines, ...snapshots, ...fbBaselines, ...fbSnapshots],
     conversions,
     ofStats,
     reelDailyDeltas: [...reelDailyDeltas, ...fbReelDailyDeltas],
