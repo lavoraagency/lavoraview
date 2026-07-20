@@ -2,37 +2,27 @@ export const dynamic = 'force-dynamic';
 
 import { createServiceClient as createClient } from "@/lib/supabase/server";
 import { PostsClient } from "@/components/posts-client";
+import { fetchReels } from "@/lib/posts-data";
+
+// The default view is "Last 7 Days", so on first paint we only need reels
+// posted in the last ~8 days (a small tz buffer over the preset). The full
+// reel history loads in the background via /api/posts/history.
+const INITIAL_WINDOW_DAYS = 8;
 
 export default async function PostsPage() {
   const supabase = createClient();
 
-  const [{ data: models }, { data: groups }, { data: profiles }, { data: tags }] = await Promise.all([
-    supabase.from("models").select("id, name, nickname").order("name"),
-    supabase.from("account_groups").select("id, name, model_id").order("name"),
-    supabase.from("profiles").select("id, instagram_username, model_id, tags, is_active, status").order("instagram_username"),
-    supabase.from("tags").select("id, name, color").order("name"),
-  ]);
+  const initialSince = new Date();
+  initialSince.setDate(initialSince.getDate() - INITIAL_WINDOW_DAYS);
 
-  // Fetch all reels paginated (no limit) to avoid cutting off low-view reels
-  let reels: any[] = [];
-  let from = 0;
-  const batchSize = 1000;
-  while (true) {
-    const { data: batch } = await supabase
-      .from("reels")
-      .select(`
-        id, shortcode, thumbnail_url, reel_url, caption,
-        posted_at, current_views, current_likes, current_comments, current_shares,
-        is_viral_tracked, last_daily_views,
-        profiles(id, instagram_username, model_id, tags, models(id, name, nickname), account_groups(id, name))
-      `)
-      .order("current_views", { ascending: false })
-      .range(from, from + batchSize - 1);
-    if (!batch || batch.length === 0) break;
-    reels = reels.concat(batch);
-    if (batch.length < batchSize) break;
-    from += batchSize;
-  }
+  const [{ data: models }, { data: groups }, { data: profiles }, { data: tags }, reels] =
+    await Promise.all([
+      supabase.from("models").select("id, name, nickname").order("name"),
+      supabase.from("account_groups").select("id, name, model_id").order("name"),
+      supabase.from("profiles").select("id, instagram_username, model_id, account_group_id, tags, is_active, status").order("instagram_username"),
+      supabase.from("tags").select("id, name, color").order("name"),
+      fetchReels(supabase, initialSince.toISOString()),
+    ]);
 
   const usedModelIds = new Set((profiles || []).map((p: any) => p.model_id).filter(Boolean));
   const filteredModels = (models || []).filter((m: any) => usedModelIds.has(m.id));

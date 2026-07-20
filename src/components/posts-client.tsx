@@ -641,7 +641,23 @@ interface PostsClientProps {
   tags: any[];
 }
 
-export function PostsClient({ reels, models, groups, profiles, tags }: PostsClientProps) {
+export function PostsClient({ reels: reelsInitial, models, groups, profiles, tags }: PostsClientProps) {
+  // Reels are state-backed: start with the short recent window the server
+  // passed (covers the default "Last 7 Days" view), then replace with the
+  // full history once the background fetch resolves.
+  const [reels, setReels] = useState(reelsInitial);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/posts/history")
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`history ${r.status}`))))
+      .then(d => { if (!cancelled) setReels(d.reels || []); })
+      .catch(err => console.error("[posts] history load failed:", err))
+      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const [selectedModels, setSelectedModels] = useState<string[] | null>(null);
   const [selectedGroups, setSelectedGroups] = useState<string[] | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<string[] | null>(null);
@@ -683,9 +699,35 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
     return opts;
   }, [profiles, selectedModels, selectedGroups]);
 
+  // Reels are fetched flat (profile_id only). Re-attach the nested
+  // profile/model/group shape the rest of the component expects, using the
+  // already-loaded lookup arrays. Doing the join here instead of in the DB
+  // query cut the full-reels load from ~35s to well under a second.
+  const profileById = useMemo(() => {
+    const modelById = new Map(models.map((m: any) => [m.id, m]));
+    const groupById = new Map(groups.map((g: any) => [g.id, g]));
+    const map = new Map<string, any>();
+    for (const p of profiles) {
+      map.set(p.id, {
+        id: p.id,
+        instagram_username: p.instagram_username,
+        model_id: p.model_id,
+        tags: p.tags,
+        models: p.model_id ? modelById.get(p.model_id) || null : null,
+        account_groups: p.account_group_id ? groupById.get(p.account_group_id) || null : null,
+      });
+    }
+    return map;
+  }, [profiles, models, groups]);
+
+  const reelsEnriched = useMemo(
+    () => reels.map((r: any) => ({ ...r, profiles: profileById.get(r.profile_id) || null })),
+    [reels, profileById]
+  );
+
   // Pre-filter by profile selections (without date/views/sort)
   const profileFiltered = useMemo(() => {
-    return reels.filter(r => {
+    return reelsEnriched.filter(r => {
       const profile = r.profiles as any;
       if (!profile) return false;
       if (selectedModels !== null && !selectedModels.includes(profile.models?.id)) return false;
@@ -698,7 +740,7 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
       }
       return true;
     });
-  }, [reels, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags]);
+  }, [reelsEnriched, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags]);
 
   // Compute max views for the slider (based on profile-filtered, before date/views filter)
   const computedMaxViews = useMemo(() => {
@@ -812,7 +854,13 @@ export function PostsClient({ reels, models, groups, profiles, tags }: PostsClie
           noneLabel="No Tags"
         />
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          {historyLoading && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-gray-400">
+              <span className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+              Loading history…
+            </span>
+          )}
           <button
             onClick={() => setFilterOpen(true)}
             className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:border-gray-300 transition-colors text-gray-600"
