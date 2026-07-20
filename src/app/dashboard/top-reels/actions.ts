@@ -14,6 +14,20 @@ export async function getReelSnapshots(reelId: string) {
 }
 
 /**
+ * Lazy-load the heavy per-reel video fields (video_analysis is a large JSON
+ * blob excluded from the bulk reels fetch). Called by the insights modal.
+ */
+export async function getReelVideoAnalysis(reelId: string) {
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("reels")
+    .select("video_analysis, video_duration")
+    .eq("id", reelId)
+    .single();
+  return data || { video_analysis: null, video_duration: null };
+}
+
+/**
  * Load top reels data for a specific date.
  * Fetches reel_snapshots.views_delta for that date and computes multipliers.
  * Pass null for "yesterday" (uses last_daily_views from reels table).

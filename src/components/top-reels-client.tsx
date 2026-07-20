@@ -6,7 +6,7 @@ import { ExternalLink, Eye, Heart, MessageCircle, Share2, ChevronDown, ChevronLe
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { getReelSnapshots, getTopReelsForDate } from "@/app/dashboard/top-reels/actions";
+import { getReelSnapshots, getReelVideoAnalysis, getTopReelsForDate } from "@/app/dashboard/top-reels/actions";
 
 const REELS_PER_PAGE = 12;
 const MIN_MULTIPLIER = 2.0;
@@ -350,6 +350,10 @@ function AIAnalysisSection({ analysis: a, videoDuration }: { analysis: any; vide
 function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any; onClose: () => void }) {
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // video_analysis/video_duration are excluded from the bulk fetch (huge
+  // JSON blob) and lazy-loaded here when the modal opens.
+  const [videoAnalysis, setVideoAnalysis] = useState<any>(reel.video_analysis ?? null);
+  const [videoDuration, setVideoDuration] = useState<number | null>(reel.video_duration ?? null);
 
   useEffect(() => {
     getReelSnapshots(reel.id).then((data) => {
@@ -357,6 +361,14 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
       setLoading(false);
     });
   }, [reel.id]);
+
+  useEffect(() => {
+    if (reel.video_analysis !== undefined && reel.video_analysis !== null) return;
+    getReelVideoAnalysis(reel.id).then((d) => {
+      setVideoAnalysis(d?.video_analysis ?? null);
+      setVideoDuration(d?.video_duration ?? null);
+    }).catch(() => {});
+  }, [reel.id, reel.video_analysis]);
 
   const chartData = snapshots.map(s => ({
     date: new Date(s.scraped_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short" }),
@@ -463,8 +475,8 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
           </div>
 
           {/* AI Analysis — with video duration from DB prepended */}
-          {reel.video_analysis && !reel.video_analysis.parse_error && (
-            <AIAnalysisSection analysis={reel.video_analysis} videoDuration={reel.video_duration} />
+          {videoAnalysis && !videoAnalysis.parse_error && (
+            <AIAnalysisSection analysis={videoAnalysis} videoDuration={videoDuration ?? undefined} />
           )}
 
           {/* Interaction */}
@@ -825,9 +837,35 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
     return opts;
   }, [profiles, selectedModels, selectedGroups]);
 
+  // Reels arrive flat (profile_id only). Re-attach the nested
+  // profile/model/group shape from the already-loaded lookup arrays —
+  // doing the join here instead of in the DB query cut the reels load from
+  // ~35s to a few seconds.
+  const profileById = useMemo(() => {
+    const modelById = new Map(models.map((m: any) => [m.id, m]));
+    const groupById = new Map(groups.map((g: any) => [g.id, g]));
+    const map = new Map<string, any>();
+    for (const p of profiles) {
+      map.set(p.id, {
+        id: p.id,
+        instagram_username: p.instagram_username,
+        model_id: p.model_id,
+        tags: p.tags,
+        models: p.model_id ? modelById.get(p.model_id) || null : null,
+        account_groups: p.account_group_id ? groupById.get(p.account_group_id) || null : null,
+      });
+    }
+    return map;
+  }, [profiles, models, groups]);
+
+  const activeReelsEnriched = useMemo(
+    () => activeReels.map((r: any) => ({ ...r, profiles: profileById.get(r.profile_id) || null })),
+    [activeReels, profileById]
+  );
+
   // Full filter + sort
   const filtered = useMemo(() => {
-    let result = activeReels.filter(r => {
+    let result = activeReelsEnriched.filter(r => {
       const profile = r.profiles as any;
       if (!profile) return false;
 
@@ -867,7 +905,7 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
     });
 
     return result;
-  }, [activeReels, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags, sortBy, minMultiplier]);
+  }, [activeReelsEnriched, selectedModels, selectedGroups, selectedProfiles, selectedTags, tags, sortBy, minMultiplier]);
 
   // Dynamic multiplier slider max (based on actual data, min starts at 2x)
   const maxMultiplier = useMemo(() => {

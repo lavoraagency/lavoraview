@@ -17,30 +17,41 @@ function collectTotalViews(reels: any[], excludeReelId?: string): number[] {
     .map((r: any) => r.current_views as number);
 }
 
-/** Fetch all reels with profile joins (paginated) */
+/**
+ * Fetch all reels FLAT (profile_id only, no nested profile/model/group
+ * join). The nested join was the dominant cost (~35s for all reels); the
+ * client re-attaches profile/model/group from its already-loaded lookup
+ * arrays. Pages are fetched in parallel ordered by id (PK) — fast and
+ * stable. Fetch order does not matter: enrichReelsWithMultiplier sorts each
+ * profile's reels by posted_at itself.
+ */
 export async function fetchAllReels(supabase: SupabaseClient): Promise<any[]> {
-  let allReels: any[] = [];
-  let from = 0;
   const batchSize = 1000;
-  while (true) {
-    const { data: batch } = await supabase
-      .from("reels")
-      .select(`
-        id, shortcode, thumbnail_url, reel_url, caption,
-        posted_at, current_views, current_likes, current_comments, current_shares,
-        is_viral_tracked, last_daily_views, profile_id,
-        video_cdn_url, video_storage_url, video_analysis, video_duration,
-        profiles(id, instagram_username, model_id, tags, models(id, name, nickname), account_groups(id, name))
-      `)
-      .order("posted_at", { ascending: false })
-      .range(from, from + batchSize - 1);
+  const { count } = await supabase.from("reels").select("id", { count: "exact", head: true });
+  const pageCount = Math.max(1, Math.ceil((count || 0) / batchSize));
 
-    if (!batch || batch.length === 0) break;
-    allReels = allReels.concat(batch);
-    if (batch.length < batchSize) break;
-    from += batchSize;
+  const requests = [];
+  for (let p = 0; p < pageCount; p++) {
+    requests.push(
+      supabase
+        .from("reels")
+        // NB: video_analysis is a large per-reel JSON blob (a single page
+        // of it times out) and video_cdn_url is unused, so both are
+        // excluded here and video_analysis + video_duration are lazy-loaded
+        // by the insights modal. video_storage_url stays (it's mostly null
+        // and drives the card play button).
+        .select(`
+          id, shortcode, thumbnail_url, reel_url, caption,
+          posted_at, current_views, current_likes, current_comments, current_shares,
+          is_viral_tracked, last_daily_views, profile_id, video_storage_url
+        `)
+        .order("id", { ascending: true })
+        .range(p * batchSize, p * batchSize + batchSize - 1)
+    );
   }
-  return allReels;
+
+  const results = await Promise.all(requests);
+  return results.flatMap((r: any) => r.data || []);
 }
 
 /**
@@ -79,10 +90,10 @@ export function enrichReelsWithMultiplier(
     const pid = reel.profile_id;
     if (!pid) continue;
 
+    // Collect all of the profile's reels; the last-36 selection happens
+    // after grouping (fetch order is no longer guaranteed by posted_at).
     if (!reelsByProfile[pid]) reelsByProfile[pid] = [];
-    if (reelsByProfile[pid].length < REELS_PER_PROFILE) {
-      reelsByProfile[pid].push(reel);
-    }
+    reelsByProfile[pid].push(reel);
 
     const groupId = profileLookup[pid]?.account_group_id;
     if (groupId) {
@@ -95,6 +106,15 @@ export function enrichReelsWithMultiplier(
       if (!reelsByModel[modelId]) reelsByModel[modelId] = [];
       reelsByModel[modelId].push(reel);
     }
+  }
+
+  // Per profile, keep only the last REELS_PER_PROFILE reels by posted_at
+  // (most recent first) — the baseline for the profile-level average.
+  const reelsByProfileRecent: Record<string, any[]> = {};
+  for (const [pid, rs] of Object.entries(reelsByProfile)) {
+    reelsByProfileRecent[pid] = [...rs]
+      .sort((a, b) => String(b.posted_at || "").localeCompare(String(a.posted_at || "")))
+      .slice(0, REELS_PER_PROFILE);
   }
 
   // Pre-compute group and creator averages (based on TOTAL views)
@@ -112,7 +132,7 @@ export function enrichReelsWithMultiplier(
   return allReels.map(reel => {
     const pid = reel.profile_id;
     const info = profileLookup[pid];
-    const profileReels = reelsByProfile[pid] || [];
+    const profileReels = reelsByProfileRecent[pid] || [];
     const dailyViews = dailyViewsMap[reel.id] || 0;
 
     // 1) Try profile-level average (exclude self, need ≥9 other reels)
