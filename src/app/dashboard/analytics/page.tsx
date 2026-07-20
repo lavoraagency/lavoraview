@@ -54,12 +54,13 @@ export default async function AnalyticsPage({
   // (visible in Vercel function logs). Use this if numbers ever look
   // off — by default only the view runs.
   const fetchReelDeltasFromView = async () => {
+    // Parameterized RPC that filters scraped_at BEFORE aggregating (uses the
+    // scraped_at index) and raises statement_timeout, so it never times out
+    // under concurrent load the way the plain view did.
     const { data, error } = await supabase
-      .from("reel_daily_deltas_v")
-      .select("profile_id, date, views, likes, comments, shares")
-      .gte("date", sixtyDaysAgoDate);
+      .rpc("reel_daily_deltas", { p_since: sixtyDaysAgoDate });
     if (error) {
-      console.error("[analytics] reel_daily_deltas_v query failed:", error);
+      console.error("[analytics] reel_daily_deltas rpc failed:", error);
       return [] as any[];
     }
     // Match the legacy shape exactly so AnalyticsClient stays unchanged
@@ -164,15 +165,13 @@ export default async function AnalyticsPage({
     }));
   };
 
-  // ── FB reel daily deltas via aggregated DB view ─────────────────
-  // Mirrors reel_daily_deltas_v for Facebook: the view does the
-  // per-(profile,day) sum in Postgres, returning ~1.5k rows instead of
-  // paginating ~32k raw snapshot rows + aggregating in JS.
+  // ── FB reel daily deltas via parameterized RPC ──────────────────
+  // Mirrors reel_daily_deltas for Facebook: filters scraped_at then does
+  // the per-(profile,day) sum in Postgres, returning ~1.5k rows instead
+  // of paginating ~32k raw snapshot rows + aggregating in JS.
   const fetchFbReelDeltasFromView = async () => {
     const { data, error } = await supabase
-      .from("facebook_reel_daily_deltas_v")
-      .select("profile_id, date, views, likes, comments, shares")
-      .gte("date", sixtyDaysAgoDate);
+      .rpc("fb_reel_daily_deltas", { p_since: sixtyDaysAgoDate });
     if (error) throw error;
     return (data || []).map((d: any) => ({
       profile_id: d.profile_id,
