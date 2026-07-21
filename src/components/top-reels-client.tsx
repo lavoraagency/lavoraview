@@ -6,7 +6,7 @@ import { ExternalLink, Eye, Heart, MessageCircle, Share2, ChevronDown, ChevronLe
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { getReelSnapshots, getReelVideoAnalysis, getDailyViewsForDate } from "@/app/dashboard/top-reels/actions";
+import { getReelSnapshots, getReelVideoAnalysis, getDailyViewsForDate, getReelCards } from "@/app/dashboard/top-reels/actions";
 
 const REELS_PER_PAGE = 12;
 const MIN_MULTIPLIER = 2.0;
@@ -354,6 +354,7 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
   // JSON blob) and lazy-loaded here when the modal opens.
   const [videoAnalysis, setVideoAnalysis] = useState<any>(reel.video_analysis ?? null);
   const [videoDuration, setVideoDuration] = useState<number | null>(reel.video_duration ?? null);
+  const [caption, setCaption] = useState<string | null>(reel.caption ?? null);
 
   useEffect(() => {
     getReelSnapshots(reel.id).then((data) => {
@@ -363,12 +364,12 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
   }, [reel.id]);
 
   useEffect(() => {
-    if (reel.video_analysis !== undefined && reel.video_analysis !== null) return;
-    getReelVideoAnalysis(reel.id).then((d) => {
+    getReelVideoAnalysis(reel.id).then((d: any) => {
       setVideoAnalysis(d?.video_analysis ?? null);
       setVideoDuration(d?.video_duration ?? null);
+      setCaption(d?.caption ?? null);
     }).catch(() => {});
-  }, [reel.id, reel.video_analysis]);
+  }, [reel.id]);
 
   const chartData = snapshots.map(s => ({
     date: new Date(s.scraped_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short" }),
@@ -526,7 +527,7 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
           </div>
 
           {/* Details */}
-          {reel.caption && (
+          {caption && (
             <div>
               <div className="flex items-center gap-3 mb-3">
                 <div className="h-px flex-1 bg-gray-100" />
@@ -538,7 +539,7 @@ function PostInsightsModal({ reel, profile, onClose }: { reel: any; profile: any
                   <AlignLeft className="w-4 h-4 text-gray-400" />
                   <span>Caption</span>
                 </div>
-                <p className="text-sm text-gray-700 text-right ml-4 line-clamp-3">{reel.caption}</p>
+                <p className="text-sm text-gray-700 text-right ml-4 line-clamp-3">{caption}</p>
               </div>
             </div>
           )}
@@ -748,6 +749,9 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
   const [playingReelId, setPlayingReelId] = useState<string | null>(null);
   const [videoLoadingId, setVideoLoadingId] = useState<string | null>(null);
   const [failedVideoIds, setFailedVideoIds] = useState<Set<string>>(new Set());
+  // Lazily fetched card display fields, keyed by reel id.
+  const [cardData, setCardData] = useState<Record<string, any>>({});
+  const cardRequested = useRef<Set<string>>(new Set());
 
   // Date selection for which day to show
   const [selectedDate, setSelectedDate] = useState<string>(getYesterdayStr());
@@ -948,6 +952,25 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
   const totalPages = Math.max(1, Math.ceil(filtered.length / REELS_PER_PAGE));
   const paged = filtered.slice(page * REELS_PER_PAGE, (page + 1) * REELS_PER_PAGE);
 
+  // Card display fields (thumbnail, shortcode, likes/…) are not part of the
+  // bulk reels fetch — pull them for just the reels this page renders.
+  const pagedIds = paged.map((r: any) => r.id).join(",");
+  useEffect(() => {
+    const ids = pagedIds ? pagedIds.split(",") : [];
+    const missing = ids.filter(id => !cardRequested.current.has(id));
+    if (missing.length === 0) return;
+    missing.forEach(id => cardRequested.current.add(id));
+    getReelCards(missing)
+      .then(rows => {
+        setCardData(prev => {
+          const next = { ...prev };
+          for (const row of rows as any[]) next[row.id] = row;
+          return next;
+        });
+      })
+      .catch(() => { missing.forEach(id => cardRequested.current.delete(id)); });
+  }, [pagedIds]);
+
   // Reset page when filters change
   useEffect(() => { setPage(0); }, [selectedModels, selectedGroups, selectedProfiles, selectedTags, sortBy, minMultiplier]);
 
@@ -1066,7 +1089,11 @@ export function TopReelsClient({ reels, models, groups, profiles, tags }: TopRee
 
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 max-w-[90%] mx-auto">
-        {paged.map((r: any) => {
+        {paged.map((base: any) => {
+          // Merge in the lazily fetched card fields (thumbnail, shortcode,
+          // likes/comments/shares, video url). Until they arrive the card
+          // renders with its placeholder thumbnail.
+          const r = { ...base, ...(cardData[base.id] || {}) };
           const profile = r.profiles as any;
           const tier = getPerformanceTier(r.multiplier);
           const daysSince = getDaysSincePosted(r.posted_at);

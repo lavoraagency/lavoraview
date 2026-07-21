@@ -14,17 +14,33 @@ export async function getReelSnapshots(reelId: string) {
 }
 
 /**
- * Lazy-load the heavy per-reel video fields (video_analysis is a large JSON
- * blob excluded from the bulk reels fetch). Called by the insights modal.
+ * Lazy-load the heavy per-reel fields (video_analysis is a large JSON blob,
+ * caption is only shown here) — all excluded from the bulk reels fetch.
+ * Called by the insights modal.
  */
 export async function getReelVideoAnalysis(reelId: string) {
   const supabase = createServiceClient();
   const { data } = await supabase
     .from("reels")
-    .select("video_analysis, video_duration")
+    .select("video_analysis, video_duration, caption")
     .eq("id", reelId)
     .single();
-  return data || { video_analysis: null, video_duration: null };
+  return data || { video_analysis: null, video_duration: null, caption: null };
+}
+
+/**
+ * Card display fields for a specific set of reels. The bulk fetch only
+ * loads what the multiplier maths and filtering need; the grid pulls these
+ * for the ~12 reels it actually renders.
+ */
+export async function getReelCards(ids: string[]) {
+  if (!ids.length) return [] as any[];
+  const supabase = createServiceClient();
+  const { data } = await supabase
+    .from("reels")
+    .select("id, shortcode, thumbnail_url, reel_url, video_storage_url, current_likes, current_comments, current_shares")
+    .in("id", ids);
+  return data || [];
 }
 
 /**

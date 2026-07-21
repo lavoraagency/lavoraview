@@ -35,16 +35,13 @@ export async function fetchAllReels(supabase: SupabaseClient): Promise<any[]> {
     requests.push(
       supabase
         .from("reels")
-        // NB: video_analysis is a large per-reel JSON blob (a single page
-        // of it times out) and video_cdn_url is unused, so both are
-        // excluded here and video_analysis + video_duration are lazy-loaded
-        // by the insights modal. video_storage_url stays (it's mostly null
-        // and drives the card play button).
-        .select(`
-          id, shortcode, thumbnail_url, reel_url, caption,
-          posted_at, current_views, current_likes, current_comments, current_shares,
-          is_viral_tracked, last_daily_views, profile_id, video_storage_url
-        `)
+        // Only the fields the multiplier/baseline maths and the
+        // filter+sort need. Card display fields (thumbnail, shortcode,
+        // likes/comments/shares, video url) are lazy-loaded per rendered
+        // page via getReelCards, and caption/video_analysis by the insights
+        // modal. Fetching card fields for all ~19k reels cost ~6s and ~10MB
+        // of RSC payload; this minimal set is ~0.9s.
+        .select("id, profile_id, current_views, posted_at, last_daily_views")
         .order("id", { ascending: true })
         .range(p * batchSize, p * batchSize + batchSize - 1)
     );
