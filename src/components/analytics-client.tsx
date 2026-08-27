@@ -718,9 +718,12 @@ type ProfileTableRow = {
   name: string;
   url: string;
   views: number;
+  comments: number;
   linkClicks: number;
   trackedSubs: number;
   totalSubs: number;
+  conversionRateTracked: number | null;
+  conversionRateTotal: number | null;
   trackedSubsPer100k: number | null;
   totalSubsPer100k: number | null;
 };
@@ -753,9 +756,12 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
   const columns: { key: ProfileTableSortKey; label: string; align: "left" | "right" }[] = [
     { key: "name", label: "Username", align: "left" },
     { key: "views", label: "Views", align: "right" },
+    { key: "comments", label: "Comments", align: "right" },
     { key: "linkClicks", label: "Link Clicks", align: "right" },
     { key: "trackedSubs", label: "Tracked Subs", align: "right" },
     { key: "totalSubs", label: "Total Subs", align: "right" },
+    { key: "conversionRateTracked", label: "Conversion Rate Tracked", align: "right" },
+    { key: "conversionRateTotal", label: "Conversion Rate Total", align: "right" },
     { key: "trackedSubsPer100k", label: "Tracked Subs / 100K Views", align: "right" },
     { key: "totalSubsPer100k", label: "Total Subs / 100K Views", align: "right" },
   ];
@@ -807,9 +813,12 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
                   )}
                 </td>
                 <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.views)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.comments)}</td>
                 <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.linkClicks)}</td>
                 <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.trackedSubs)}</td>
                 <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.totalSubs)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{row.conversionRateTracked != null ? `${row.conversionRateTracked.toFixed(1)}%` : "—"}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{row.conversionRateTotal != null ? `${row.conversionRateTotal.toFixed(1)}%` : "—"}</td>
                 <td className="px-4 py-2.5 text-right text-gray-700">{row.trackedSubsPer100k != null ? formatNumber(row.trackedSubsPer100k) : "—"}</td>
                 <td className="px-4 py-2.5 text-right text-gray-700">{row.totalSubsPer100k != null ? formatNumber(row.totalSubsPer100k) : "—"}</td>
               </tr>
@@ -1477,9 +1486,12 @@ export function AnalyticsClient({
       name: d.name,
       url: profileUrlMap.byId[id] || "",
       views: d.views,
+      comments: d.comments,
       linkClicks: d.linkClicks,
       trackedSubs: d.newSubs,
       totalSubs: d.estimatedTotalSubs,
+      conversionRateTracked: d.linkClicks > 0 ? (d.newSubs / d.linkClicks) * 100 : null,
+      conversionRateTotal: d.linkClicks > 0 && d.estimatedTotalSubs > 0 ? (d.estimatedTotalSubs / d.linkClicks) * 100 : null,
       trackedSubsPer100k: d.views > 0 && d.newSubs > 0 ? Math.round(d.newSubs / (d.views / 100000)) : null,
       totalSubsPer100k: d.views > 0 && d.estimatedTotalSubs > 0 ? Math.round(d.estimatedTotalSubs / (d.views / 100000)) : null,
     }));
