@@ -767,15 +767,20 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    // w-fit shrinks the card to the table's content width instead of
+    // stretching across the page; max-w-full stops it growing past the
+    // available space. The inner overflow-x-auto div is then the only
+    // thing that scrolls horizontally when the table itself is wider
+    // than that available space — the page never scrolls sideways.
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden w-fit max-w-full">
       <div className="px-5 py-4 border-b border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900">All Profiles</h2>
         <p className="text-gray-400 text-xs mt-0.5">{rows.length} {rows.length === 1 ? "profile" : "profiles"} — click a column to sort</p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="text-sm">
           <thead className="bg-gray-50/80 border-b border-gray-100">
-            <tr>
+            <tr className="divide-x divide-gray-100">
               {columns.map(col => (
                 <th
                   key={col.key}
@@ -797,7 +802,7 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
           </thead>
           <tbody className="divide-y divide-gray-50">
             {sorted.map(row => (
-              <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
+              <tr key={row.id} className="hover:bg-gray-50/50 transition-colors divide-x divide-gray-100">
                 <td className="px-4 py-2.5 whitespace-nowrap">
                   {row.url ? (
                     <a
@@ -812,15 +817,15 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
                     <span className="font-medium text-gray-900">{row.name}</span>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.views)}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.comments)}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.linkClicks)}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.trackedSubs)}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.totalSubs)}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700">{row.conversionRateTracked != null ? `${row.conversionRateTracked.toFixed(1)}%` : "—"}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700">{row.conversionRateTotal != null ? `${row.conversionRateTotal.toFixed(1)}%` : "—"}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700">{row.trackedSubsPer100k != null ? formatNumber(row.trackedSubsPer100k) : "—"}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700">{row.totalSubsPer100k != null ? formatNumber(row.totalSubsPer100k) : "—"}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.views)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.comments)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.linkClicks)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.trackedSubs)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.totalSubs)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{row.conversionRateTracked != null ? `${row.conversionRateTracked.toFixed(1)}%` : "—"}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{row.conversionRateTotal != null ? `${row.conversionRateTotal.toFixed(1)}%` : "—"}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{row.trackedSubsPer100k != null ? formatNumber(row.trackedSubsPer100k) : "—"}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{row.totalSubsPer100k != null ? formatNumber(row.totalSubsPer100k) : "—"}</td>
               </tr>
             ))}
             {sorted.length === 0 && (
