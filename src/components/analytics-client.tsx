@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Calendar, ChevronDown, ExternalLink, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, ChevronDown, ExternalLink, Download, GripVertical } from "lucide-react";
 import { formatNumber, formatDateShort } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import {
@@ -729,9 +729,87 @@ type ProfileTableRow = {
 };
 type ProfileTableSortKey = Exclude<keyof ProfileTableRow, "id" | "url">;
 
+// Column metadata, keyed by field. columnOrder (state) controls the
+// left-to-right sequence the table actually renders — this map never
+// changes, only the order array does.
+const PROFILE_TABLE_COLUMNS: Record<ProfileTableSortKey, { label: string; align: "left" | "right" }> = {
+  name: { label: "Username", align: "left" },
+  views: { label: "Views", align: "right" },
+  comments: { label: "Comments", align: "right" },
+  linkClicks: { label: "Link Clicks", align: "right" },
+  trackedSubs: { label: "Tracked Subs", align: "right" },
+  totalSubs: { label: "Total Subs", align: "right" },
+  conversionRateTracked: { label: "Conversion Rate Tracked", align: "right" },
+  conversionRateTotal: { label: "Conversion Rate Total", align: "right" },
+  trackedSubsPer100k: { label: "Tracked Subs / 100K Views", align: "right" },
+  totalSubsPer100k: { label: "Total Subs / 100K Views", align: "right" },
+};
+const DEFAULT_PROFILE_TABLE_ORDER: ProfileTableSortKey[] = [
+  "name", "views", "comments", "linkClicks", "trackedSubs", "totalSubs",
+  "conversionRateTracked", "conversionRateTotal", "trackedSubsPer100k", "totalSubsPer100k",
+];
+
+function renderProfileCell(row: ProfileTableRow, key: ProfileTableSortKey) {
+  switch (key) {
+    case "name":
+      return row.url ? (
+        <a href={row.url} target="_blank" rel="noopener noreferrer" className="font-medium text-gray-900 hover:text-brand-600 transition-colors">
+          {row.name}
+        </a>
+      ) : (
+        <span className="font-medium text-gray-900">{row.name}</span>
+      );
+    case "views": return formatNumber(row.views);
+    case "comments": return formatNumber(row.comments);
+    case "linkClicks": return formatNumber(row.linkClicks);
+    case "trackedSubs": return formatNumber(row.trackedSubs);
+    case "totalSubs": return formatNumber(row.totalSubs);
+    case "conversionRateTracked": return row.conversionRateTracked != null ? `${row.conversionRateTracked.toFixed(1)}%` : "—";
+    case "conversionRateTotal": return row.conversionRateTotal != null ? `${row.conversionRateTotal.toFixed(1)}%` : "—";
+    case "trackedSubsPer100k": return row.trackedSubsPer100k != null ? formatNumber(row.trackedSubsPer100k) : "—";
+    case "totalSubsPer100k": return row.totalSubsPer100k != null ? formatNumber(row.totalSubsPer100k) : "—";
+  }
+}
+
 function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
   const [sortKey, setSortKey] = useState<ProfileTableSortKey>("views");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [columnOrder, setColumnOrder] = useState<ProfileTableSortKey[]>(DEFAULT_PROFILE_TABLE_ORDER);
+
+  // Drag-to-reorder columns. draggedKey is the column being picked up;
+  // dragOverKey is whichever column header the cursor is currently over
+  // (highlighted gray as a "drop here" preview, CapCut-style). The swap
+  // only happens on drop — hovering just previews the target.
+  const [draggedKey, setDraggedKey] = useState<ProfileTableSortKey | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<ProfileTableSortKey | null>(null);
+
+  function handleDragStart(e: React.DragEvent, key: ProfileTableSortKey) {
+    setDraggedKey(key);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", key); // Firefox requires data to be set
+  }
+  function handleDragOver(e: React.DragEvent, key: ProfileTableSortKey) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (key !== dragOverKey) setDragOverKey(key);
+  }
+  function handleDrop(e: React.DragEvent, targetKey: ProfileTableSortKey) {
+    e.preventDefault();
+    if (draggedKey && draggedKey !== targetKey) {
+      setColumnOrder(order => {
+        const next = order.filter(k => k !== draggedKey);
+        const targetIndex = next.indexOf(targetKey);
+        next.splice(targetIndex, 0, draggedKey);
+        return next;
+      });
+    }
+    setDraggedKey(null);
+    setDragOverKey(null);
+  }
+  function handleDragEnd() {
+    setDraggedKey(null);
+    setDragOverKey(null);
+  }
 
   function handleSort(key: ProfileTableSortKey) {
     if (key === sortKey) {
@@ -753,19 +831,6 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
     });
   }, [rows, sortKey, sortDir]);
 
-  const columns: { key: ProfileTableSortKey; label: string; align: "left" | "right" }[] = [
-    { key: "name", label: "Username", align: "left" },
-    { key: "views", label: "Views", align: "right" },
-    { key: "comments", label: "Comments", align: "right" },
-    { key: "linkClicks", label: "Link Clicks", align: "right" },
-    { key: "trackedSubs", label: "Tracked Subs", align: "right" },
-    { key: "totalSubs", label: "Total Subs", align: "right" },
-    { key: "conversionRateTracked", label: "Conversion Rate Tracked", align: "right" },
-    { key: "conversionRateTotal", label: "Conversion Rate Total", align: "right" },
-    { key: "trackedSubsPer100k", label: "Tracked Subs / 100K Views", align: "right" },
-    { key: "totalSubsPer100k", label: "Total Subs / 100K Views", align: "right" },
-  ];
-
   return (
     // w-fit shrinks the card to the table's content width instead of
     // stretching across the page; max-w-full stops it growing past the
@@ -775,62 +840,64 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden w-fit max-w-full">
       <div className="px-5 py-4 border-b border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900">All Profiles</h2>
-        <p className="text-gray-400 text-xs mt-0.5">{rows.length} {rows.length === 1 ? "profile" : "profiles"} — click a column to sort</p>
+        <p className="text-gray-400 text-xs mt-0.5">{rows.length} {rows.length === 1 ? "profile" : "profiles"} — click a column to sort, drag the grip to reorder</p>
       </div>
       <div className="overflow-x-auto">
         <table className="text-sm">
           <thead className="bg-gray-50/80 border-b border-gray-100">
             <tr className="divide-x divide-gray-100">
-              {columns.map(col => (
-                <th
-                  key={col.key}
-                  onClick={() => handleSort(col.key)}
-                  className={cn(
-                    "px-[1.1rem] py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 transition-colors whitespace-nowrap",
-                    col.align === "right" ? "text-right" : "text-left"
-                  )}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    {col.label}
-                    {sortKey === col.key && (
-                      sortDir === "desc" ? <ChevronDown className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3 rotate-90" />
+              {columnOrder.map(key => {
+                const col = PROFILE_TABLE_COLUMNS[key];
+                const isDragging = draggedKey === key;
+                const isDropTarget = dragOverKey === key && draggedKey !== null && draggedKey !== key;
+                return (
+                  <th
+                    key={key}
+                    draggable
+                    onDragStart={e => handleDragStart(e, key)}
+                    onDragOver={e => handleDragOver(e, key)}
+                    onDrop={e => handleDrop(e, key)}
+                    onDragEnd={handleDragEnd}
+                    className={cn(
+                      "group px-[1.1rem] py-3 text-xs font-medium text-gray-500 uppercase tracking-wider select-none whitespace-nowrap transition-colors duration-150",
+                      col.align === "right" ? "text-right" : "text-left",
+                      isDragging ? "opacity-40" : isDropTarget ? "bg-gray-200/70" : "hover:bg-gray-100/60"
                     )}
-                  </span>
-                </th>
-              ))}
+                  >
+                    <span className={cn("inline-flex items-center gap-1", col.align === "right" && "flex-row-reverse")}>
+                      <GripVertical className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing shrink-0" />
+                      <span onClick={() => handleSort(key)} className="cursor-pointer hover:text-gray-700 transition-colors inline-flex items-center gap-1">
+                        {col.label}
+                        {sortKey === key && (
+                          sortDir === "desc" ? <ChevronDown className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3 rotate-90" />
+                        )}
+                      </span>
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {sorted.map(row => (
               <tr key={row.id} className="hover:bg-gray-50/50 transition-colors divide-x divide-gray-100">
-                <td className="px-[1.1rem] py-2.5 whitespace-nowrap">
-                  {row.url ? (
-                    <a
-                      href={row.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-gray-900 hover:text-brand-600 transition-colors"
-                    >
-                      {row.name}
-                    </a>
-                  ) : (
-                    <span className="font-medium text-gray-900">{row.name}</span>
-                  )}
-                </td>
-                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.views)}</td>
-                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.comments)}</td>
-                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.linkClicks)}</td>
-                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.trackedSubs)}</td>
-                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.totalSubs)}</td>
-                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{row.conversionRateTracked != null ? `${row.conversionRateTracked.toFixed(1)}%` : "—"}</td>
-                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{row.conversionRateTotal != null ? `${row.conversionRateTotal.toFixed(1)}%` : "—"}</td>
-                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{row.trackedSubsPer100k != null ? formatNumber(row.trackedSubsPer100k) : "—"}</td>
-                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{row.totalSubsPer100k != null ? formatNumber(row.totalSubsPer100k) : "—"}</td>
+                {columnOrder.map(key => (
+                  <td
+                    key={key}
+                    className={cn(
+                      "px-[1.1rem] py-2.5 whitespace-nowrap transition-colors duration-150",
+                      key !== "name" && "text-right text-gray-700",
+                      dragOverKey === key && draggedKey !== null && draggedKey !== key && "bg-gray-100/70"
+                    )}
+                  >
+                    {renderProfileCell(row, key)}
+                  </td>
+                ))}
               </tr>
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-[1.1rem] py-8 text-center text-gray-400 text-sm">No profiles in the current selection.</td>
+                <td colSpan={columnOrder.length} className="px-[1.1rem] py-8 text-center text-gray-400 text-sm">No profiles in the current selection.</td>
               </tr>
             )}
           </tbody>
