@@ -739,8 +739,8 @@ const PROFILE_TABLE_COLUMNS: Record<ProfileTableSortKey, { label: string; align:
   linkClicks: { label: "Link Clicks", align: "right" },
   trackedSubs: { label: "Tracked Subs", align: "right" },
   totalSubs: { label: "Total Subs", align: "right" },
-  conversionRateTracked: { label: "Conversion Rate Tracked", align: "right" },
-  conversionRateTotal: { label: "Conversion Rate Total", align: "right" },
+  conversionRateTracked: { label: "Conversion Rate (Tracked)", align: "right" },
+  conversionRateTotal: { label: "Conversion Rate (Total)", align: "right" },
   trackedSubsPer100k: { label: "Tracked Subs / 100K Views", align: "right" },
   totalSubsPer100k: { label: "Total Subs / 100K Views", align: "right" },
 };
@@ -880,7 +880,7 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
                     onDrop={handleDrop}
                     onDragEnd={handleDragEnd}
                     className={cn(
-                      "group px-[1.1rem] py-3 text-xs font-medium text-gray-500 uppercase tracking-wider select-none whitespace-nowrap transition-[background-color,box-shadow] duration-150",
+                      "group px-[1.1rem] py-3 text-sm font-medium text-gray-900 select-none whitespace-nowrap transition-[background-color,box-shadow] duration-150",
                       col.align === "right" ? "text-right" : "text-left",
                       isDragging ? "opacity-40" : "hover:bg-gray-100/60",
                       insertionLineClass(index)
@@ -888,7 +888,7 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
                   >
                     <span className={cn("inline-flex items-center gap-1", col.align === "right" && "flex-row-reverse")}>
                       <GripVertical className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing shrink-0" />
-                      <span onClick={() => handleSort(key)} className="cursor-pointer hover:text-gray-700 transition-colors inline-flex items-center gap-1">
+                      <span onClick={() => handleSort(key)} className="cursor-pointer inline-flex items-center gap-1">
                         {col.label}
                         {sortKey === key && (
                           sortDir === "desc" ? <ChevronDown className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3 rotate-90" />
@@ -908,7 +908,7 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
                     key={key}
                     className={cn(
                       "px-[1.1rem] py-2.5 whitespace-nowrap transition-[box-shadow] duration-150",
-                      key !== "name" && "text-right text-gray-700",
+                      key !== "name" && "text-right text-gray-900",
                       insertionLineClass(index)
                     )}
                   >
