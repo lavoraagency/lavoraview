@@ -712,6 +712,120 @@ function MetricBarChart({
   );
 }
 
+// ── Profile Table (simple sortable spreadsheet-style view) ──────────
+type ProfileTableRow = {
+  id: string;
+  name: string;
+  url: string;
+  views: number;
+  linkClicks: number;
+  trackedSubs: number;
+  totalSubs: number;
+  trackedSubsPer100k: number | null;
+  totalSubsPer100k: number | null;
+};
+type ProfileTableSortKey = Exclude<keyof ProfileTableRow, "id" | "url">;
+
+function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
+  const [sortKey, setSortKey] = useState<ProfileTableSortKey>("views");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  function handleSort(key: ProfileTableSortKey) {
+    if (key === sortKey) {
+      setSortDir(d => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
+
+  const sorted = useMemo(() => {
+    const dir = sortDir === "desc" ? -1 : 1;
+    return [...rows].sort((a, b) => {
+      const av = sortKey === "name" ? a.name.toLowerCase() : (a[sortKey] ?? -Infinity);
+      const bv = sortKey === "name" ? b.name.toLowerCase() : (b[sortKey] ?? -Infinity);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+  }, [rows, sortKey, sortDir]);
+
+  const columns: { key: ProfileTableSortKey; label: string; align: "left" | "right" }[] = [
+    { key: "name", label: "Username", align: "left" },
+    { key: "views", label: "Views", align: "right" },
+    { key: "linkClicks", label: "Link Clicks", align: "right" },
+    { key: "trackedSubs", label: "Tracked Subs", align: "right" },
+    { key: "totalSubs", label: "Total Subs", align: "right" },
+    { key: "trackedSubsPer100k", label: "Tracked Subs / 100K Views", align: "right" },
+    { key: "totalSubsPer100k", label: "Total Subs / 100K Views", align: "right" },
+  ];
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100">
+        <h2 className="text-lg font-semibold text-gray-900">All Profiles</h2>
+        <p className="text-gray-400 text-xs mt-0.5">{rows.length} {rows.length === 1 ? "profile" : "profiles"} — click a column to sort</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50/80 border-b border-gray-100">
+            <tr>
+              {columns.map(col => (
+                <th
+                  key={col.key}
+                  onClick={() => handleSort(col.key)}
+                  className={cn(
+                    "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 transition-colors whitespace-nowrap",
+                    col.align === "right" ? "text-right" : "text-left"
+                  )}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {col.label}
+                    {sortKey === col.key && (
+                      sortDir === "desc" ? <ChevronDown className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3 rotate-90" />
+                    )}
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {sorted.map(row => (
+              <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
+                <td className="px-4 py-2.5 whitespace-nowrap">
+                  {row.url ? (
+                    <a
+                      href={row.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-gray-900 hover:text-brand-600 transition-colors"
+                    >
+                      {row.name}
+                    </a>
+                  ) : (
+                    <span className="font-medium text-gray-900">{row.name}</span>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.views)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.linkClicks)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.trackedSubs)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{formatNumber(row.totalSubs)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{row.trackedSubsPer100k != null ? formatNumber(row.trackedSubsPer100k) : "—"}</td>
+                <td className="px-4 py-2.5 text-right text-gray-700">{row.totalSubsPer100k != null ? formatNumber(row.totalSubsPer100k) : "—"}</td>
+              </tr>
+            ))}
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-400 text-sm">No profiles in the current selection.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────
 export function AnalyticsClient({
   profiles,
@@ -1355,6 +1469,22 @@ export function AnalyticsClient({
     URL.revokeObjectURL(url);
   }, [stats.perProfile, dateRange]);
 
+  // Simple spreadsheet-style table of all currently filtered profiles.
+  // Same metrics/formulas as the CSV export and the stat cards above.
+  const profileTableRows = useMemo((): ProfileTableRow[] => {
+    return Object.entries(stats.perProfile).map(([id, d]: [string, any]) => ({
+      id,
+      name: d.name,
+      url: profileUrlMap.byId[id] || "",
+      views: d.views,
+      linkClicks: d.linkClicks,
+      trackedSubs: d.newSubs,
+      totalSubs: d.estimatedTotalSubs,
+      trackedSubsPer100k: d.views > 0 && d.newSubs > 0 ? Math.round(d.newSubs / (d.views / 100000)) : null,
+      totalSubsPer100k: d.views > 0 && d.estimatedTotalSubs > 0 ? Math.round(d.estimatedTotalSubs / (d.views / 100000)) : null,
+    }));
+  }, [stats.perProfile, profileUrlMap]);
+
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-5">
       {/* Header */}
@@ -1597,6 +1727,8 @@ export function AnalyticsClient({
         <MetricRankList title="Conversion Rate (Tracked)" data={barData.conversionRate} showCount={showCount} suffix="%" urlMap={profileUrlMap.byName} />
         <MetricRankList title="Tracked Subs / 100K Views" data={barData.trackedSubsPer100k} showCount={showCount} urlMap={profileUrlMap.byName} />
       </div>
+
+      <ProfileTable rows={profileTableRows} />
     </div>
   );
 }
