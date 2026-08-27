@@ -786,7 +786,7 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
                   key={col.key}
                   onClick={() => handleSort(col.key)}
                   className={cn(
-                    "px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 transition-colors whitespace-nowrap",
+                    "px-[1.1rem] py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:text-gray-700 transition-colors whitespace-nowrap",
                     col.align === "right" ? "text-right" : "text-left"
                   )}
                 >
@@ -803,7 +803,7 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
           <tbody className="divide-y divide-gray-50">
             {sorted.map(row => (
               <tr key={row.id} className="hover:bg-gray-50/50 transition-colors divide-x divide-gray-100">
-                <td className="px-4 py-2.5 whitespace-nowrap">
+                <td className="px-[1.1rem] py-2.5 whitespace-nowrap">
                   {row.url ? (
                     <a
                       href={row.url}
@@ -817,20 +817,20 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
                     <span className="font-medium text-gray-900">{row.name}</span>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.views)}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.comments)}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.linkClicks)}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.trackedSubs)}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.totalSubs)}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{row.conversionRateTracked != null ? `${row.conversionRateTracked.toFixed(1)}%` : "—"}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{row.conversionRateTotal != null ? `${row.conversionRateTotal.toFixed(1)}%` : "—"}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{row.trackedSubsPer100k != null ? formatNumber(row.trackedSubsPer100k) : "—"}</td>
-                <td className="px-4 py-2.5 text-right text-gray-700 whitespace-nowrap">{row.totalSubsPer100k != null ? formatNumber(row.totalSubsPer100k) : "—"}</td>
+                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.views)}</td>
+                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.comments)}</td>
+                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.linkClicks)}</td>
+                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.trackedSubs)}</td>
+                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{formatNumber(row.totalSubs)}</td>
+                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{row.conversionRateTracked != null ? `${row.conversionRateTracked.toFixed(1)}%` : "—"}</td>
+                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{row.conversionRateTotal != null ? `${row.conversionRateTotal.toFixed(1)}%` : "—"}</td>
+                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{row.trackedSubsPer100k != null ? formatNumber(row.trackedSubsPer100k) : "—"}</td>
+                <td className="px-[1.1rem] py-2.5 text-right text-gray-700 whitespace-nowrap">{row.totalSubsPer100k != null ? formatNumber(row.totalSubsPer100k) : "—"}</td>
               </tr>
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-400 text-sm">No profiles in the current selection.</td>
+                <td colSpan={columns.length} className="px-[1.1rem] py-8 text-center text-gray-400 text-sm">No profiles in the current selection.</td>
               </tr>
             )}
           </tbody>
