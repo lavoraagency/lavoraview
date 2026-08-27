@@ -776,39 +776,61 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [columnOrder, setColumnOrder] = useState<ProfileTableSortKey[]>(DEFAULT_PROFILE_TABLE_ORDER);
 
-  // Drag-to-reorder columns. draggedKey is the column being picked up;
-  // dragOverKey is whichever column header the cursor is currently over
-  // (highlighted gray as a "drop here" preview, CapCut-style). The swap
-  // only happens on drop — hovering just previews the target.
+  // Drag-to-reorder columns. draggedKey is the column being picked up.
+  // dropIndex is a "gap" position (0..columnOrder.length) — which side of
+  // the hovered column the cursor is on decides whether the gap is before
+  // or after it, so moving one column to its immediate neighbor works
+  // correctly instead of being a no-op. The gap is shown as a solid gray
+  // line spanning the full table height (CapCut-style insertion preview);
+  // the actual reorder only happens on drop.
   const [draggedKey, setDraggedKey] = useState<ProfileTableSortKey | null>(null);
-  const [dragOverKey, setDragOverKey] = useState<ProfileTableSortKey | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   function handleDragStart(e: React.DragEvent, key: ProfileTableSortKey) {
     setDraggedKey(key);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", key); // Firefox requires data to be set
   }
-  function handleDragOver(e: React.DragEvent, key: ProfileTableSortKey) {
+  function handleDragOverColumn(e: React.DragEvent, index: number) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    if (key !== dragOverKey) setDragOverKey(key);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isLeftHalf = e.clientX < rect.left + rect.width / 2;
+    const nextIndex = isLeftHalf ? index : index + 1;
+    setDropIndex(prev => (prev === nextIndex ? prev : nextIndex));
   }
-  function handleDrop(e: React.DragEvent, targetKey: ProfileTableSortKey) {
+  function handleDrop(e: React.DragEvent) {
     e.preventDefault();
-    if (draggedKey && draggedKey !== targetKey) {
+    if (draggedKey !== null && dropIndex !== null) {
       setColumnOrder(order => {
-        const next = order.filter(k => k !== draggedKey);
-        const targetIndex = next.indexOf(targetKey);
-        next.splice(targetIndex, 0, draggedKey);
+        const fromIndex = order.indexOf(draggedKey);
+        if (fromIndex === -1) return order;
+        const toIndex = dropIndex > fromIndex ? dropIndex - 1 : dropIndex;
+        if (toIndex === fromIndex) return order; // dropped back in the same gap
+        const next = [...order];
+        next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, draggedKey);
         return next;
       });
     }
     setDraggedKey(null);
-    setDragOverKey(null);
+    setDropIndex(null);
   }
   function handleDragEnd() {
     setDraggedKey(null);
-    setDragOverKey(null);
+    setDropIndex(null);
+  }
+
+  // Continuous line at a column's left edge (gap before it) or the last
+  // column's right edge (gap after everything). box-shadow keeps this
+  // from nudging column widths the way a border toggle would.
+  function insertionLineClass(index: number): string {
+    if (draggedKey === null || dropIndex === null) return "";
+    if (dropIndex === index) return "shadow-[inset_3px_0_0_0_#9ca3af]";
+    if (dropIndex === columnOrder.length && index === columnOrder.length - 1) {
+      return "shadow-[inset_-3px_0_0_0_#9ca3af]";
+    }
+    return "";
   }
 
   function handleSort(key: ProfileTableSortKey) {
@@ -846,22 +868,22 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
         <table className="text-sm">
           <thead className="bg-gray-50/80 border-b border-gray-100">
             <tr className="divide-x divide-gray-100">
-              {columnOrder.map(key => {
+              {columnOrder.map((key, index) => {
                 const col = PROFILE_TABLE_COLUMNS[key];
                 const isDragging = draggedKey === key;
-                const isDropTarget = dragOverKey === key && draggedKey !== null && draggedKey !== key;
                 return (
                   <th
                     key={key}
                     draggable
                     onDragStart={e => handleDragStart(e, key)}
-                    onDragOver={e => handleDragOver(e, key)}
-                    onDrop={e => handleDrop(e, key)}
+                    onDragOver={e => handleDragOverColumn(e, index)}
+                    onDrop={handleDrop}
                     onDragEnd={handleDragEnd}
                     className={cn(
-                      "group px-[1.1rem] py-3 text-xs font-medium text-gray-500 uppercase tracking-wider select-none whitespace-nowrap transition-colors duration-150",
+                      "group px-[1.1rem] py-3 text-xs font-medium text-gray-500 uppercase tracking-wider select-none whitespace-nowrap transition-[background-color,box-shadow] duration-150",
                       col.align === "right" ? "text-right" : "text-left",
-                      isDragging ? "opacity-40" : isDropTarget ? "bg-gray-200/70" : "hover:bg-gray-100/60"
+                      isDragging ? "opacity-40" : "hover:bg-gray-100/60",
+                      insertionLineClass(index)
                     )}
                   >
                     <span className={cn("inline-flex items-center gap-1", col.align === "right" && "flex-row-reverse")}>
@@ -881,13 +903,13 @@ function ProfileTable({ rows }: { rows: ProfileTableRow[] }) {
           <tbody className="divide-y divide-gray-50">
             {sorted.map(row => (
               <tr key={row.id} className="hover:bg-gray-50/50 transition-colors divide-x divide-gray-100">
-                {columnOrder.map(key => (
+                {columnOrder.map((key, index) => (
                   <td
                     key={key}
                     className={cn(
-                      "px-[1.1rem] py-2.5 whitespace-nowrap transition-colors duration-150",
+                      "px-[1.1rem] py-2.5 whitespace-nowrap transition-[box-shadow] duration-150",
                       key !== "name" && "text-right text-gray-700",
-                      dragOverKey === key && draggedKey !== null && draggedKey !== key && "bg-gray-100/70"
+                      insertionLineClass(index)
                     )}
                   >
                     {renderProfileCell(row, key)}
