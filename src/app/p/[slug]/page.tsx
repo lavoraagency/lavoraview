@@ -7,16 +7,40 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { LinkPageRender } from "@/components/link-page-render";
 import type { LinkPage } from "@/lib/link-pages/types";
 import { detectBot } from "@/lib/link-pages/bot-detect";
 import { normalizeHost, resolveDomain, PUBLIC_LINK_HOSTS } from "@/lib/link-pages/config";
 
+// The page still renders dynamically per-request (headers() below forces
+// that anyway, and it must: bot cloaking and domain isolation need the
+// real request's user-agent/host every time). What we cache is only the
+// SLOW part — the Supabase lookup — via Next's Data Cache, tagged per
+// slug so the editor can invalidate instantly on save/delete (see the
+// revalidateTag calls in /api/link-pages).
+//
+// Two direct benefits, both aimed at reducing blast radius from a
+// Supabase hiccup rather than adding load: (1) repeat visits/link-preview
+// bots hitting the same slug within the cache window reuse the cached
+// row instead of re-querying Supabase — fewer Supabase reads AND fewer
+// Vercel function-seconds, not more; (2) if Supabase is degraded, a
+// cache hit still serves the page fine, and a cache miss fails fast via
+// the timeout below (a few seconds, not up to Vercel's 300s function
+// timeout) with a friendly retry message instead of a dead page.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function loadPage(slug: string): Promise<LinkPage | null> {
+const LINK_PAGE_CACHE_SECONDS = 60;
+const SUPABASE_TIMEOUT_MS = 8000;
+
+type LoadResult =
+  | { status: "ok"; page: LinkPage }
+  | { status: "not_found" }
+  | { status: "unavailable" };
+
+async function fetchPageFromSupabase(slug: string): Promise<LinkPage | null> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("link_pages")
@@ -24,8 +48,60 @@ async function loadPage(slug: string): Promise<LinkPage | null> {
     .eq("slug", slug)
     .eq("is_published", true)
     .maybeSingle();
-  if (error || !data) return null;
+  // Distinguish "no such row" (a real, cacheable 404) from a Supabase
+  // error (must NOT be cached as a false-negative — throw so it's treated
+  // as "unavailable" upstream instead of poisoning the cache with "not
+  // found" for up to LINK_PAGE_CACHE_SECONDS during an outage).
+  if (error) throw error;
+  if (!data) return null;
   return data as LinkPage;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
+async function loadPage(slug: string): Promise<LoadResult> {
+  // Re-wrapping per call is intentional and is the documented way to get
+  // a per-argument cache tag out of unstable_cache: the slug is baked
+  // into both the cache key (via keyParts) and the tag, so each slug is
+  // cached and invalidated independently.
+  const cachedFetch = unstable_cache(
+    () => fetchPageFromSupabase(slug),
+    ["link-page", slug],
+    { revalidate: LINK_PAGE_CACHE_SECONDS, tags: [`link-page:${slug}`] }
+  );
+  try {
+    // The timeout only matters on a cache miss — a cache hit resolves
+    // immediately without touching Supabase at all. If the underlying
+    // call eventually finishes after we give up waiting, its result
+    // still lands in the cache for the next visitor.
+    const page = await withTimeout(cachedFetch(), SUPABASE_TIMEOUT_MS);
+    return page ? { status: "ok", page } : { status: "not_found" };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+function UnavailableNotice() {
+  return (
+    <div style={{
+      minHeight: "100vh", background: "#0f0f1a", color: "#fff",
+      fontFamily: "system-ui, sans-serif", display: "flex",
+      alignItems: "center", justifyContent: "center", textAlign: "center", padding: 24,
+    }}>
+      <div>
+        <h1 style={{ margin: 0, fontSize: 24, letterSpacing: "-0.5px" }}>Page temporarily unavailable</h1>
+        <p style={{ opacity: 0.6, fontSize: 14, marginTop: 8 }}>Please try again in a moment.</p>
+      </div>
+    </div>
+  );
 }
 
 /** True when this request should see the cloaked view (bot + page opted in). */
@@ -38,8 +114,10 @@ function shouldCloak(page: LinkPage, userAgent: string | null): boolean {
 export async function generateMetadata(
   { params }: { params: { slug: string } }
 ): Promise<Metadata> {
-  const page = await loadPage(params.slug);
-  if (!page) return { title: "Not found" };
+  const result = await loadPage(params.slug);
+  if (result.status === "not_found") return { title: "Not found" };
+  if (result.status === "unavailable") return { title: "Temporarily unavailable", robots: { index: false, follow: false } };
+  const page = result.page;
 
   const ua = headers().get("user-agent");
   const cloak = shouldCloak(page, ua);
@@ -72,8 +150,10 @@ export async function generateMetadata(
 }
 
 export default async function PublicLinkPage({ params }: { params: { slug: string } }) {
-  const page = await loadPage(params.slug);
-  if (!page) notFound();
+  const result = await loadPage(params.slug);
+  if (result.status === "not_found") notFound();
+  if (result.status === "unavailable") return <UnavailableNotice />;
+  const page = result.page;
 
   // Domain isolation: a page only serves on its assigned domain. If the
   // request comes in on a different public link host, 404 — this stops a

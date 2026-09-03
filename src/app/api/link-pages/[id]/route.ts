@@ -2,6 +2,7 @@
 // to match the dashboard's no-login behaviour.
 
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { AVAILABLE_DOMAINS } from "@/lib/link-pages/config";
 
@@ -51,7 +52,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const supabase = createServiceClient();
 
   // If slug is changing, ensure no collision (slugs are globally unique)
+  // and remember the old slug so its cache entry can be busted too.
+  let oldSlug: string | null = null;
   if ("slug" in patch) {
+    const { data: current } = await supabase
+      .from("link_pages")
+      .select("slug")
+      .eq("id", params.id)
+      .maybeSingle();
+    oldSlug = current?.slug ?? null;
+
     const { data: clash } = await supabase
       .from("link_pages")
       .select("id")
@@ -68,12 +78,26 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     .select("*")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Bust the public page's cache (see /p/[slug]/page.tsx) so edits show up
+  // immediately instead of waiting out the cache window.
+  revalidateTag(`link-page:${data.slug}`);
+  if (oldSlug && oldSlug !== data.slug) revalidateTag(`link-page:${oldSlug}`);
+
   return NextResponse.json({ page: data });
 }
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const supabase = createServiceClient();
+  const { data: current } = await supabase
+    .from("link_pages")
+    .select("slug")
+    .eq("id", params.id)
+    .maybeSingle();
+
   const { error } = await supabase.from("link_pages").delete().eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (current?.slug) revalidateTag(`link-page:${current.slug}`);
   return NextResponse.json({ ok: true });
 }

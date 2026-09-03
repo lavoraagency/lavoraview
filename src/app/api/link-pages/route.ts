@@ -2,6 +2,7 @@
 // to match the prior dashboard behaviour (no login was ever enforced).
 
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { newBlockId } from "@/lib/link-pages/types";
 import { AVAILABLE_DOMAINS, DEFAULT_LINK_DOMAIN } from "@/lib/link-pages/config";
@@ -118,5 +119,10 @@ export async function POST(req: Request) {
     .select("*")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Bust any stale "not found" cache entry for this slug (see
+  // /p/[slug]/page.tsx) so the new page is live immediately.
+  revalidateTag(`link-page:${data.slug}`);
+
   return NextResponse.json({ page: data });
 }
