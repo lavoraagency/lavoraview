@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, ExternalLink, Eye, Edit3, Trash2, Link as LinkIcon, Files } from "lucide-react";
+import { Plus, ExternalLink, Eye, Edit3, Trash2, Link as LinkIcon, Files, BarChart2 } from "lucide-react";
 import { AVAILABLE_DOMAINS, DEFAULT_LINK_DOMAIN, publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
 
 interface PageRow {
@@ -151,6 +151,13 @@ export function LinkPagesListClient({ initialPages }: { initialPages: PageRow[] 
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  <Link
+                    href={`/dashboard/links/${p.id}/analytics`}
+                    className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                    title="Analytics"
+                  >
+                    <BarChart2 className="w-4 h-4" />
+                  </Link>
                   <button
                     onClick={() => startDuplicate(p)}
                     className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
