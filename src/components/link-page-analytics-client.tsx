@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, Eye, MousePointerClick } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { formatNumber } from "@/lib/utils";
 import { publicUrlForSlug, publicDisplayForSlug } from "@/lib/link-pages/config";
+import { DateRangePicker, type DateRange, localToday, addDays } from "@/components/date-range-picker";
 import type { LinkPage } from "@/lib/link-pages/types";
 
 interface DailyClick { date: string; clicks: number }
@@ -18,30 +19,34 @@ function formatDayLabel(dateStr: string): string {
 }
 
 export function LinkPageAnalyticsClient({
-  page, dailyClicks, todayLondon, historyDays,
+  page, dailyClicks, minDate,
 }: {
   page: LinkPage;
   dailyClicks: DailyClick[];
-  todayLondon: string;
-  historyDays: number;
+  /** Earliest date with fetched data — the picker's lower bound. */
+  minDate: string;
 }) {
-  const totalClicks = useMemo(() => dailyClicks.reduce((sum, d) => sum + (d.clicks || 0), 0), [dailyClicks]);
+  // Same picker as the Analytics tab, same default: last 7 days.
+  const [dateRange, setDateRange] = useState<DateRange>(() => ({
+    from: addDays(localToday(), -6),
+    to: localToday(),
+  }));
+  const maxDate = localToday();
 
-  const yesterdayLondon = useMemo(() => {
-    const d = new Date(todayLondon + "T00:00:00Z");
-    d.setUTCDate(d.getUTCDate() - 1);
-    return d.toISOString().split("T")[0];
-  }, [todayLondon]);
+  const filteredClicks = useMemo(
+    () => dailyClicks.filter(d => d.date >= dateRange.from && d.date <= dateRange.to),
+    [dailyClicks, dateRange]
+  );
 
-  const clicksYesterday = dailyClicks.find(d => d.date === yesterdayLondon)?.clicks ?? 0;
+  const totalClicks = useMemo(() => filteredClicks.reduce((sum, d) => sum + (d.clicks || 0), 0), [filteredClicks]);
 
   // Chart wants oldest -> newest, left to right.
   const chartData = useMemo(
-    () => [...dailyClicks].sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ day: formatDayLabel(d.date), clicks: d.clicks })),
-    [dailyClicks]
+    () => [...filteredClicks].sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ day: formatDayLabel(d.date), clicks: d.clicks })),
+    [filteredClicks]
   );
 
-  const tableRows = useMemo(() => [...dailyClicks].sort((a, b) => b.date.localeCompare(a.date)), [dailyClicks]);
+  const tableRows = useMemo(() => [...filteredClicks].sort((a, b) => b.date.localeCompare(a.date)), [filteredClicks]);
 
   return (
     <div className="p-4 md:p-6 space-y-5">
@@ -69,8 +74,13 @@ export function LinkPageAnalyticsClient({
         </div>
       </div>
 
+      {/* Date range filter */}
+      <div className="flex items-center gap-3">
+        <DateRangePicker range={dateRange} onChange={setDateRange} minDate={minDate} maxDate={maxDate} />
+      </div>
+
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <Eye className="w-3.5 h-3.5" /> Total Views
@@ -79,15 +89,9 @@ export function LinkPageAnalyticsClient({
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <MousePointerClick className="w-3.5 h-3.5" /> Clicks (last {historyDays} days)
+            <MousePointerClick className="w-3.5 h-3.5" /> Clicks (selected range)
           </div>
           <div className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(totalClicks)}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <MousePointerClick className="w-3.5 h-3.5" /> Clicks Yesterday
-          </div>
-          <div className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(clicksYesterday)}</div>
         </div>
       </div>
 
@@ -97,7 +101,7 @@ export function LinkPageAnalyticsClient({
           Daily Clicks <span className="text-gray-400 font-normal text-xs">(cut at midnight, Europe/London)</span>
         </h3>
         {chartData.length === 0 ? (
-          <div className="h-48 flex items-center justify-center text-sm text-gray-400">No clicks yet</div>
+          <div className="h-48 flex items-center justify-center text-sm text-gray-400">No clicks in this range</div>
         ) : (
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -133,7 +137,7 @@ export function LinkPageAnalyticsClient({
               ))}
               {tableRows.length === 0 && (
                 <tr>
-                  <td colSpan={2} className="px-5 py-8 text-center text-gray-400 text-sm">No clicks yet</td>
+                  <td colSpan={2} className="px-5 py-8 text-center text-gray-400 text-sm">No clicks in this range</td>
                 </tr>
               )}
             </tbody>

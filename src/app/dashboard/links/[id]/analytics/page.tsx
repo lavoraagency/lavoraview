@@ -5,7 +5,9 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { LinkPageAnalyticsClient } from "@/components/link-page-analytics-client";
 import type { LinkPage } from "@/lib/link-pages/types";
 
-const HISTORY_DAYS = 30;
+// Covers the picker's largest preset ("Last 90 Days") so any preset the
+// viewer picks is already in hand client-side — no extra round trip.
+const HISTORY_DAYS = 90;
 
 /** Calendar date string (YYYY-MM-DD) for a given instant, in London time —
  * matches the cutoff used by the link_clicks_daily_by_page DB function. */
@@ -32,8 +34,7 @@ export default async function LinkPageAnalyticsPage({ params }: { params: { id: 
     <LinkPageAnalyticsClient
       page={page as LinkPage}
       dailyClicks={(dailyClicks || []) as { date: string; clicks: number }[]}
-      todayLondon={londonDateString(new Date())}
-      historyDays={HISTORY_DAYS}
+      minDate={sinceStr}
     />
   );
 }
