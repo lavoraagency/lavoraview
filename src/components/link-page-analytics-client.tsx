@@ -28,7 +28,7 @@ export function LinkPageAnalyticsClient({
 }) {
   // Same picker as the Analytics tab, same default: last 7 days.
   const [dateRange, setDateRange] = useState<DateRange>(() => ({
-    from: addDays(localToday(), -6),
+    from: addDays(localToday(), -13),
     to: localToday(),
   }));
   const maxDate = localToday();
@@ -75,7 +75,7 @@ export function LinkPageAnalyticsClient({
       </div>
 
       {/* Date range filter */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-end gap-3">
         <DateRangePicker range={dateRange} onChange={setDateRange} minDate={minDate} maxDate={maxDate} />
       </div>
 
