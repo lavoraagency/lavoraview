@@ -1,4 +1,10 @@
-// Page-view counter — increments link_pages.view_count once per page mount.
+// Page-view tracker — fires once per real page mount (see the useEffect in
+// link-page-render.tsx). Does two things:
+//   1. Bumps link_pages.view_count — the cheap lifetime total shown as
+//      "Total Views" in the per-page analytics view.
+//   2. Inserts a timestamped row into link_page_views — lets us break views
+//      down per day (see link_page_views_daily_by_page), the same way
+//      link_clicks already does for button clicks.
 
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -21,7 +27,10 @@ export async function POST(req: Request) {
       .eq("id", link_page_id)
       .maybeSingle();
     const next = (data?.view_count || 0) + 1;
-    await supabase.from("link_pages").update({ view_count: next }).eq("id", link_page_id);
+    await Promise.all([
+      supabase.from("link_pages").update({ view_count: next }).eq("id", link_page_id),
+      supabase.from("link_page_views").insert({ link_page_id }),
+    ]);
   } catch { /* ignore */ }
 
   return NextResponse.json({ ok: true }, { status: 200 });
