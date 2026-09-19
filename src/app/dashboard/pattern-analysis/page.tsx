@@ -8,8 +8,10 @@ const BATCH_SIZE = 1000;
 
 /** Reels that carry a video_analysis blob, with their profile relation.
  *
- * Page 0 comes back with an exact count so the remaining pages can be
- * fetched in parallel rather than walked one at a time. */
+ * Walked one page at a time on purpose: these rows carry large JSON blobs
+ * (~2.8MB per page), and firing the pages concurrently piles load onto a
+ * small Supabase instance for a saving of about a second. See the note on
+ * fetchAllPages in lib/analytics-data.ts. */
 async function fetchAnalysedReels(supabase: any) {
   const select = `
     id, shortcode, thumbnail_url, reel_url, caption,
@@ -17,22 +19,19 @@ async function fetchAnalysedReels(supabase: any) {
     last_daily_views, video_analysis, video_storage_url, video_duration, profile_id,
     profiles(id, instagram_username, model_id, tags, models(id, name, nickname), account_groups(id, name))
   `;
-  const page = (from: number, withCount: boolean) =>
-    supabase
+  let rows: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data: batch } = await supabase
       .from("reels")
-      .select(select, withCount ? { count: "exact" } : {})
+      .select(select)
       .not("video_analysis", "is", null)
       .order("current_views", { ascending: false })
       .range(from, from + BATCH_SIZE - 1);
-
-  const first = await page(0, true);
-  let rows: any[] = first.data || [];
-  const total: number | null = first.count ?? null;
-
-  if (total !== null && rows.length < total) {
-    const pending = [];
-    for (let off = BATCH_SIZE; off < total; off += BATCH_SIZE) pending.push(page(off, false));
-    for (const r of await Promise.all(pending)) if (r?.data) rows = rows.concat(r.data);
+    if (!batch || batch.length === 0) break;
+    rows = rows.concat(batch);
+    if (batch.length < BATCH_SIZE) break;
+    from += BATCH_SIZE;
   }
   return rows.filter((r: any) => r.video_analysis && !r.video_analysis.parse_error);
 }

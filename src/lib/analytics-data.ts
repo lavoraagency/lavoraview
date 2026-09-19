@@ -83,27 +83,30 @@ export async function fetchAnalyticsTimeSeries(
     return (data as any[]) || [];
   };
 
-  // Plain-table pagination. Unlike the RPC case above, paging a table is
-  // cheap per page (indexed range scan) — the cost is the round trips, which
-  // used to run one after another. Fetch page 0 with an exact count, then
-  // pull the remaining pages in parallel. Fetching them simultaneously also
-  // narrows the window in which a concurrent insert could shift rows between
-  // pages, compared with walking them sequentially.
+  // Plain-table pagination, walked one page at a time.
+  //
+  // This briefly fetched the remaining pages in parallel (page 0 returning
+  // an exact count). It saved ~2s in isolation but was a bad trade in
+  // production: one history load then fired ~20 concurrent queries, and
+  // because the six fetchers below already run together — and a user
+  // reloading starts a fresh load before the previous finished — those
+  // bursts stacked into 40-60 simultaneous queries against a small
+  // instance. Pages got *slower* the more they were reloaded. Paging a
+  // table is cheap per page (indexed range scan), so sequential costs
+  // little and keeps concurrency bounded.
   const fetchAllPages = async (
-    build: (from: number, to: number, withCount: boolean) => any
+    build: (from: number, to: number) => any
   ): Promise<any[]> => {
-    const first = await build(0, PAGE_SIZE - 1, true);
-    if (first.error) throw first.error;
-    let all: any[] = first.data || [];
-    const total: number | null = first.count ?? null;
-    if (total === null || all.length >= total) return all;
-
-    const pending: any[] = [];
-    for (let off = PAGE_SIZE; off < total; off += PAGE_SIZE) {
-      pending.push(build(off, off + PAGE_SIZE - 1, false));
+    let all: any[] = [];
+    let offset = 0;
+    while (true) {
+      const { data, error } = await build(offset, offset + PAGE_SIZE - 1);
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+      all = all.concat(data);
+      if (data.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
     }
-    const results = await Promise.all(pending);
-    for (const r of results) if (r?.data) all = all.concat(r.data);
     return all;
   };
 
@@ -142,10 +145,10 @@ export async function fetchAnalyticsTimeSeries(
   // profile_snapshots — paginated to bypass the 1000-row limit
   const fetchProfileSnapshots = async () => {
     const fields = "profile_id, followers, media_count, total_reel_views, total_reel_likes, total_reel_comments, total_reel_shares, reels_tracked, daily_views, daily_likes, daily_comments, daily_shares, scraped_at";
-    return fetchAllPages((from, to, withCount) =>
+    return fetchAllPages((from, to) =>
       supabase
         .from("profile_snapshots")
-        .select(fields, withCount ? { count: "exact" } : {})
+        .select(fields)
         .gte("scraped_at", sinceIso)
         .order("scraped_at", { ascending: true })
         .range(from, to)
@@ -231,10 +234,10 @@ export async function fetchAnalyticsTimeSeries(
 
   // facebook_profile_snapshots — paginated, normalized to IG shape
   const fetchFbSnapshots = async () => {
-    const all = await fetchAllPages((from, to, withCount) =>
+    const all = await fetchAllPages((from, to) =>
       supabase
         .from("facebook_profile_snapshots")
-        .select("profile_id, followers, total_reel_views, reels_tracked, scraped_at", withCount ? { count: "exact" } : {})
+        .select("profile_id, followers, total_reel_views, reels_tracked, scraped_at")
         .gte("scraped_at", sinceIso)
         .order("scraped_at", { ascending: true })
         .range(from, to)
@@ -296,10 +299,10 @@ export async function fetchAnalyticsTimeSeries(
 
   // conversion_snapshots (link clicks + new subs) — IG + FB, normalized
   const fetchConversions = async () => {
-    const all = await fetchAllPages((from, to, withCount) =>
+    const all = await fetchAllPages((from, to) =>
       supabase
         .from("conversion_snapshots")
-        .select("profile_id, facebook_profile_id, date, link_clicks, new_subs", withCount ? { count: "exact" } : {})
+        .select("profile_id, facebook_profile_id, date, link_clicks, new_subs")
         .gte("date", sinceDate)
         .order("date", { ascending: true })
         .range(from, to)
