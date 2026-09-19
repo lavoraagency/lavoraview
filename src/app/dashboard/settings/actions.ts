@@ -1,6 +1,7 @@
 "use server";
 
 import { createServiceClient } from "@/lib/supabase/server";
+import { revalidateReferenceData } from "@/lib/reference-data";
 
 export async function updateModel(modelId: string, data: { nickname?: string | null; max_recent_reels: number; viral_view_threshold: number }) {
   const supabase = createServiceClient();
@@ -10,6 +11,7 @@ export async function updateModel(modelId: string, data: { nickname?: string | n
     .eq("id", modelId);
 
   if (error) return { success: false, error: error.message };
+  revalidateReferenceData("models");
   return { success: true };
 }
 
@@ -22,6 +24,7 @@ export async function createTag(name: string, color: string) {
     .single();
 
   if (error) return { success: false, error: error.message, data: null };
+  revalidateReferenceData("tags");
   return { success: true, data };
 }
 
@@ -30,6 +33,7 @@ export async function deleteTag(tagId: string) {
   const { error } = await supabase.from("tags").delete().eq("id", tagId);
 
   if (error) return { success: false, error: error.message };
+  revalidateReferenceData("tags");
   return { success: true };
 }
 

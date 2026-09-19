@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { revalidateReferenceData } from "@/lib/reference-data";
 
 // POST /api/tags — update tags on a profile, optionally create new tag
 export async function POST(req: NextRequest) {
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
         const colors = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#06b6d4", "#84cc16"];
         const color = newTag.color || colors[Math.floor(Math.random() * colors.length)];
         await supabase.from("tags").insert({ name: newTag.name, color });
+        revalidateReferenceData("tags");
       }
     }
 

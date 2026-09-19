@@ -2,6 +2,7 @@ import { createServiceClient as createClient } from "@/lib/supabase/server";
 import { SettingsClient } from "@/components/settings-client";
 import { getSystemDescription, getAiDataSources } from "@/app/dashboard/settings/actions";
 import { getCurrentUserPerms } from "@/lib/auth/permissions";
+import { getModels, getTags } from "@/lib/reference-data";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,11 @@ export default async function SettingsPage() {
   const perms = await getCurrentUserPerms();
   const isOwner = perms?.role === "owner";
 
-  const [{ data: models }, { data: tags }, { data: profiles }, systemDescription, aiDataSources] = await Promise.all([
-    supabase.from("models").select("id, name, nickname, max_recent_reels, viral_view_threshold").order("name"),
-    supabase.from("tags").select("id, name, color").order("name"),
+  const [models, tags, { data: profiles }, systemDescription, aiDataSources] = await Promise.all([
+    // getModels selects the superset of columns, which includes the
+    // max_recent_reels / viral_view_threshold this page edits.
+    getModels(),
+    getTags(),
     supabase.from("profiles").select("model_id").not("model_id", "is", null),
     getSystemDescription(),
     getAiDataSources(),

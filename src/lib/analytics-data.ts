@@ -49,6 +49,16 @@ export async function fetchAnalyticsTimeSeries(
   // (which return one row per profile/day, ~3.6k over 60 days) must be
   // paginated — otherwise the history is silently truncated. The RPCs
   // ORDER BY (profile_id, date) so offset paging is stable.
+  //
+  // But paging an RPC is expensive: PostgREST applies LIMIT/OFFSET *around*
+  // the function call, so every page re-runs the whole aggregation and then
+  // throws away all but its slice. Measured: ~4s per page × 4 pages ≈ 16s
+  // for one 60-day load, to produce ~4s worth of data.
+  //
+  // The `_json` variants below wrap the same functions and return a single
+  // row containing a JSON array — one row is never capped, so the whole
+  // result arrives in one execution. Falls back to paging when those
+  // functions don't exist yet (a deploy can land before the SQL is run).
   const rpcPaginated = async (fn: string, params: any) => {
     let all: any[] = [];
     let offset = 0;
@@ -60,6 +70,40 @@ export async function fetchAnalyticsTimeSeries(
       if (data.length < PAGE_SIZE) break;
       offset += PAGE_SIZE;
     }
+    return all;
+  };
+
+  const rpcAllRows = async (fn: string, params: any) => {
+    const { data, error } = await supabase.rpc(`${fn}_json`, params);
+    if (error) {
+      // PGRST202 = function not found → SQL not applied yet, use the old path.
+      console.warn(`[analytics] ${fn}_json unavailable (${error.code}), paging ${fn} instead`);
+      return rpcPaginated(fn, params);
+    }
+    return (data as any[]) || [];
+  };
+
+  // Plain-table pagination. Unlike the RPC case above, paging a table is
+  // cheap per page (indexed range scan) — the cost is the round trips, which
+  // used to run one after another. Fetch page 0 with an exact count, then
+  // pull the remaining pages in parallel. Fetching them simultaneously also
+  // narrows the window in which a concurrent insert could shift rows between
+  // pages, compared with walking them sequentially.
+  const fetchAllPages = async (
+    build: (from: number, to: number, withCount: boolean) => any
+  ): Promise<any[]> => {
+    const first = await build(0, PAGE_SIZE - 1, true);
+    if (first.error) throw first.error;
+    let all: any[] = first.data || [];
+    const total: number | null = first.count ?? null;
+    if (total === null || all.length >= total) return all;
+
+    const pending: any[] = [];
+    for (let off = PAGE_SIZE; off < total; off += PAGE_SIZE) {
+      pending.push(build(off, off + PAGE_SIZE - 1, false));
+    }
+    const results = await Promise.all(pending);
+    for (const r of results) if (r?.data) all = all.concat(r.data);
     return all;
   };
 
@@ -98,21 +142,14 @@ export async function fetchAnalyticsTimeSeries(
   // profile_snapshots — paginated to bypass the 1000-row limit
   const fetchProfileSnapshots = async () => {
     const fields = "profile_id, followers, media_count, total_reel_views, total_reel_likes, total_reel_comments, total_reel_shares, reels_tracked, daily_views, daily_likes, daily_comments, daily_shares, scraped_at";
-    let all: any[] = [];
-    let offset = 0;
-    while (true) {
-      const { data: batch } = await supabase
+    return fetchAllPages((from, to, withCount) =>
+      supabase
         .from("profile_snapshots")
-        .select(fields)
+        .select(fields, withCount ? { count: "exact" } : {})
         .gte("scraped_at", sinceIso)
         .order("scraped_at", { ascending: true })
-        .range(offset, offset + PAGE_SIZE - 1);
-      if (!batch || batch.length === 0) break;
-      all = all.concat(batch);
-      if (batch.length < PAGE_SIZE) break;
-      offset += PAGE_SIZE;
-    }
-    return all;
+        .range(from, to)
+    );
   };
 
   // IG reel daily deltas — parameterized RPC (filters scraped_at, then
@@ -120,7 +157,7 @@ export async function fetchAnalyticsTimeSeries(
   const fetchReelDeltasFromRpc = async () => {
     let data: any[];
     try {
-      data = await rpcPaginated("reel_daily_deltas", { p_since: sinceDate });
+      data = await rpcAllRows("reel_daily_deltas", { p_since: sinceDate });
     } catch (error) {
       console.error("[analytics] reel_daily_deltas rpc failed:", error);
       return [] as any[];
@@ -194,26 +231,20 @@ export async function fetchAnalyticsTimeSeries(
 
   // facebook_profile_snapshots — paginated, normalized to IG shape
   const fetchFbSnapshots = async () => {
-    let all: any[] = [];
-    let offset = 0;
-    while (true) {
-      const { data: batch } = await supabase
+    const all = await fetchAllPages((from, to, withCount) =>
+      supabase
         .from("facebook_profile_snapshots")
-        .select("profile_id, followers, total_reel_views, reels_tracked, scraped_at")
+        .select("profile_id, followers, total_reel_views, reels_tracked, scraped_at", withCount ? { count: "exact" } : {})
         .gte("scraped_at", sinceIso)
         .order("scraped_at", { ascending: true })
-        .range(offset, offset + PAGE_SIZE - 1);
-      if (!batch || batch.length === 0) break;
-      all = all.concat(batch);
-      if (batch.length < PAGE_SIZE) break;
-      offset += PAGE_SIZE;
-    }
+        .range(from, to)
+    );
     return all.map(normalizeFbSnap);
   };
 
   // FB reel daily deltas — parameterized RPC, with pagination fallback.
   const fetchFbReelDeltasFromRpc = async () => {
-    const data = await rpcPaginated("fb_reel_daily_deltas", { p_since: sinceDate });
+    const data = await rpcAllRows("fb_reel_daily_deltas", { p_since: sinceDate });
     return (data || []).map((d: any) => ({
       profile_id: d.profile_id,
       date: d.date,
@@ -265,20 +296,14 @@ export async function fetchAnalyticsTimeSeries(
 
   // conversion_snapshots (link clicks + new subs) — IG + FB, normalized
   const fetchConversions = async () => {
-    let all: any[] = [];
-    let offset = 0;
-    while (true) {
-      const { data: batch } = await supabase
+    const all = await fetchAllPages((from, to, withCount) =>
+      supabase
         .from("conversion_snapshots")
-        .select("profile_id, facebook_profile_id, date, link_clicks, new_subs")
+        .select("profile_id, facebook_profile_id, date, link_clicks, new_subs", withCount ? { count: "exact" } : {})
         .gte("date", sinceDate)
         .order("date", { ascending: true })
-        .range(offset, offset + PAGE_SIZE - 1);
-      if (!batch || batch.length === 0) break;
-      all = all.concat(batch);
-      if (batch.length < PAGE_SIZE) break;
-      offset += PAGE_SIZE;
-    }
+        .range(from, to)
+    );
     return all.map((c: any) =>
       !c.profile_id && c.facebook_profile_id ? { ...c, profile_id: c.facebook_profile_id } : c
     );

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { createServiceClient as createClient } from "@/lib/supabase/server";
 import { ProfilesClient } from "@/components/profiles-client";
+import { getReferenceData } from "@/lib/reference-data";
 
 export default async function ProfilesPage() {
   const supabase = createClient();
@@ -9,9 +10,7 @@ export default async function ProfilesPage() {
   const [
     { data: profiles },
     { data: fbProfiles },
-    { data: models },
-    { data: groups },
-    { data: tags },
+    { models, groups, tags },
     { data: linkPages },
   ] = await Promise.all([
     supabase
@@ -32,9 +31,7 @@ export default async function ProfilesPage() {
         facebook_profile_snapshots(followers, total_reel_views, reels_tracked, scraped_at)
       `)
       .order("name"),
-    supabase.from("models").select("id, name, nickname").order("name"),
-    supabase.from("account_groups").select("id, name, model_id, group_type").order("name"),
-    supabase.from("tags").select("id, name, color").order("name"),
+    getReferenceData(),
     supabase
       .from("link_pages")
       .select("slug, domain, profile_id")
