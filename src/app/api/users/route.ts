@@ -2,7 +2,8 @@
 
 import { NextResponse } from "next/server";
 import { createClient as createAuthClient, createServiceClient } from "@/lib/supabase/server";
-import { ALL_TAB_KEYS } from "@/lib/auth/tabs";
+import { ALL_TAB_KEYS, sanitizeModelIds } from "@/lib/auth/tabs";
+import { attachAllowedModelIds } from "@/lib/auth/creator-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function GET() {
     .select("id, user_id, email, role, allowed_tabs, display_password, created_at")
     .order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ users: data || [] });
+  return NextResponse.json({ users: await attachAllowedModelIds(data || []) });
 }
 
 // POST /api/users — create a new employee
@@ -44,6 +45,7 @@ export async function POST(req: Request) {
   const email = (body.email || "").trim().toLowerCase();
   const password = body.password || "";
   const allowedTabs = sanitizeTabs(body.allowed_tabs);
+  const allowedModelIds = sanitizeModelIds(body.allowed_model_ids);
 
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return NextResponse.json({ error: "invalid email" }, { status: 400 });
@@ -54,13 +56,13 @@ export async function POST(req: Request) {
 
   const supabase = createServiceClient();
 
-  // Create the auth user with role + tabs baked into app_metadata so the
-  // middleware can gate routes straight from the JWT.
+  // Create the auth user with role + tabs + creators baked into
+  // app_metadata so the middleware can gate routes straight from the JWT.
   const { data: created, error: createErr } = await supabase.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    app_metadata: { role: "employee", allowed_tabs: allowedTabs },
+    app_metadata: { role: "employee", allowed_tabs: allowedTabs, allowed_model_ids: allowedModelIds },
   });
   if (createErr || !created?.user) {
     return NextResponse.json({ error: createErr?.message || "could not create user" }, { status: 400 });
@@ -86,5 +88,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: rowErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ user: row });
+  return NextResponse.json({ user: { ...row, allowed_model_ids: allowedModelIds } });
 }

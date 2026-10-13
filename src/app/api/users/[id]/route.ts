@@ -1,9 +1,9 @@
-// User management — update (tabs / password) + delete a dashboard user.
+// User management — update (tabs / creators / password) + delete a dashboard user.
 // [id] is the auth user_id. Owner-only.
 
 import { NextResponse } from "next/server";
 import { createClient as createAuthClient, createServiceClient } from "@/lib/supabase/server";
-import { ALL_TAB_KEYS } from "@/lib/auth/tabs";
+import { ALL_TAB_KEYS, sanitizeModelIds } from "@/lib/auth/tabs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,10 +40,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const authUpdate: Record<string, any> = {};
   const rowUpdate: Record<string, any> = {};
 
-  if ("allowed_tabs" in body && target.role !== "owner") {
-    const tabs = sanitizeTabs(body.allowed_tabs);
-    authUpdate.app_metadata = { role: "employee", allowed_tabs: tabs };
-    rowUpdate.allowed_tabs = tabs;
+  const touchesTabs = "allowed_tabs" in body;
+  const touchesModels = "allowed_model_ids" in body;
+  if ((touchesTabs || touchesModels) && target.role !== "owner") {
+    // Merge with the current app_metadata so updating tabs doesn't wipe
+    // the creator list and vice versa.
+    const { data: current, error: getErr } = await supabase.auth.admin.getUserById(params.id);
+    if (getErr || !current?.user) return NextResponse.json({ error: getErr?.message || "not found" }, { status: 404 });
+    const meta = (current.user.app_metadata || {}) as Record<string, any>;
+
+    const tabs = touchesTabs ? sanitizeTabs(body.allowed_tabs) : (Array.isArray(meta.allowed_tabs) ? meta.allowed_tabs : []);
+    const modelIds = touchesModels ? sanitizeModelIds(body.allowed_model_ids) : (Array.isArray(meta.allowed_model_ids) ? meta.allowed_model_ids : []);
+    authUpdate.app_metadata = { role: "employee", allowed_tabs: tabs, allowed_model_ids: modelIds };
+    if (touchesTabs) rowUpdate.allowed_tabs = tabs;
   }
   if ("password" in body && body.password) {
     if (String(body.password).length < 6) {

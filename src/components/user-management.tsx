@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Trash2, Loader2, KeyRound, Check, X, ShieldCheck, Eye, EyeOff, Copy } from "lucide-react";
-import { DASHBOARD_TABS } from "@/lib/auth/tabs";
+import { DASHBOARD_TABS, CREATOR_SCOPED_TABS } from "@/lib/auth/tabs";
 import { cn } from "@/lib/utils";
 
 export interface DashboardUser {
@@ -11,11 +11,18 @@ export interface DashboardUser {
   email: string;
   role: "owner" | "employee";
   allowed_tabs: string[];
+  /** Creators (models.id) visible on Analytics + Posts. Empty = all. */
+  allowed_model_ids?: string[];
   display_password?: string | null;
   created_at: string;
 }
 
-export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[] }) {
+export interface CreatorOption {
+  id: string;
+  label: string;
+}
+
+export function UserManagement({ initialUsers, creatorOptions = [] }: { initialUsers: DashboardUser[]; creatorOptions?: CreatorOption[] }) {
   const [users, setUsers] = useState<DashboardUser[]>(initialUsers);
   const [showAdd, setShowAdd] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -25,10 +32,12 @@ export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[]
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tabs, setTabs] = useState<string[]>([]);
+  const [creators, setCreators] = useState<string[]>([]);
 
   // Per-row edit state
   const [editId, setEditId] = useState<string | null>(null);
   const [editTabs, setEditTabs] = useState<string[]>([]);
+  const [editCreators, setEditCreators] = useState<string[]>([]);
   const [pwUserId, setPwUserId] = useState<string | null>(null);
   const [newPw, setNewPw] = useState("");
 
@@ -61,26 +70,26 @@ export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[]
       const r = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password, allowed_tabs: tabs }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password, allowed_tabs: tabs, allowed_model_ids: creators }),
       });
       const j = await r.json();
       if (!r.ok) { setError(j.error || "Failed to add user"); return; }
       setUsers(u => [...u, j.user]);
-      setShowAdd(false); setEmail(""); setPassword(""); setTabs([]);
+      setShowAdd(false); setEmail(""); setPassword(""); setTabs([]); setCreators([]);
     } finally { setBusy(false); }
   }
 
-  async function saveTabs(userId: string) {
+  async function saveAccess(userId: string) {
     setBusy(true); setError(null);
     try {
       const r = await fetch(`/api/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allowed_tabs: editTabs }),
+        body: JSON.stringify({ allowed_tabs: editTabs, allowed_model_ids: editCreators }),
       });
       const j = await r.json();
       if (!r.ok) { setError(j.error || "Failed to save"); return; }
-      setUsers(u => u.map(x => x.user_id === userId ? { ...x, allowed_tabs: editTabs } : x));
+      setUsers(u => u.map(x => x.user_id === userId ? { ...x, allowed_tabs: editTabs, allowed_model_ids: editCreators } : x));
       setEditId(null);
     } finally { setBusy(false); }
   }
@@ -115,7 +124,7 @@ export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[]
     <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-600">
-          Add employees with their own login and choose which tabs they can access.
+          Add employees with their own login and choose which tabs and creators they can access.
         </p>
         <button
           onClick={() => { setShowAdd(s => !s); setError(null); }}
@@ -164,6 +173,7 @@ export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[]
               ))}
             </div>
           </div>
+          <CreatorPicker options={creatorOptions} selected={creators} onChange={setCreators} />
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setShowAdd(false)} disabled={busy} className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">Cancel</button>
             <button
@@ -203,6 +213,12 @@ export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[]
                             .join(", ")}
                     </div>
                   )}
+                  {!isOwnerRow && !editing && (
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      <span className="text-gray-400">Creators: </span>
+                      {creatorSummary(u.allowed_model_ids || [], creatorOptions)}
+                    </div>
+                  )}
                   {!isOwnerRow && u.display_password && (
                     <div className="flex items-center gap-1.5 mt-1.5">
                       <span className="text-xs text-gray-400">Password:</span>
@@ -233,10 +249,10 @@ export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[]
                   <div className="flex items-center gap-1 flex-shrink-0">
                     {!editing && (
                       <button
-                        onClick={() => { setEditId(u.user_id); setEditTabs(u.allowed_tabs); setError(null); }}
+                        onClick={() => { setEditId(u.user_id); setEditTabs(u.allowed_tabs); setEditCreators(u.allowed_model_ids || []); setError(null); }}
                         className="px-2 py-1 rounded-md text-xs text-gray-600 border border-gray-200 hover:bg-gray-50"
                       >
-                        Edit tabs
+                        Edit access
                       </button>
                     )}
                     <button
@@ -273,9 +289,12 @@ export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[]
                       </label>
                     ))}
                   </div>
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <CreatorPicker options={creatorOptions} selected={editCreators} onChange={setEditCreators} />
+                  </div>
                   <div className="flex justify-end gap-2 mt-3">
                     <button onClick={() => setEditId(null)} disabled={busy} className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs text-gray-600 hover:bg-gray-100"><X className="w-3.5 h-3.5" /> Cancel</button>
-                    <button onClick={() => saveTabs(u.user_id)} disabled={busy} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-50">
+                    <button onClick={() => saveAccess(u.user_id)} disabled={busy} className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-gray-900 text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-50">
                       {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Save
                     </button>
                   </div>
@@ -297,6 +316,56 @@ export function UserManagement({ initialUsers }: { initialUsers: DashboardUser[]
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+const SCOPED_TAB_LABELS = CREATOR_SCOPED_TABS
+  .map(k => DASHBOARD_TABS.find(t => t.key === k)?.label || k)
+  .join(" and ");
+
+function creatorSummary(ids: string[], options: CreatorOption[]): string {
+  if (ids.length === 0) return "All creators";
+  return ids.map(id => options.find(o => o.id === id)?.label || "inactive creator").join(", ");
+}
+
+/** Pick which creators an employee sees on the creator-scoped tabs.
+ * Nothing selected = all creators. */
+function CreatorPicker({ options, selected, onChange }: {
+  options: CreatorOption[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const toggle = (id: string) =>
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-gray-700">Creator access</span>
+        {selected.length > 0 && (
+          <button type="button" onClick={() => onChange([])} className="text-xs text-gray-500 hover:text-gray-800">
+            Reset to all
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-gray-500 mt-0.5">
+        Limits {SCOPED_TAB_LABELS} to these creators — their totals then only include them.
+        {" "}{selected.length === 0 ? <span className="font-medium text-gray-700">None selected = all creators.</span> : null}
+      </p>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+        {options.map(o => (
+          <label key={o.id} className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selected.includes(o.id)}
+              onChange={() => toggle(o.id)}
+              className="rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+            />
+            <span className="text-gray-700">{o.label}</span>
+          </label>
+        ))}
       </div>
     </div>
   );

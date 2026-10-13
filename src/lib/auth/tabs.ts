@@ -29,3 +29,14 @@ export function pathToTabKey(pathname: string): string | null {
   const m = pathname.match(/^\/dashboard\/([^/?#]+)/);
   return m ? m[1] : null;
 }
+
+/** Tabs whose data is limited to an employee's assigned creators. */
+export const CREATOR_SCOPED_TABS = ["analytics", "posts"];
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Clean an allowed_model_ids payload: unique, well-formed model ids only. */
+export function sanitizeModelIds(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return Array.from(new Set(input.filter((t): t is string => typeof t === "string" && UUID_RE.test(t))));
+}

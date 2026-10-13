@@ -3,6 +3,7 @@ import { SettingsClient } from "@/components/settings-client";
 import { getSystemDescription, getAiDataSources } from "@/app/dashboard/settings/actions";
 import { getCurrentUserPerms } from "@/lib/auth/permissions";
 import { getModels, getTags } from "@/lib/reference-data";
+import { attachAllowedModelIds } from "@/lib/auth/creator-scope";
 
 export const dynamic = "force-dynamic";
 
@@ -22,13 +23,26 @@ export default async function SettingsPage() {
   ]);
 
   // Only owners get the user list (used by the user-management section).
+  // Creators offered in the per-user creator picker: every model with at
+  // least one active IG or FB profile.
   let users: any[] = [];
+  let creatorOptions: { id: string; label: string }[] = [];
   if (isOwner) {
-    const { data } = await supabase
-      .from("dashboard_users")
-      .select("id, user_id, email, role, allowed_tabs, display_password, created_at")
-      .order("created_at", { ascending: true });
-    users = data || [];
+    const [{ data }, { data: activeIg }, { data: activeFb }] = await Promise.all([
+      supabase
+        .from("dashboard_users")
+        .select("id, user_id, email, role, allowed_tabs, display_password, created_at")
+        .order("created_at", { ascending: true }),
+      supabase.from("profiles").select("model_id").eq("is_active", true).not("model_id", "is", null),
+      supabase.from("facebook_profiles").select("model_id").eq("is_active", true).not("model_id", "is", null),
+    ]);
+    users = await attachAllowedModelIds(data || []);
+
+    const activeModelIds = new Set([...(activeIg || []), ...(activeFb || [])].map((p: any) => p.model_id));
+    creatorOptions = (models || [])
+      .filter((m: any) => activeModelIds.has(m.id))
+      .map((m: any) => ({ id: m.id, label: m.nickname || m.name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }
 
   const usedModelIds = new Set((profiles || []).map((p: any) => p.model_id));
@@ -42,6 +56,7 @@ export default async function SettingsPage() {
       initialAiDataSources={aiDataSources}
       isOwner={isOwner}
       initialUsers={users}
+      creatorOptions={creatorOptions}
     />
   );
 }

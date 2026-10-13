@@ -20,9 +20,14 @@ const PAGE_SIZE = 1000;
 const REELS_SELECT =
   "id, shortcode, thumbnail_url, reel_url, caption, posted_at, current_views, current_likes, current_comments, current_shares, is_viral_tracked, last_daily_views, profile_id";
 
-export async function fetchReels(supabase: any, sinceIso?: string): Promise<any[]> {
-  const countQuery = supabase.from("reels").select("id", { count: "exact", head: true });
-  const { count } = await (sinceIso ? countQuery.gte("posted_at", sinceIso) : countQuery);
+// `profileIds` limits the result to those profiles (creator-scoped
+// employees); omit it for all reels.
+export async function fetchReels(supabase: any, sinceIso?: string, profileIds?: string[]): Promise<any[]> {
+  if (profileIds && profileIds.length === 0) return [];
+  let countQuery = supabase.from("reels").select("id", { count: "exact", head: true });
+  if (sinceIso) countQuery = countQuery.gte("posted_at", sinceIso);
+  if (profileIds) countQuery = countQuery.in("profile_id", profileIds);
+  const { count } = await countQuery;
 
   const total = count || 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -35,6 +40,7 @@ export async function fetchReels(supabase: any, sinceIso?: string): Promise<any[
       .order("id", { ascending: true })
       .range(p * PAGE_SIZE, p * PAGE_SIZE + PAGE_SIZE - 1);
     if (sinceIso) q = q.gte("posted_at", sinceIso);
+    if (profileIds) q = q.in("profile_id", profileIds);
     requests.push(q);
   }
 

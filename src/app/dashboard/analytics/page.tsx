@@ -4,6 +4,8 @@ import { createServiceClient as createClient } from "@/lib/supabase/server";
 import { AnalyticsClient } from "@/components/analytics-client";
 import { fetchAnalyticsTimeSeries } from "@/lib/analytics-data";
 import { getReferenceData } from "@/lib/reference-data";
+import { getCurrentUserPerms } from "@/lib/auth/permissions";
+import { getCreatorScope, scopeByModel, scopeTimeSeries } from "@/lib/auth/creator-scope";
 
 // The default view is "yesterday", so on first paint we only need a short
 // recent window (yesterday + a couple of prior days for delta calc). The
@@ -50,7 +52,8 @@ export default async function AnalyticsPage() {
     { data: profiles },
     { data: fbProfiles },
     reference,
-    timeSeries,
+    rawTimeSeries,
+    scope,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -66,9 +69,15 @@ export default async function AnalyticsPage() {
     // (up to 60 days back) so follower/interaction deltas are correct
     // immediately and don't jump when the background history loads.
     fetchAnalyticsTimeSeries(supabase, initialSince, { baselineSince: historyMin }),
+    getCurrentUserPerms().then(getCreatorScope),
   ]);
 
-  const { models, groups, tags } = reference;
+  // Employees limited to certain creators see only those creators — as if
+  // they were the whole agency (totals, filters, charts all derive from these).
+  const timeSeries = scopeTimeSeries(rawTimeSeries, scope);
+  const { tags } = reference;
+  const models = scopeByModel(reference.models, scope);
+  const groups = scopeByModel(reference.groups, scope);
 
   // Normalize FB profiles to same shape as IG profiles
   const fbProfilesNorm = attachRelations(
@@ -76,10 +85,10 @@ export default async function AnalyticsPage() {
     models, groups, "facebook"
   );
 
-  const allProfiles = [
+  const allProfiles = scopeByModel([
     ...attachRelations(profiles || [], models, groups, "instagram"),
     ...fbProfilesNorm,
-  ];
+  ], scope);
 
   // Filter models to only those with at least one profile
   const usedModelIds = new Set(allProfiles.map((p: any) => p.model_id || p.models?.id).filter(Boolean));

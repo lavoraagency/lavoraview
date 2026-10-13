@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import { Save, Plus, Trash2, Sparkles, FileText, Database } from "lucide-react";
 import { updateModel as updateModelAction, createTag as createTagAction, deleteTag as deleteTagAction, saveSystemDescription, saveAiDataSources } from "@/app/dashboard/settings/actions";
 import { AI_DATA_SOURCES, DEFAULT_AI_DATA_SOURCES, type AiDataSourceKey } from "@/lib/ai-data-sources";
-import { UserManagement, type DashboardUser } from "@/components/user-management";
+import { UserManagement, type DashboardUser, type CreatorOption } from "@/components/user-management";
 
-export function SettingsClient({ initialModels, initialTags, initialSystemDescription = "", initialAiDataSources, isOwner = false, initialUsers = [] }: {
+export function SettingsClient({ initialModels, initialTags, initialSystemDescription = "", initialAiDataSources, isOwner = false, initialUsers = [], creatorOptions = [] }: {
   initialModels: any[]; initialTags: any[]; initialSystemDescription?: string; initialAiDataSources?: AiDataSourceKey[];
-  isOwner?: boolean; initialUsers?: DashboardUser[];
+  isOwner?: boolean; initialUsers?: DashboardUser[]; creatorOptions?: CreatorOption[];
 }) {
   const [systemDescription, setSystemDescription] = useState(initialSystemDescription);
   const [systemDescSaving, setSystemDescSaving] = useState(false);
@@ -379,7 +379,7 @@ export function SettingsClient({ initialModels, initialTags, initialSystemDescri
       {isOwner && (
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">User Management</h2>
-          <UserManagement initialUsers={initialUsers} />
+          <UserManagement initialUsers={initialUsers} creatorOptions={creatorOptions} />
         </section>
       )}
     </div>
