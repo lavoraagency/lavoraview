@@ -42,6 +42,12 @@ export async function getCreatorScope(perms: UserPerms | null): Promise<CreatorS
   };
 }
 
+/** Keep only the in-scope creators of a `models` list (keyed by `id`). */
+export function scopeModels<T extends { id: string }>(models: T[], scope: CreatorScope | null): T[] {
+  if (!scope) return models;
+  return models.filter((m) => scope.modelIds.has(m.id));
+}
+
 /** Keep only rows whose model_id is in scope. */
 export function scopeByModel<T extends { model_id?: string | null }>(rows: T[], scope: CreatorScope | null): T[] {
   if (!scope) return rows;

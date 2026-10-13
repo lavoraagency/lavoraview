@@ -5,7 +5,7 @@ import { PostsClient } from "@/components/posts-client";
 import { fetchReels } from "@/lib/posts-data";
 import { getReferenceData } from "@/lib/reference-data";
 import { getCurrentUserPerms } from "@/lib/auth/permissions";
-import { getCreatorScope, scopeByModel } from "@/lib/auth/creator-scope";
+import { getCreatorScope, scopeByModel, scopeModels } from "@/lib/auth/creator-scope";
 
 // The default view is "Last 7 Days", so on first paint we only need reels
 // posted in the last ~8 days (a small tz buffer over the preset). The full
@@ -30,7 +30,7 @@ export default async function PostsPage() {
     ]);
 
   const { tags } = reference;
-  const models = scopeByModel(reference.models, scope);
+  const models = scopeModels(reference.models, scope);
   const groups = scopeByModel(reference.groups, scope);
   const profiles = scopeByModel(allProfiles || [], scope);
 

@@ -5,7 +5,7 @@ import { AnalyticsClient } from "@/components/analytics-client";
 import { fetchAnalyticsTimeSeries } from "@/lib/analytics-data";
 import { getReferenceData } from "@/lib/reference-data";
 import { getCurrentUserPerms } from "@/lib/auth/permissions";
-import { getCreatorScope, scopeByModel, scopeTimeSeries } from "@/lib/auth/creator-scope";
+import { getCreatorScope, scopeByModel, scopeModels, scopeTimeSeries } from "@/lib/auth/creator-scope";
 
 // The default view is "yesterday", so on first paint we only need a short
 // recent window (yesterday + a couple of prior days for delta calc). The
@@ -76,7 +76,7 @@ export default async function AnalyticsPage() {
   // they were the whole agency (totals, filters, charts all derive from these).
   const timeSeries = scopeTimeSeries(rawTimeSeries, scope);
   const { tags } = reference;
-  const models = scopeByModel(reference.models, scope);
+  const models = scopeModels(reference.models, scope);
   const groups = scopeByModel(reference.groups, scope);
 
   // Normalize FB profiles to same shape as IG profiles
