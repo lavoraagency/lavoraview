@@ -16,6 +16,7 @@ export interface LinkDomain {
 export const LINK_DOMAINS: LinkDomain[] = [
   { hostname: "vibez.bio", isDefault: true },
   { hostname: "julialangpage.de" },
+  { hostname: "avawalkerpage.com" },
 ];
 
 /** Selectable domains for the editor dropdown (bare hostnames). */
