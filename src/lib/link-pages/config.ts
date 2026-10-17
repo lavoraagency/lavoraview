@@ -17,6 +17,13 @@ export const LINK_DOMAINS: LinkDomain[] = [
   { hostname: "vibez.bio", isDefault: true },
   { hostname: "julialangpage.de" },
   { hostname: "avawalkerpage.com" },
+  { hostname: "autumnrosepage.com" },
+  { hostname: "jenniferjohnsonpage.com" },
+  { hostname: "layla777.com" },
+  { hostname: "mica4u.com" },
+  { hostname: "sabinehuberpage.de" },
+  { hostname: "sarahlehmannpage.de" },
+  { hostname: "victoriahallpage.com" },
 ];
 
 /** Selectable domains for the editor dropdown (bare hostnames). */
