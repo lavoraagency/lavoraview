@@ -136,7 +136,13 @@ export async function POST(req: NextRequest) {
     };
 
     /** Closest known account name, as a hint for a human — never applied
-     * automatically. */
+     * automatically.
+     *
+     * Capped at distance 2 on purpose. At 4 it produced confident nonsense
+     * (mickelcart -> mickelveyro, mickelsworld -> mickelstock) while every
+     * genuinely useful hint sat at distance 1, and a plausible-looking wrong
+     * suggestion is worse than none: someone might just enter it. */
+    const SUGGEST_MAX_DISTANCE = 2;
     const suggest = (username: string): string | null => {
       const key = username.trim().toLowerCase();
       let best: string | null = null, bestD = Infinity;
@@ -144,7 +150,7 @@ export async function POST(req: NextRequest) {
         const d = levenshtein(key, n);
         if (d < bestD) { bestD = d; best = n; }
       }
-      return best && bestD <= 4 ? best : null;
+      return best && bestD <= SUGGEST_MAX_DISTANCE ? best : null;
     };
 
     // Several sheet columns can legitimately point at the same account on the
@@ -173,7 +179,9 @@ export async function POST(req: NextRequest) {
           link_clicks: clicks,
           new_subs: subs,
           reason: res.how === "ambiguous"
-            ? `ambiguous: ${res.candidates.map(c => `${c.kind.toUpperCase()} ${c.name}`).join(" / ")}`
+            // Distinct labels only: a name can sit on several duplicate rows,
+            // and listing "FB X / FB X" twice just looks broken.
+            ? `ambiguous: ${Array.from(new Set(res.candidates.map(c => `${c.kind.toUpperCase()} ${c.name}`))).join(" / ")}`
             : "no match",
           suggestion: res.how === "none" ? suggest(r.username) : null,
         });
