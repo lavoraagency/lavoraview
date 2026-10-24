@@ -70,13 +70,39 @@ export async function POST(req: NextRequest) {
     const supabase = createServiceClient();
 
     // Fetch all IG profiles (active only) and FB profiles in parallel
-    const [{ data: igProfiles, error: igError }, { data: fbProfiles, error: fbError }] = await Promise.all([
+    const [
+      { data: igProfiles, error: igError },
+      { data: fbProfiles, error: fbError },
+      { data: aliasRow },
+    ] = await Promise.all([
       supabase.from("profiles").select("id, instagram_username").eq("is_active", true),
       supabase.from("facebook_profiles").select("id, name, is_active"),
+      // Hand-maintained link -> account mapping for renames that follow no
+      // derivable pattern. Lives in app_settings so a new one is a single
+      // row edit, with no deploy and no schema change. Example: a VA renamed
+      // torivelle01 to torivellee01 — an inserted character, which no safe
+      // rule catches (tested: "one character inserted anywhere" collides with
+      // three real IG/FB name pairs here, e.g. lay_lapov vs laylapov).
+      supabase.from("app_settings").select("value").eq("key", "conversion_link_aliases").maybeSingle(),
     ]);
 
     if (igError) throw igError;
     if (fbError) throw fbError;
+
+    const aliasMap = new Map<string, string>();
+    try {
+      const raw: any = (aliasRow as any)?.value;
+      const obj = typeof raw === "string" ? JSON.parse(raw) : (raw || {});
+      for (const [link, account] of Object.entries(obj)) {
+        const k = String(link).trim().toLowerCase();
+        const v = String(account).trim().toLowerCase();
+        if (k && v) aliasMap.set(k, v);
+      }
+    } catch (e) {
+      // A malformed alias entry must not take the whole sync down — the
+      // records still resolve by exact match and rules.
+      console.error("[sync-conversions] conversion_link_aliases unreadable:", e);
+    }
 
     const byName = new Map<string, Target[]>();
     const add = (name: string | null, t: Target) => {
@@ -105,7 +131,7 @@ export async function POST(req: NextRequest) {
     };
 
     type Resolution =
-      | { how: "exact" | "rule"; target: Target }
+      | { how: "exact" | "alias" | "rule"; target: Target }
       | { how: "ambiguous"; candidates: Target[] }
       | { how: "none" };
 
@@ -117,6 +143,20 @@ export async function POST(req: NextRequest) {
       if (exact?.length) {
         const t = pick(exact);
         return t ? { how: "exact", target: t } : { how: "ambiguous", candidates: exact };
+      }
+
+      // A hand-entered alias outranks the heuristic rules below — it is
+      // somebody's actual knowledge, not a guess.
+      const aliased = aliasMap.get(key);
+      if (aliased) {
+        const direct = byName.get(aliased);
+        if (direct?.length) {
+          const t = pick(direct);
+          if (t) return { how: "alias", target: t };
+          return { how: "ambiguous", candidates: direct };
+        }
+        // Alias points at an account that no longer exists -> fall through,
+        // and it shows up in the report so the entry can be corrected.
       }
 
       // Exact match always wins before any rule is considered.
@@ -164,7 +204,7 @@ export async function POST(req: NextRequest) {
 
     const unresolved: { username: string; link_clicks: number; new_subs: number; reason: string; suggestion?: string | null }[] = [];
     const ruleMatches: { link: string; matched: string }[] = [];
-    let viaExact = 0;
+    let viaExact = 0, viaAlias = 0;
 
     for (const r of records) {
       if (!r.date || r.date === "Start" || r.date === "Week ⬆") continue;
@@ -189,6 +229,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (res.how === "rule") ruleMatches.push({ link: r.username, matched: res.target.name });
+      else if (res.how === "alias") viaAlias++;
       else viaExact++;
 
       if (res.target.kind === "ig") {
@@ -230,6 +271,7 @@ export async function POST(req: NextRequest) {
       ig: igRows.length,
       fb: fbRows.length,
       via_exact: viaExact,
+      via_alias: viaAlias,
       via_rule: ruleMatches.length,
       rule_matches: ruleMatches,
       unresolved,
