@@ -75,7 +75,15 @@ export async function POST(req: NextRequest) {
       { data: fbProfiles, error: fbError },
       { data: aliasRow },
     ] = await Promise.all([
-      supabase.from("profiles").select("id, instagram_username").eq("is_active", true),
+      // Inactive IG profiles are included on purpose. "Deactivate Missing
+      // Profiles" flips is_active off when an account drops out of the
+      // account sheet, but its tracking link keeps producing clicks and
+      // subs — those were being discarded (mickelcart, juliawerkgeist,
+      // victoriaafterhours, mickelsworld, laylavloglife all sat there with
+      // status "working" and is_active false). pick() below still prefers
+      // the active row when a name exists twice, so nothing moves back onto
+      // a dead duplicate.
+      supabase.from("profiles").select("id, instagram_username, is_active"),
       supabase.from("facebook_profiles").select("id, name, is_active"),
       // Hand-maintained link -> account mapping for renames that follow no
       // derivable pattern. Lives in app_settings so a new one is a single
@@ -112,7 +120,7 @@ export async function POST(req: NextRequest) {
       if (list) list.push(t); else byName.set(k, [t]);
     };
     for (const p of igProfiles || []) {
-      add(p.instagram_username, { kind: "ig", id: p.id, name: p.instagram_username, active: true });
+      add(p.instagram_username, { kind: "ig", id: p.id, name: p.instagram_username, active: !!p.is_active });
     }
     for (const p of fbProfiles || []) {
       add(p.name, { kind: "fb", id: p.id, name: p.name, active: !!p.is_active });
